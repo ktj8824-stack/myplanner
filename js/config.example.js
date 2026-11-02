@@ -8,6 +8,11 @@
      각 콘솔에서 사용처(패키지명·도메인) 제한을 꼭 걸어 두세요.
    ========================================= */
 window.APP_CONFIG = {
+  // ── 권장(출시): 키를 앱에 넣지 않고 Supabase 함수가 대신 조회 ──
+  ROUTE_PROXY_URL: '',   // 예: https://abcd1234.supabase.co/functions/v1/route
+  SUPABASE_ANON_KEY: '', // Supabase 공개 키 (Project Settings > API의 anon/publishable 키)
+
+  // ── 개발·테스트용: 위를 비우면 아래 키로 직접 호출 (APK에서 추출될 수 있음) ──
   ODSAY_API_KEY: '',   // ODsay LAB (lab.odsay.com) — 버스·지하철 경로
   TMAP_APP_KEY: '',    // SK open API (openapi.sk.com) — 자가용·택시·도보 경로, 장소 검색
   KAKAO_REST_KEY: ''   // 카카오 디벨로퍼스 REST 키 — 장소 검색 (티맵 키가 없을 때)

@@ -44,11 +44,14 @@ public final class Recheck {
     static void runNow(Context ctx, int recheckId) throws Exception {
         JSONObject plan = PlanStore.load(ctx);
         String key = plan.optString("tmapKey", "");
+        String proxyUrl = plan.optString("proxyUrl", "");
+        String proxyKey = plan.optString("proxyKey", "");
         JSONArray rechecks = plan.optJSONArray("rechecks");
         JSONObject spec = rechecks == null ? null : PlanStore.findById(rechecks, recheckId);
-        if (spec == null || key.isEmpty()) return;
+        if (spec == null || (key.isEmpty() && proxyUrl.isEmpty())) return;
 
-        int live = tmapMinutes(key, spec.optDouble("sx"), spec.optDouble("sy"), spec.optDouble("ex"), spec.optDouble("ey"));
+        double sx = spec.optDouble("sx"), sy = spec.optDouble("sy"), ex = spec.optDouble("ex"), ey = spec.optDouble("ey");
+        int live = proxyUrl.isEmpty() ? tmapMinutes(key, sx, sy, ex, ey) : proxyMinutes(proxyUrl, proxyKey, sx, sy, ex, ey);
         if (live <= 0) return;
 
         long now = System.currentTimeMillis();
@@ -134,6 +137,45 @@ public final class Recheck {
         Log.d(TAG, "재계산 " + occId + ": 실시간 " + live + "분, 변화 " + r.deltaMin + "분 (" + r.kind + ")");
     }
 
+    /** Supabase 경로 함수를 통해 티맵 실시간 소요시간(분) — 키가 앱에 없음. 실패 시 -1 */
+    static int proxyMinutes(String url, String anon, double sx, double sy, double ex, double ey) {
+        HttpURLConnection c = null;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("service", "tmap_route");
+            body.put("sx", sx); body.put("sy", sy); body.put("ex", ex); body.put("ey", ey);
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setConnectTimeout(10_000);
+            c.setReadTimeout(15_000);
+            c.setRequestProperty("Content-Type", "application/json");
+            if (!anon.isEmpty()) {
+                c.setRequestProperty("Authorization", "Bearer " + anon);
+                c.setRequestProperty("apikey", anon);
+            }
+            c.getOutputStream().write(body.toString().getBytes("UTF-8"));
+            return readMinutes(c);
+        } catch (Exception e) {
+            Log.w(TAG, "경로 서버 조회 실패", e);
+            return -1;
+        } finally {
+            if (c != null) c.disconnect();
+        }
+    }
+
+    private static int readMinutes(HttpURLConnection c) throws Exception {
+        if (c.getResponseCode() != 200) return -1;
+        InputStream in = c.getInputStream();
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int n;
+        while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+        JSONObject res = new JSONObject(out.toString("UTF-8"));
+        JSONObject props = res.getJSONArray("features").getJSONObject(0).getJSONObject("properties");
+        return (int) Math.ceil(props.getDouble("totalTime") / 60.0);
+    }
+
     /** 티맵 자동차 경로 실시간 소요시간(분). 실패 시 -1 */
     static int tmapMinutes(String key, double sx, double sy, double ex, double ey) {
         HttpURLConnection c = null;
@@ -144,15 +186,7 @@ public final class Recheck {
             c.setConnectTimeout(10_000);
             c.setReadTimeout(15_000);
             c.setRequestProperty("Accept", "application/json");
-            if (c.getResponseCode() != 200) return -1;
-            InputStream in = c.getInputStream();
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            byte[] buf = new byte[8192];
-            int n;
-            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            JSONObject res = new JSONObject(out.toString("UTF-8"));
-            JSONObject props = res.getJSONArray("features").getJSONObject(0).getJSONObject("properties");
-            return (int) Math.ceil(props.getDouble("totalTime") / 60.0);
+            return readMinutes(c);
         } catch (Exception e) {
             Log.w(TAG, "티맵 조회 실패", e);
             return -1;

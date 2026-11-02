@@ -41,7 +41,7 @@ const Live = {
 
   /** 출발이 가까운 일정을 티맵 실시간으로 다시 계산. 바뀐 내용 목록을 돌려줌 */
   async autoCheck() {
-    if (this.checking || !Routes.key('TMAP_APP_KEY')) return [];
+    if (this.checking || !Routes.can('tmap')) return [];
     this.checking = true;
     const changes = [];
     try {

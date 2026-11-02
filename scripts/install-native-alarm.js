@@ -59,7 +59,10 @@ public class MainActivity extends BridgeActivity {
 // 4) AndroidManifest 권한·구성요소
 const manPath = path.join(android, 'AndroidManifest.xml');
 let man = fs.readFileSync(manPath, 'utf8');
+// USE_EXACT_ALARM: 알람시계·캘린더 앱은 설치 즉시 정확한 알람 허용 (구글 플레이 '정확한 알람' 정책 대상)
+//   심사에서 거절되면 이 줄을 지우세요 → SCHEDULE_EXACT_ALARM(사용자가 직접 허용)만으로 동작합니다.
 const perms = [
+  'android.permission.USE_EXACT_ALARM',
   'android.permission.SCHEDULE_EXACT_ALARM',
   'android.permission.USE_FULL_SCREEN_INTENT',
   'android.permission.POST_NOTIFICATIONS',

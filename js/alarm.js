@@ -138,7 +138,10 @@ const Alarm = {
           alarms: list.map(a => ({ id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body,
             scheduleId: a.sid, kind: a.alarm ? 'full' : 'note' })),
           rechecks: this.rechecks(list),
-          tmapKey: Routes.key('TMAP_APP_KEY')
+          // 폰이 백그라운드에서 티맵을 부를 방법: 서버 함수(권장) 또는 키
+          tmapKey: Routes.proxy() ? '' : Routes.key('TMAP_APP_KEY'),
+          proxyUrl: Routes.proxy() ? Routes.proxy().url : '',
+          proxyKey: Routes.proxy() ? Routes.proxy().anon : ''
         });
         await this.clearLocal(); // 예전 버전이 로컬 알림으로 예약한 것 정리
         return list.filter(a => a.at.getTime() < Date.now() + this.HORIZON_DAYS * 86400000);

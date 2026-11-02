@@ -1,0 +1,16 @@
+/* 개인정보처리방침 · 이용약관 */
+:root { --text: #0f172a; --muted: #64748b; --line: #e5e9f0; --accent: #2563eb; --bg: #f5f7fb; }
+@media (prefers-color-scheme: dark) { :root { --text: #e5e7eb; --muted: #94a3b8; --line: #334155; --accent: #93c5fd; --bg: #0f172a; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; line-height: 1.7; }
+.legal { max-width: 720px; margin: 0 auto; padding: 28px 16px 60px; }
+h1 { font-size: 24px; margin: 0 0 4px; }
+h2 { font-size: 17px; margin: 28px 0 8px; }
+.meta { color: var(--muted); font-size: 14px; margin: 0 0 18px; }
+p, li { font-size: 15px; }
+ul { padding-left: 20px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0; }
+th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+th { background: rgba(37, 99, 235, .08); }
+a { color: var(--accent); }
+.links { margin-top: 36px; color: var(--muted); }

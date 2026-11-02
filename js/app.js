@@ -90,7 +90,7 @@ const PlacePicker = {
     box.innerHTML = '<div class="muted pad">검색 중…</div>';
     this.results = await Routes.searchPlace(q);
     if (!this.results.length) {
-      box.innerHTML = `<div class="muted pad">검색 결과가 없어요.${Routes.key('TMAP_APP_KEY') || Routes.key('KAKAO_REST_KEY') ? '' : '<br><small>장소 검색 키가 없어 예시 장소(주요 역·공항)만 검색돼요.</small>'}</div>`;
+      box.innerHTML = `<div class="muted pad">검색 결과가 없어요.${Routes.can('tmap') || Routes.key('KAKAO_REST_KEY') ? '' : '<br><small>장소 검색 키가 없어 예시 장소(주요 역·공항)만 검색돼요.</small>'}</div>`;
       return;
     }
     box.innerHTML = this.results.map((p, i) => `

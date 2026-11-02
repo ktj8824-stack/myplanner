@@ -42,7 +42,7 @@ const Timeline = {
           <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
         </div>
         <div class="result-meta">${m.emoji} ${m.label} · 준비 ${s.prepMin}분 · 여유 ${s.bufferMin}분</div>
-        ${plan.live ? `<div class="live-line">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.key('TMAP_APP_KEY') && !s.alarmOff ? `<div class="live-line dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
+        ${plan.live ? `<div class="live-line">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="live-line dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
         ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
       </div>
 
@@ -218,7 +218,7 @@ const Timeline = {
       const after = Planner.compute(this.cur()).departAt;
       const diff = Math.round((before - after) / 60000);
       U.toast(diff > 0 ? `${diff}분 일찍 출발해야 해요. 알람을 당겼어요.` : diff < 0 ? `${-diff}분 늦게 출발해도 돼요.` : '변동 없어요.');
-    } catch (e) { U.toast(Routes.key('TMAP_APP_KEY') ? '경로를 확인하지 못했어요.' : '티맵 키가 있어야 실시간 교통을 확인할 수 있어요.'); }
+    } catch (e) { U.toast(Routes.can('tmap') ? '경로를 확인하지 못했어요.' : '티맵 키가 있어야 실시간 교통을 확인할 수 있어요.'); }
     this.render();
   },
 
@@ -266,7 +266,7 @@ const Timeline = {
 const Settings = {
   render() {
     const st = State.settings;
-    const keys = [['ODSAY_API_KEY', 'ODsay 키 (버스·지하철)'], ['TMAP_APP_KEY', '티맵 앱키 (자가용·도보·장소)'], ['KAKAO_REST_KEY', '카카오 REST 키 (장소 검색)']];
+    const keys = [['ROUTE_PROXY_URL', '경로 서버 주소 (Supabase 함수 URL)'], ['SUPABASE_ANON_KEY', 'Supabase 공개 키 (anon)'], ['ODSAY_API_KEY', 'ODsay 키 (버스·지하철)'], ['TMAP_APP_KEY', '티맵 앱키 (자가용·도보·장소)'], ['KAKAO_REST_KEY', '카카오 REST 키 (장소 검색)']];
     const reps = State.repeating();
     App.setMain(`
       <header class="top"><h1>설정</h1></header>
@@ -310,7 +310,7 @@ const Settings = {
 
       <details class="card">
         <summary class="lbl">개발자 설정 (API 키 테스트)</summary>
-        <p class="muted small">출시 버전은 js/config.js의 키를 써요. 여기 넣은 값은 이 기기에서만 우선 적용돼요.</p>
+        <p class="muted small">경로 서버 주소를 넣으면 키 없이 서버가 대신 조회해요(권장). 출시 버전은 js/config.js 값을 써요. 여기 넣은 값은 이 기기에서만 우선 적용돼요.</p>
         ${keys.map(([k, l]) => `<label class="lbl">${l}</label>
           <input class="input mono" value="${U.esc(localStorage.getItem('mp_key_' + k) || '')}" placeholder="${Routes.key(k) ? 'config.js 키 사용 중' : '비어 있음 → 추정치 사용'}"
             onchange="Settings.setKey('${k}',this.value)">`).join('')}
@@ -318,7 +318,7 @@ const Settings = {
 
       <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
-        <p class="muted small center">마이플래너 v0.3</p>
+        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v0.4</p>
       </div>
     `);
     this.alarmCheck();

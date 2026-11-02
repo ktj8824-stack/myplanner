@@ -2,13 +2,99 @@
    MyPlanner — 장소 검색 · 경로 시간 조회
    - 버스·지하철: ODsay 대중교통 API
    - 자가용·택시·도보: 티맵(SK open API)
-   - 키가 없거나 실패하면 거리 기반 추정치로 대체
+   - 출시 버전: 키를 앱에 넣지 않고 Supabase 함수(supabase/functions/route)가 대신 호출
+     (config.js의 ROUTE_PROXY_URL + SUPABASE_ANON_KEY)
+   - 키·서버가 없거나 실패하면 거리 기반 추정치로 대체
    ========================================= */
 
 const Routes = {
   key(name) {
     // 설정 > 개발자 설정에서 넣은 값이 우선 (테스트용), 없으면 config.js
     return (localStorage.getItem('mp_key_' + name) || (window.APP_CONFIG && window.APP_CONFIG[name]) || '').trim();
+  },
+
+  /** Supabase 경로 함수 { url, anon } — 설정돼 있으면 모든 티맵·ODsay 호출을 이쪽으로 */
+  proxy() {
+    const url = this.key('ROUTE_PROXY_URL');
+    return url ? { url, anon: this.key('SUPABASE_ANON_KEY') } : null;
+  },
+
+  /** 해당 서비스를 실제로 부를 수 있는지 (서버 함수 또는 키) */
+  can(service) {
+    if (this.proxy()) return true;
+    return service === 'odsay' ? !!this.key('ODSAY_API_KEY') : !!this.key('TMAP_APP_KEY');
+  },
+
+  /**
+   * 외부 API 호출 한 곳으로 모음. 서버 함수가 있으면 거기로, 없으면 키로 직접.
+   * service: tmap_pois | tmap_route | tmap_predict | tmap_walk | odsay_transit
+   * 반환: 원래 API의 JSON (서버 함수도 그대로 전달하므로 해석 코드는 같음). 실패 시 null
+   */
+  async api(service, p) {
+    const px = this.proxy();
+    try {
+      if (px) {
+        const res = await fetch(px.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(px.anon ? { Authorization: 'Bearer ' + px.anon, apikey: px.anon } : {}) },
+          body: JSON.stringify({ service, ...p })
+        });
+        if (res.status === 204) return {};
+        return res.ok ? await res.json() : null;
+      }
+      const tmap = this.key('TMAP_APP_KEY');
+      const geo = 'reqCoordType=WGS84GEO&resCoordType=WGS84GEO';
+      let res;
+      switch (service) {
+        case 'tmap_pois':
+          if (!tmap) return null;
+          res = await fetch(`https://apis.openapi.sk.com/tmap/pois?version=1&count=15&${geo}&searchKeyword=${encodeURIComponent(p.keyword)}&appKey=${tmap}`);
+          break;
+        case 'tmap_route':
+          if (!tmap) return null;
+          res = await fetch(`https://apis.openapi.sk.com/tmap/routes?version=1&startX=${p.sx}&startY=${p.sy}&endX=${p.ex}&endY=${p.ey}&${geo}&searchOption=0&trafficInfo=Y&appKey=${tmap}`);
+          break;
+        case 'tmap_predict':
+          if (!tmap) return null;
+          res = await fetch(`https://apis.openapi.sk.com/tmap/routes/prediction?version=1&${geo}&sort=index`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json', appKey: tmap }, body: JSON.stringify(this.predictBody(p))
+          });
+          break;
+        case 'tmap_walk':
+          if (!tmap) return null;
+          res = await fetch('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', appKey: tmap },
+            body: JSON.stringify({ startX: p.sx, startY: p.sy, endX: p.ex, endY: p.ey, startName: p.sname || '출발', endName: p.ename || '도착', reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO' })
+          });
+          break;
+        case 'odsay_transit': {
+          const k = this.key('ODSAY_API_KEY');
+          if (!k) return null;
+          res = await fetch(`https://api.odsay.com/v1/api/searchPubTransPathT?lang=0&SX=${p.sx}&SY=${p.sy}&EX=${p.ex}&EY=${p.ey}&apiKey=${encodeURIComponent(k)}`);
+          break;
+        }
+        default: return null;
+      }
+      if (res.status === 204) return {};
+      return res.ok ? await res.json() : null;
+    } catch (e) {
+      console.warn('경로 API 호출 실패', service, e);
+      return null;
+    }
+  },
+
+  predictBody(p) {
+    return {
+      routesInfo: {
+        departure: { name: p.sname || '출발', lon: String(p.sx), lat: String(p.sy) },
+        destination: { name: p.ename || '도착', lon: String(p.ex), lat: String(p.ey) },
+        predictionType: 'arrival', predictionTime: p.predictionTime
+      }
+    };
+  },
+
+  coords(origin, dest) {
+    return { sx: origin.lng, sy: origin.lat, ex: dest.lng, ey: dest.lat, sname: origin.name, ename: dest.name };
   },
 
   // 키 없이도 화면을 확인할 수 있는 예시 장소
@@ -25,23 +111,16 @@ const Routes = {
   async searchPlace(keyword) {
     keyword = (keyword || '').trim();
     if (!keyword) return [];
-    const tmap = this.key('TMAP_APP_KEY');
-    if (tmap) {
-      try {
-        const url = 'https://apis.openapi.sk.com/tmap/pois?version=1&count=15&resCoordType=WGS84GEO&reqCoordType=WGS84GEO'
-          + '&searchKeyword=' + encodeURIComponent(keyword) + '&appKey=' + tmap;
-        const res = await fetch(url);
-        if (res.ok && res.status !== 204) {
-          const data = await res.json();
-          const pois = data?.searchPoiInfo?.pois?.poi || [];
-          return pois.map(p => ({
-            name: p.name,
-            address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' '),
-            lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon)
-          }));
-        }
-        if (res.status === 204) return [];
-      } catch (e) { console.warn('티맵 장소 검색 실패', e); }
+    if (this.can('tmap')) {
+      const data = await this.api('tmap_pois', { keyword });
+      if (data) {
+        const pois = data?.searchPoiInfo?.pois?.poi || [];
+        return pois.map(p => ({
+          name: p.name,
+          address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' '),
+          lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon)
+        }));
+      }
     }
     const kakao = this.key('KAKAO_REST_KEY');
     if (kakao) {
@@ -88,20 +167,16 @@ const Routes = {
 
   /* ---------- 버스·지하철 (ODsay) — 여러 경로 후보를 돌려줌 ---------- */
   async transitOptions(origin, dest) {
-    const key = this.key('ODSAY_API_KEY');
-    if (key) {
-      try {
-        const url = `https://api.odsay.com/v1/api/searchPubTransPathT?lang=0&SX=${origin.lng}&SY=${origin.lat}&EX=${dest.lng}&EY=${dest.lat}&apiKey=${encodeURIComponent(key)}`;
-        const res = await fetch(url);
-        const data = await res.json();
-        if (data.error) {
-          const msg = Array.isArray(data.error) ? data.error[0]?.message : data.error.msg || data.error.message;
-          // 700m 이내는 ODsay가 경로를 주지 않음 → 도보로 안내
-          if (String(data.error.code || data.error[0]?.code) === '-98') return [{ ...await this.walk(origin, dest), summary: '가까운 거리 — 도보 추천' }];
-          throw new Error(msg || 'ODsay 오류');
-        }
-        return (data.result?.path || []).slice(0, 5).map(p => this.parseOdsayPath(p, dest));
-      } catch (e) { console.warn('ODsay 조회 실패, 추정치 사용', e); }
+    if (this.can('odsay')) {
+      const data = await this.api('odsay_transit', this.coords(origin, dest));
+      if (data && data.error) {
+        const code = String(data.error.code || (Array.isArray(data.error) && data.error[0]?.code) || '');
+        // 700m 이내는 ODsay가 경로를 주지 않음 → 도보로 안내
+        if (code === '-98') return [{ ...await this.walk(origin, dest), summary: '가까운 거리 — 도보 추천' }];
+        console.warn('ODsay 오류, 추정치 사용', data.error);
+      } else if (data && data.result && data.result.path) {
+        return data.result.path.slice(0, 5).map(p => this.parseOdsayPath(p, dest));
+      }
     }
     return [this.estimate(origin, dest, 'transit')];
   },
@@ -135,72 +210,42 @@ const Routes = {
     };
   },
 
-  /* ---------- 자가용·택시 (티맵, 도착 시각 기준 예측) ---------- */
+  /* ---------- 자가용·택시 (티맵, 도착 시각 기준 예측 / 없으면 실시간) ---------- */
   async drive(origin, dest, mode, arriveAt) {
-    const key = this.key('TMAP_APP_KEY');
     const label = mode === 'taxi' ? '택시' : '자가용';
-    if (key) {
-      try {
-        let min = null;
-        if (arriveAt && arriveAt.getTime() > Date.now()) min = await this.tmapPredict(origin, dest, arriveAt, key);
-        if (min == null) {
-          const qs = `version=1&startX=${origin.lng}&startY=${origin.lat}&endX=${dest.lng}&endY=${dest.lat}&reqCoordType=WGS84GEO&resCoordType=WGS84GEO&searchOption=0&trafficInfo=Y&appKey=${key}`;
-          const res = await fetch('https://apis.openapi.sk.com/tmap/routes?' + qs);
-          if (res.ok) {
-            const d = await res.json();
-            const p = d?.features?.[0]?.properties;
-            if (p) min = Math.ceil(p.totalTime / 60);
-          }
-        }
-        if (min != null) {
-          return { travelMin: min, source: 'tmap', summary: `티맵 ${min}분`,
-            steps: [{ type: mode === 'taxi' ? 'taxi' : 'car', label, from: origin.name, to: dest.name, min }] };
-        }
-      } catch (e) { console.warn('티맵 경로 실패, 추정치 사용', e); }
+    if (this.can('tmap')) {
+      const c = this.coords(origin, dest);
+      let min = null;
+      if (arriveAt && arriveAt.getTime() > Date.now()) {
+        const d = arriveAt, pad = n => String(n).padStart(2, '0');
+        const predictionTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00+0900`;
+        const data = await this.api('tmap_predict', { ...c, predictionTime });
+        const pr = data?.features?.[0]?.properties;
+        if (pr && pr.totalTime) min = Math.ceil(pr.totalTime / 60);
+      }
+      if (min == null) {
+        const data = await this.api('tmap_route', c);
+        const pr = data?.features?.[0]?.properties;
+        if (pr && pr.totalTime) min = Math.ceil(pr.totalTime / 60);
+      }
+      if (min != null) {
+        return { travelMin: min, source: 'tmap', summary: `티맵 ${min}분`,
+          steps: [{ type: mode === 'taxi' ? 'taxi' : 'car', label, from: origin.name, to: dest.name, min }] };
+      }
     }
     return this.estimate(origin, dest, mode);
   },
 
-  async tmapPredict(origin, dest, arriveAt, key) {
-    const pad = n => String(n).padStart(2, '0');
-    const d = arriveAt;
-    const predictionTime = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00+0900`;
-    const body = {
-      routesInfo: {
-        departure: { name: origin.name || '출발', lon: String(origin.lng), lat: String(origin.lat) },
-        destination: { name: dest.name || '도착', lon: String(dest.lng), lat: String(dest.lat) },
-        predictionType: 'arrival', predictionTime
-      }
-    };
-    const res = await fetch('https://apis.openapi.sk.com/tmap/routes/prediction?version=1&resCoordType=WGS84GEO&reqCoordType=WGS84GEO&sort=index', {
-      method: 'POST', headers: { 'Content-Type': 'application/json', appKey: key }, body: JSON.stringify(body)
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const p = data?.features?.[0]?.properties;
-    return p && p.totalTime ? Math.ceil(p.totalTime / 60) : null;
-  },
-
   /* ---------- 도보 (티맵 보행자 경로) ---------- */
   async walk(origin, dest) {
-    const key = this.key('TMAP_APP_KEY');
-    if (key) {
-      try {
-        const res = await fetch('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', appKey: key },
-          body: JSON.stringify({ startX: origin.lng, startY: origin.lat, endX: dest.lng, endY: dest.lat,
-            startName: origin.name || '출발', endName: dest.name || '도착', reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO' })
-        });
-        if (res.ok) {
-          const d = await res.json();
-          const p = d?.features?.[0]?.properties;
-          if (p) {
-            const min = Math.ceil(p.totalTime / 60);
-            return { travelMin: min, source: 'tmap', summary: `도보 ${min}분 · ${(p.totalDistance / 1000).toFixed(1)}km`,
-              steps: [{ type: 'walk', label: '도보', to: dest.name, min }] };
-          }
-        }
-      } catch (e) { console.warn('티맵 도보 실패, 추정치 사용', e); }
+    if (this.can('tmap')) {
+      const data = await this.api('tmap_walk', this.coords(origin, dest));
+      const p = data?.features?.[0]?.properties;
+      if (p && p.totalTime) {
+        const min = Math.ceil(p.totalTime / 60);
+        return { travelMin: min, source: 'tmap', summary: `도보 ${min}분 · ${(p.totalDistance / 1000).toFixed(1)}km`,
+          steps: [{ type: 'walk', label: '도보', to: dest.name, min }] };
+      }
     }
     return this.estimate(origin, dest, 'walk');
   },
@@ -215,7 +260,7 @@ const Routes = {
 
   /* ---------- 카카오맵·티맵 길안내 열기 ---------- */
   openNav(app, mode, origin, dest) {
-    if (!dest) return;
+    if (!dest && app !== 'kakaot') return;
     const by = { transit: 'PUBLICTRANS', walk: 'FOOT' }[mode] || 'CAR';
     let url;
     if (app === 'tmap') {
@@ -226,12 +271,13 @@ const Routes = {
     } else if (app === 'kakaot') {
       url = 'kakaot://taxi';
     }
-    const fallback = `https://map.kakao.com/link/to/${encodeURIComponent(dest.name)},${dest.lat},${dest.lng}`;
     const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
     if (isNative) {
       window.location.href = url;
+    } else if (app === 'kakaot') {
+      window.open('https://www.kakaomobility.com/service-ride', '_blank');
     } else {
-      window.open(app === 'kakaot' ? 'https://www.kakaomobility.com/service-ride' : fallback, '_blank');
+      window.open(`https://map.kakao.com/link/to/${encodeURIComponent(dest.name)},${dest.lat},${dest.lng}`, '_blank');
     }
   }
 };

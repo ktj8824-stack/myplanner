@@ -20,7 +20,7 @@ import org.json.JSONObject;
 
 /**
  * JS의 window.Capacitor.Plugins.MyAlarm
- *  - setPlan({ alarms, rechecks, tmapKey })  최대 45일치 계획 전달 → 앞으로 3일치 예약, 이후 자동 보충
+ *  - setPlan({ alarms, rechecks, tmapKey | proxyUrl+proxyKey })  최대 45일치 계획 전달 → 앞으로 3일치 예약, 이후 자동 보충
  *  - getLive() → { live: { occId: { travelMin, checkedAt, prevMin } } }  백그라운드 실시간 값 (가져가면 비움)
  *  - snooze({ id, at, title, body, scheduleId })
  *  - status() → { exact, fullScreen, notifications, battery, scheduled, planned }
@@ -63,6 +63,8 @@ public class MyAlarmPlugin extends Plugin {
             plan.put("alarms", alarms == null ? new JSONArray() : alarms);
             plan.put("rechecks", rechecks == null ? new JSONArray() : rechecks);
             plan.put("tmapKey", call.getString("tmapKey", ""));
+            plan.put("proxyUrl", call.getString("proxyUrl", ""));
+            plan.put("proxyKey", call.getString("proxyKey", ""));
             // 앱이 아직 가져가지 않은 실시간 값은 유지
             JSONObject live = old.optJSONObject("live");
             plan.put("live", live == null ? new JSONObject() : live);
