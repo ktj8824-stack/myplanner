@@ -14,6 +14,7 @@ const Register = {
   render(params = {}) {
     if (params.id && State.get(params.id)) {
       this.d = JSON.parse(JSON.stringify(State.get(params.id)));
+      this.d.repeat = this.d.repeat || { type: 'none', days: [], until: '', skipHolidays: true };
       this.editing = true;
     } else if (!params.keep) {
       const st = State.settings;
@@ -23,7 +24,8 @@ const Register = {
         origin: st.home ? { ...st.home } : null, dest: null,
         mode: st.defaultMode || 'transit', prepMin: st.prepMin, bufferMin: st.bufferMin,
         route: null, trip: { accessMode: 'transit', egressMode: 'transit', departTime: '08:00', arriveTime: '10:30', international: false },
-        accessRoute: null, egressRoute: null, alarm: { ...st.alarm }, memo: ''
+        accessRoute: null, egressRoute: null, alarm: { ...st.alarm }, memo: '',
+        repeat: { type: 'none', days: [], until: '', skipHolidays: true }, skips: [], overrides: {}
       };
       this.editing = false;
       this.opts = []; this.accessOpts = [];
@@ -45,10 +47,11 @@ const Register = {
 
       <div class="card">
         <div class="grid2">
-          <div><label class="lbl">날짜</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
+          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
           <div><label class="lbl">${isTrip ? '목적지 도착 희망' : '몇 시까지 도착?'}</label>
             <input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
         </div>
+        ${this.repeatForm()}
         <label class="lbl">출발지</label>
         <button class="input place-btn" onclick="Register.pick('origin','출발지')">${d.origin ? '📍 ' + U.esc(d.origin.name) : '출발지 선택'}</button>
         <label class="lbl">목적지${isTrip ? ' (선택 · 내린 뒤 갈 곳)' : ''}</label>
@@ -85,6 +88,32 @@ const Register = {
         <button class="btn primary big" onclick="Register.save()">저장하고 알람 켜기</button>
       </div>
     `);
+  },
+
+  repeatForm() {
+    const r = this.d.repeat;
+    return `
+      <label class="lbl">반복</label>
+      <div class="seg wrap">${Object.entries(Recur.TYPES).map(([k, l]) => `<button class="${r.type === k ? 'on' : ''}" onclick="Register.setRepeat('type','${k}')">${l}</button>`).join('')}</div>
+      ${r.type === 'weekly' ? `<div class="dow-pick">${U.DOW.map((n, i) => `<button class="${(r.days || []).includes(i) ? 'on' : ''} ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}" onclick="Register.toggleDay(${i})">${n}</button>`).join('')}</div>` : ''}
+      ${r.type !== 'none' ? `
+        <label class="toggle-row"><span>공휴일에는 쉬기</span><input type="checkbox" ${r.skipHolidays ? 'checked' : ''} onchange="Register.d.repeat.skipHolidays=this.checked;Register.refreshParts()"></label>
+        <label class="lbl">반복 종료 <small class="muted">비우면 계속</small></label>
+        <input type="date" class="input" value="${r.until || ''}" onchange="Register.d.repeat.until=this.value">
+        <p class="muted small">반복 일정은 앞으로 2주치 알람을 자동으로 맞추고, 앱을 열 때마다 다음 회차를 이어서 예약해요.</p>` : ''}`;
+  },
+
+  setRepeat(k, v) {
+    const r = this.d.repeat;
+    r[k] = v;
+    if (k === 'type' && v === 'weekly' && !(r.days || []).length) r.days = [Planner.at(this.d.date, '12:00').getDay()];
+    this.draw();
+  },
+
+  toggleDay(i) {
+    const r = this.d.repeat;
+    r.days = (r.days || []).includes(i) ? r.days.filter(x => x !== i) : [...(r.days || []), i];
+    this.draw();
   },
 
   tripForm() {
@@ -160,7 +189,10 @@ const Register = {
     const el = document.getElementById('rTitle');
     this.d.title = this.d.title ? this.d.title : q;
     if (el) el.value = this.d.title;
-    if (q === '출근' || q === '등교') this.set('arriveBy', '09:00');
+    if (q === '출근' || q === '등교') {
+      if (this.d.repeat.type === 'none') this.d.repeat = { type: 'weekdays', days: [], until: '', skipHolidays: true };
+      this.set('arriveBy', '09:00');
+    }
   },
 
   set(k, v) {
@@ -241,13 +273,19 @@ const Register = {
       if (!d.dest) return U.toast('목적지를 골라 주세요.');
       if (!d.arriveBy) return U.toast('도착 시간을 넣어 주세요.');
     }
+    if (d.repeat.type === 'weekly' && !(d.repeat.days || []).length) return U.toast('반복할 요일을 골라 주세요.');
+    if (d.repeat.until && d.repeat.until < d.date) return U.toast('반복 종료일이 시작일보다 빨라요.');
     if (!this.ready()) await this.fetchRoutes();
     if (!this.ready()) return U.toast('경로를 먼저 찾아 주세요.');
     d.updatedAt = Date.now();
     State.upsert(d);
     const list = await Alarm.rescheduleAll();
-    const mine = list.filter(a => a.s.id === d.id);
-    U.toast(mine.length ? `알람 ${mine.length}개를 맞췄어요.` : '저장했어요.');
-    App.navigate('timeline', { id: d.id });
+    const mine = list.filter(a => (a.s.baseId || a.s.id) === d.id);
+    const firstWake = mine.find(a => a.key === 'wake');
+    U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
+      : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
+    // 반복 일정이면 가장 가까운 회차로 이동
+    const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;
+    App.navigate('timeline', { id: next ? next.s.occId : d.id });
   }
 };

@@ -220,3 +220,25 @@ textarea.input { resize: vertical; }
 
 #toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translateX(-50%) translateY(20px); background: rgba(15, 23, 42, .92); color: #fff; padding: 11px 18px; border-radius: 999px; font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none; transition: .25s; z-index: 60; max-width: 90vw; text-align: center; }
 #toast.show { opacity: 1; transform: translateX(-50%); }
+
+/* ── v0.2: 반복 일정 · 알람 점검 ── */
+.tag { display: inline-block; padding: 1px 7px; border-radius: 6px; background: var(--warn-soft); color: var(--warn); font-size: 11px; font-weight: 700; vertical-align: 2px; }
+.holiday { color: #e11d48; font-weight: 700; font-size: .85em; }
+.repeat-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; margin-bottom: 12px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-dark); font-size: 14px; font-weight: 600; }
+.rep-nav { display: flex; gap: 6px; flex: none; }
+.rep-nav button { width: 36px; height: 36px; border-radius: 10px; background: #fff; font-size: 20px; color: var(--accent-dark); }
+.dow-pick { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; }
+.dow-pick button { aspect-ratio: 1; border-radius: 50%; background: var(--input); font-weight: 700; }
+.dow-pick button.sun { color: #e11d48; }
+.dow-pick button.sat { color: #2563eb; }
+.dow-pick button.on { background: var(--accent); color: #fff; }
+.grid2.gap { gap: 10px; }
+.grid2.gap .btn.ghost { margin-top: 0; }
+.skip-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.row.flat { box-shadow: none; padding: 10px 0; border-radius: 0; border-bottom: 1px solid var(--line); margin: 0; }
+.row.flat:last-child { border-bottom: 0; }
+.check-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.check-row:last-of-type { border-bottom: 0; }
+.check-row b, .check-row small { display: block; }
+.check-row small { color: var(--muted); font-size: 13px; }
+.check-ic { font-size: 20px; }

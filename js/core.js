@@ -68,12 +68,21 @@ const State = {
     this.save();
   },
   remove(id) { this.schedules = this.schedules.filter(s => s.id !== id); this.save(); },
-  byDate(ymd) { return this.schedules.filter(s => s.date === ymd); },
-  upcoming() {
+  /** 그 날짜의 일정 (반복 일정은 그날 회차로 펼침) */
+  byDate(ymd) {
+    return Recur.between(this.schedules, ymd, ymd)
+      .sort((a, b) => Planner.compute(a).wakeAt - Planner.compute(b).wakeAt);
+  },
+  /** 앞으로 days일 동안의 일정 회차 + 계산 결과 (지난 일정 제외) */
+  upcoming(days = 14) {
     const now = Date.now();
-    return this.schedules
+    const from = U.ymd(new Date(now - 86400000));
+    const to = Recur.shift(U.today(), days);
+    return Recur.between(this.schedules, from, to)
       .map(s => ({ s, plan: Planner.compute(s) }))
       .filter(x => x.plan.arriveAt.getTime() > now - 30 * 60000)
       .sort((a, b) => a.plan.wakeAt - b.plan.wakeAt);
-  }
+  },
+  /** 반복 일정 중 '단발 일정이 아닌' 원본 목록 */
+  repeating() { return this.schedules.filter(s => Recur.isRepeating(s)); }
 };

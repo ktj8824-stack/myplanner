@@ -11,7 +11,10 @@
   - 도보 → 티맵 보행자 경로
   - 기차·비행기 → 예매한 열차/항공편 시각 입력 + 역·공항까지 가는 경로 자동 조회 (승강장 15분, 국내선 40분, 국제선 150분 전 도착)
 - **역산 계산**: 약속 시간 − 여유 − 이동(+대기/주차) − 준비 = 기상 시간
-- **알림 4종**: 전날 밤 9시 미리 안내 · 기상 알람 · 출발 10분 전 · 출발 알람 (안드로이드 로컬 알림, 앱이 꺼져 있어도 울림)
+- **알림 4종**: 전날 밤 9시 미리 안내 · 기상 알람 · 출발 10분 전 · 출발 알람
+- **전체 화면 기상 알람** (안드로이드): 기상·출발 알람은 잠금 화면 위로 알람 화면이 뜨고, 끌 때까지 소리 반복(최대 3분).
+  [알람 끄기] [5분 뒤 다시] [일정 보기] 버튼, 휴대폰 사용 중엔 상단 알림에서 바로 끄기/5분 뒤. 재부팅해도 알람 유지.
+- **반복 일정**: 매일 · 평일 · 요일 선택, 공휴일 쉬기(대체공휴일 포함), 종료일. 회차별로 '이 날만 시간 바꾸기 / 건너뛰기', '이 날부터 반복 끝내기'
 - **실시간 재계산**: 출발 전 "실시간 경로로 다시 계산"을 누르면 교통 변화를 반영해 알람을 당기거나 미룸
 - 카카오맵·티맵·카카오T 바로 열기, 월간 캘린더, 키 없이도 동작하는 추정 모드
 
@@ -20,6 +23,7 @@
 index.html          화면 틀
 css/app.css         스타일
 js/planner.js       ★ 역산 엔진 (화면과 무관한 순수 계산)
+js/recur.js         반복 일정 · 공휴일 목록 (매년 다음 해 공휴일 추가)
 js/routes.js        장소 검색 · ODsay · 티맵 · 길안내 링크
 js/alarm.js         기상·출발 알람 (Capacitor 로컬 알림 / 웹 알림)
 js/core.js          공통 도구(U) · 저장소(State)
@@ -28,7 +32,9 @@ js/register.js      일정 등록·수정
 js/timeline.js      타임라인 · 설정
 js/app.js           라우터 · 장소 검색 시트 · 첫 화면
 js/config.example.js  API 키 예시 → config.js로 복사
-test/planner.test.js  역산 계산 확인 (node test/planner.test.js)
+native/android/     전체 화면 알람 자바 코드 (버디플래너 알람 기반)
+scripts/install-native-alarm.js  위 코드를 android 프로젝트에 설치 (cap-sync 때 자동 실행)
+test/               역산·반복 계산 확인 (npm test)
 ```
 
 ## API 키
@@ -53,15 +59,19 @@ npm install
 npx cap add android    # 처음 한 번
 npm run android        # www 빌드 → 동기화 → 안드로이드 스튜디오 열기
 ```
-안드로이드 12 이상에서 정확한 시각에 알람이 울리려면 `android/app/src/main/AndroidManifest.xml`에 다음 권한을 추가하세요.
-```xml
-<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-```
+`npm run cap-sync`가 끝나면 `scripts/install-native-alarm.js`가 자동으로 실행되어
+전체 화면 알람 자바 파일 복사, MainActivity 플러그인 등록, AndroidManifest 권한(정확한 알람·전체 화면·부팅 후 복구) 추가까지 해 줍니다. 여러 번 실행해도 안전합니다.
+
+처음 설치 후 앱의 **설정 > 알람 점검**에서 ⚠️ 항목의 [설정] 버튼으로 권한을 켜 주세요.
+- 알람 및 리마인더 (안드로이드 12+): 정확한 시각에 울림
+- 전체 화면 알람 (안드로이드 14+): 잠금 화면 위 알람 화면
+- 삼성 휴대폰: 배터리 > 백그라운드 사용 제한에서 마이플래너 제외 권장
+
+반복 일정은 앞으로 2주치 알람을 미리 예약하고, 앱을 열 때마다 다음 회차를 이어서 예약합니다.
 
 ## 다음 단계 (예정)
-- 화면을 덮는 전체 화면 기상 알람 (버디플래너의 NativeApp 알람 코드 이식)
 - 아침 기상 직후 자동 실시간 재계산 → 늦어지면 바로 알림
-- 반복 일정 (매일 출근 등), 카카오/구글 로그인 + Supabase 동기화, PRO 구독
+- 2주 넘게 앱을 열지 않아도 반복 알람이 이어지도록 백그라운드 자동 예약 (WorkManager)
+- 카카오/구글 로그인 + Supabase 동기화, PRO 구독
 - 코레일·SRT·항공 시간표 공공데이터 연동
 - CEO 플래너 (같은 엔진에 비서 공유·다중 일정 동선 추가)

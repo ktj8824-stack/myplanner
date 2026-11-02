@@ -5,9 +5,10 @@
   "private": true,
   "scripts": {
     "build": "node build.js",
-    "cap-sync": "npm run build && npx cap sync",
+    "cap-sync": "npm run build && npx cap sync && node scripts/install-native-alarm.js",
     "android": "npm run cap-sync && npx cap open android",
-    "test": "node test/planner.test.js"
+    "test": "node test/planner.test.js && node test/recur.test.js",
+    "native-alarm": "node scripts/install-native-alarm.js"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

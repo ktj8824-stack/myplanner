@@ -43,8 +43,8 @@ const Home = {
     const left = Math.max(0, Math.round((target - now) / 60000));
     const mode = Planner.MODES[s.mode];
     return `
-      <div class="card hero" onclick="App.navigate('timeline',{id:'${s.id}'})">
-        <div class="hero-top"><span class="badge">${U.dateLabel(s.date)}</span><span class="badge soft">${mode.emoji} ${mode.label}</span></div>
+      <div class="card hero" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
+        <div class="hero-top"><span class="badge">${U.dateLabel(s.date)}</span><span class="badge soft">${mode.emoji} ${mode.label}</span>${Recur.isRepeating(s) ? '<span class="badge soft">🔁 반복</span>' : ''}</div>
         <div class="hero-title">${U.esc(s.title)}</div>
         <div class="hero-times">
           <div class="${wakePassed ? 'dim' : ''}"><small>기상</small><b>${U.hmRel(plan.wakeAt, s.date)}</b></div>
@@ -62,10 +62,10 @@ const Home = {
     const m = Planner.MODES[s.mode];
     const timeLabel = Planner.isTrip(s.mode) ? `${s.trip.departTime} ${m.label}` : `${s.arriveBy} 도착`;
     return `
-      <button class="row" onclick="App.navigate('timeline',{id:'${s.id}'})">
+      <button class="row" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
         <div class="row-ic">${m.emoji}</div>
         <div class="row-main">
-          <b>${U.esc(s.title)}</b>
+          <b>${Recur.isRepeating(s) ? '🔁 ' : ''}${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}</b>
           <small>${s.date !== U.today() ? U.dateLabel(s.date) + ' · ' : ''}${timeLabel}${s.dest ? ' · ' + U.esc(s.dest.name) : ''}</small>
         </div>
         <div class="row-side"><small>기상</small><b>${U.hm(plan.wakeAt)}</b></div>
@@ -73,10 +73,16 @@ const Home = {
   },
 
   async checkPermission() {
-    const st = await Alarm.permissionState();
     const el = document.getElementById('permNotice');
-    if (el && st !== 'granted' && st !== 'unsupported') {
+    if (!el) return;
+    const st = await Alarm.permissionState();
+    if (st !== 'granted' && st !== 'unsupported') {
       el.innerHTML = `<button class="notice warn" onclick="Alarm.requestPermission().then(()=>Home.render())">🔔 알림이 꺼져 있어 깨워 드릴 수 없어요. 눌러서 허용 ›</button>`;
+      return;
+    }
+    const ns = await Alarm.nativeStatus();
+    if (ns && (!ns.exact || !ns.fullScreen)) {
+      el.innerHTML = `<button class="notice warn" onclick="App.navigate('settings')">⏰ 알람이 정확히 울리려면 권한 설정이 필요해요 ›</button>`;
     }
   }
 };
@@ -93,14 +99,15 @@ const CalendarView = {
     const first = new Date(y, m, 1).getDay();
     const days = new Date(y, m + 1, 0).getDate();
     const counts = {};
-    State.schedules.forEach(s => { counts[s.date] = (counts[s.date] || 0) + 1; });
+    Recur.between(State.schedules, `${y}-${U.pad(m + 1)}-01`, `${y}-${U.pad(m + 1)}-${U.pad(days)}`)
+      .forEach(s => { counts[s.date] = (counts[s.date] || 0) + 1; });
 
     let cells = '';
     for (let i = 0; i < first; i++) cells += '<div></div>';
     for (let d = 1; d <= days; d++) {
       const key = `${y}-${U.pad(m + 1)}-${U.pad(d)}`;
       const dow = (first + d - 1) % 7;
-      cells += `<button class="cal-day ${key === U.today() ? 'today' : ''} ${key === this.selected ? 'sel' : ''} ${dow === 0 ? 'sun' : dow === 6 ? 'sat' : ''}"
+      cells += `<button class="cal-day ${key === U.today() ? 'today' : ''} ${key === this.selected ? 'sel' : ''} ${dow === 0 || Recur.holiday(key) ? 'sun' : dow === 6 ? 'sat' : ''}"
         onclick="CalendarView.select('${key}')"><span>${d}</span>${counts[key] ? `<i>${counts[key] > 1 ? counts[key] : ''}</i>` : ''}</button>`;
     }
     const list = State.byDate(this.selected);
@@ -115,7 +122,7 @@ const CalendarView = {
         <div class="cal-grid dow">${U.DOW.map(d => `<div>${d}</div>`).join('')}</div>
         <div class="cal-grid">${cells}</div>
       </div>
-      <div class="sec-row"><h2 class="sec">${U.dateLabel(this.selected)}</h2>
+      <div class="sec-row"><h2 class="sec">${U.dateLabel(this.selected)}${Recur.holiday(this.selected) ? ` <span class="holiday">${Recur.holiday(this.selected)}</span>` : ''}</h2>
         <button class="btn small primary" onclick="App.navigate('register',{date:'${this.selected}'})">＋ 추가</button></div>
       ${list.length ? list.map(s => Home.row(s)).join('') : '<div class="muted pad">일정이 없어요.</div>'}
     `);

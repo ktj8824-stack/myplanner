@@ -1,0 +1,102 @@
+package kr.myplanner.app;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+
+import org.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 예약한 알람을 기기에 기록해 둡니다.
+ * AlarmManager 알람은 재부팅하면 사라지므로, BootReceiver가 이 기록으로 다시 등록합니다.
+ * (버디플래너 AlarmScheduler의 저장 방식을 JSON으로 정리)
+ */
+public final class AlarmStore {
+
+    private static final String PREFS = "myplanner_alarms";
+    private static final String PREFS_STATE = "myplanner_alarm_state";
+
+    private AlarmStore() {}
+
+    public static final class Item {
+        public int id;
+        public long at;
+        public String title;
+        public String body;
+        public String scheduleId;
+        public boolean snooze; // '5분 뒤' 알람 — 앱이 알람을 다시 맞출 때 지우지 않음
+
+        public Item(int id, long at, String title, String body, String scheduleId) {
+            this.id = id;
+            this.at = at;
+            this.title = title == null ? "" : title;
+            this.body = body == null ? "" : body;
+            this.scheduleId = scheduleId == null ? "" : scheduleId;
+        }
+
+        String toJson() {
+            try {
+                JSONObject o = new JSONObject();
+                o.put("id", id);
+                o.put("at", at);
+                o.put("title", title);
+                o.put("body", body);
+                o.put("scheduleId", scheduleId);
+                o.put("snooze", snooze);
+                return o.toString();
+            } catch (Exception e) {
+                return "{}";
+            }
+        }
+
+        static Item fromJson(String s) {
+            try {
+                JSONObject o = new JSONObject(s);
+                Item it = new Item(o.getInt("id"), o.getLong("at"), o.optString("title"), o.optString("body"), o.optString("scheduleId"));
+                it.snooze = o.optBoolean("snooze", false);
+                return it;
+            } catch (Exception e) {
+                return null;
+            }
+        }
+    }
+
+    public static void put(Context ctx, Item item) {
+        prefs(ctx).edit().putString(String.valueOf(item.id), item.toJson()).apply();
+    }
+
+    public static void remove(Context ctx, int id) {
+        prefs(ctx).edit().remove(String.valueOf(id)).apply();
+    }
+
+    public static List<Item> all(Context ctx) {
+        List<Item> list = new ArrayList<>();
+        for (Map.Entry<String, ?> e : prefs(ctx).getAll().entrySet()) {
+            Item it = Item.fromJson(String.valueOf(e.getValue()));
+            if (it != null) list.add(it);
+        }
+        return list;
+    }
+
+    /** 알람 화면에서 '일정 보기'를 누르면 앱이 열린 뒤 이 일정으로 이동하도록 기록 */
+    public static void setPendingOpen(Context ctx, String scheduleId) {
+        state(ctx).edit().putString("pendingOpen", scheduleId == null ? "" : scheduleId).apply();
+    }
+
+    public static String consumePendingOpen(Context ctx) {
+        String v = state(ctx).getString("pendingOpen", "");
+        state(ctx).edit().remove("pendingOpen").apply();
+        return v;
+    }
+
+    private static SharedPreferences prefs(Context ctx) {
+        return ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+    }
+
+    private static SharedPreferences state(Context ctx) {
+        return ctx.getApplicationContext().getSharedPreferences(PREFS_STATE, Context.MODE_PRIVATE);
+    }
+}
