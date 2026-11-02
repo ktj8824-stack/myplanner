@@ -8,7 +8,10 @@
 
 const Alarm = {
   CHANNEL: 'mp_alarm',
-  HORIZON_DAYS: 14,     // 앞으로 며칠치 알람을 예약할지 (반복 일정 포함)
+  HORIZON_DAYS: 14,     // 웹·로컬 알림: 앞으로 며칠치 예약
+  NATIVE_DAYS: 45,      // 앱(네이티브): 45일치 계획을 넘기면 폰이 매일 3일치씩 알아서 보충
+  RECHECK_BEFORE_WAKE: 20,   // 기상 20분 전 실시간 재계산
+  RECHECK_BEFORE_DEPART: 30, // 출발 30분 전 실시간 재계산
   webTimers: [],
 
   isNative() { const C = window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform()); },
@@ -27,12 +30,12 @@ const Alarm = {
         });
       } catch (e) { console.warn('알림 채널 생성 실패', e); }
     }
-    await this.rescheduleAll();
+    // 앱을 열 때마다: 백그라운드 실시간 값 가져오기 → 출발 임박 일정 재계산 → 알람 다시 맞춤
+    await Live.onOpen();
     this.consumeOpen();
-    // 앱으로 돌아올 때마다: 알람 다시 예약 + 전체 화면 알람에서 '일정 보기'를 눌렀는지 확인
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
-      this.rescheduleAll();
+      Live.onOpen();
       this.consumeOpen();
     });
   },
@@ -77,17 +80,17 @@ const Alarm = {
 
   /* ---------- 예약 ---------- */
   /** 앞으로 HORIZON_DAYS일 안의 모든 일정 회차 알람 */
-  collect() {
+  collect(days = this.HORIZON_DAYS) {
     const now = Date.now();
-    const limit = now + this.HORIZON_DAYS * 86400000;
+    const limit = now + days * 86400000;
     const list = [];
     const from = Recur.shift(U.today(), -1);
-    const to = Recur.shift(U.today(), this.HORIZON_DAYS + 1);
+    const to = Recur.shift(U.today(), days + 1);
     Recur.between(State.schedules, from, to).forEach(s => {
       if (s.alarmOff) return;
       try {
         const plan = Planner.compute(s);
-        Planner.alarms(s, plan).forEach(a => { if (a.at.getTime() < limit) list.push({ ...a, s, sid: s.occId || s.id }); });
+        Planner.alarms(s, plan).forEach(a => { if (a.at.getTime() < limit) list.push({ ...a, s, plan, sid: s.occId || s.id }); });
       } catch (e) { console.warn('알람 계산 실패', s, e); }
     });
     return list.sort((a, b) => a.at - b.at);
@@ -99,35 +102,63 @@ const Alarm = {
     return Math.abs(h) % 2000000000;
   },
 
+  /** 실시간 재계산 시점 (자가용·택시 일정만): 기상 20분 전, 출발 30분 전 */
+  rechecks(list) {
+    const now = Date.now();
+    const out = [];
+    const seen = new Set();
+    list.forEach(a => {
+      if (seen.has(a.sid) || a.s.alarmOff) return;
+      seen.add(a.sid);
+      const spec = Planner.recheckSpec(a.s, a.plan);
+      if (!spec) return;
+      const times = [spec.wakeMs - this.RECHECK_BEFORE_WAKE * 60000, spec.plannedDepartMs - this.RECHECK_BEFORE_DEPART * 60000];
+      if (times[1] - times[0] < 10 * 60000) times.pop(); // 두 시점이 너무 가까우면 한 번만
+      times.forEach((at, i) => {
+        if (at <= now) return;
+        out.push({
+          id: this.numId(a.sid + 'chk' + i), at, occId: a.sid, title: a.s.title,
+          anchor: spec.anchorMs, fixedMin: spec.fixedMin, travelMin: spec.travelMin,
+          plannedDepart: spec.plannedDepartMs, wake: spec.wakeMs,
+          wakeId: this.numId(a.sid + 'wake'), preId: this.numId(a.sid + 'pre'), departId: this.numId(a.sid + 'depart'),
+          sx: spec.from.lng, sy: spec.from.lat, ex: spec.to.lng, ey: spec.to.lat
+        });
+      });
+    });
+    return out;
+  },
+
   async rescheduleAll() {
+    const N = this.native();
+    if (N && N.setPlan) {
+      // 앱: 45일치 계획을 통째로 넘김 → 폰이 3일치씩 예약하고 매일 새벽 보충, 기상 전 실시간 재계산
+      const list = this.collect(this.NATIVE_DAYS);
+      try {
+        await N.setPlan({
+          alarms: list.map(a => ({ id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body,
+            scheduleId: a.sid, kind: a.alarm ? 'full' : 'note' })),
+          rechecks: this.rechecks(list),
+          tmapKey: Routes.key('TMAP_APP_KEY')
+        });
+        await this.clearLocal(); // 예전 버전이 로컬 알림으로 예약한 것 정리
+        return list.filter(a => a.at.getTime() < Date.now() + this.HORIZON_DAYS * 86400000);
+      } catch (e) { console.warn('네이티브 계획 전달 실패 → 로컬 알림으로 대체', e); }
+    }
     const list = this.collect();
-    if (this.isNative()) {
-      const N = this.native();
-      const full = N ? list.filter(a => a.alarm) : [];
-      const notes = N ? list.filter(a => !a.alarm) : list;
-      // 1) 기상·출발 → 전체 화면 알람 (전부 교체)
-      if (N) {
-        try {
-          await N.setAll({ alarms: full.map(a => ({ id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body, scheduleId: a.sid })) });
-        } catch (e) { console.warn('전체 화면 알람 예약 실패 → 일반 알림으로 대체', e); notes.push(...full); }
-      }
-      // 2) 나머지 → 로컬 알림 (전부 교체)
-      const LN = this.ln();
-      if (LN) {
-        try {
-          const pending = await LN.getPending();
-          if (pending.notifications.length) await LN.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
-          if (notes.length) {
-            await LN.schedule({
-              notifications: notes.map(a => ({
-                id: this.numId(a.sid + a.key), title: a.title, body: a.body, largeBody: a.body,
-                schedule: { at: a.at, allowWhileIdle: true }, channelId: this.CHANNEL,
-                extra: { scheduleId: a.sid, alarm: !!a.alarm }
-              }))
-            });
-          }
-        } catch (e) { console.warn('알림 예약 실패', e); }
-      }
+    const LN = this.ln();
+    if (LN) {
+      try {
+        await this.clearLocal();
+        if (list.length) {
+          await LN.schedule({
+            notifications: list.map(a => ({
+              id: this.numId(a.sid + a.key), title: a.title, body: a.body, largeBody: a.body,
+              schedule: { at: a.at, allowWhileIdle: true }, channelId: this.CHANNEL,
+              extra: { scheduleId: a.sid, alarm: !!a.alarm }
+            }))
+          });
+        }
+      } catch (e) { console.warn('알림 예약 실패', e); }
       return list;
     }
     // 웹: 열려 있는 동안만 동작
@@ -144,6 +175,15 @@ const Alarm = {
       }
     });
     return list;
+  },
+
+  async clearLocal() {
+    const LN = this.ln();
+    if (!LN) return;
+    try {
+      const pending = await LN.getPending();
+      if (pending.notifications.length) await LN.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+    } catch (e) {}
   },
 
   /* ---------- 화면 알람 (웹 / 앱이 열려 있을 때 대체용) ---------- */

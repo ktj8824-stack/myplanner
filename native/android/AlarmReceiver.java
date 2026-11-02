@@ -33,9 +33,59 @@ public class AlarmReceiver extends BroadcastReceiver {
         String title = intent.getStringExtra("title");
         String body = intent.getStringExtra("body");
         String scheduleId = intent.getStringExtra("scheduleId");
+        String kind = intent.getStringExtra("kind");
+        if (kind == null) kind = AlarmStore.KIND_FULL;
         AlarmStore.remove(ctx, id);
-        Log.d(TAG, "알람 울림 " + id + " " + title);
-        ring(ctx, id, title, body, scheduleId);
+        Log.d(TAG, "알람 실행 " + kind + " " + id + " " + title);
+
+        switch (kind) {
+            case AlarmStore.KIND_RECHECK:
+                // 네트워크(티맵) 조회는 시간이 걸리므로 비동기로 처리 — 끝나면 3일 창도 다시 동기화
+                Recheck.run(ctx.getApplicationContext(), id, goAsync());
+                return;
+            case AlarmStore.KIND_NOTE:
+                postNote(ctx, id, title, body, scheduleId);
+                break;
+            case AlarmStore.KIND_REFILL:
+                break; // 아래 syncWindow가 다음 3일치를 보충
+            default:
+                ring(ctx, id, title, body, scheduleId);
+        }
+        AlarmScheduler.syncWindow(ctx);
+    }
+
+    public static final String NOTE_CHANNEL_ID = "mp_notes_v1";
+
+    /** 전날 밤 안내·출발 10분 전·교통 변화 같은 일반 알림 */
+    public static void postNote(Context ctx, int id, String title, String body, String scheduleId) {
+        NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm == null) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && nm.getNotificationChannel(NOTE_CHANNEL_ID) == null) {
+            NotificationChannel ch = new NotificationChannel(NOTE_CHANNEL_ID, "일정 알림", NotificationManager.IMPORTANCE_HIGH);
+            ch.setDescription("전날 안내, 출발 전 알림, 교통 변화 안내");
+            nm.createNotificationChannel(ch);
+        }
+        Intent open = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+        PendingIntent pi = null;
+        if (open != null) {
+            open.putExtra(MyAlarmPlugin.EXTRA_OPEN, scheduleId); // 알림을 누르면 그 일정 화면으로
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            pi = PendingIntent.getActivity(ctx, id, open, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        }
+        NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, NOTE_CHANNEL_ID)
+                .setSmallIcon(ctx.getApplicationInfo().icon)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_REMINDER)
+                .setAutoCancel(true);
+        if (pi != null) b.setContentIntent(pi);
+        try {
+            nm.notify(id, b.build());
+        } catch (SecurityException e) {
+            Log.e(TAG, "알림 권한 없음", e);
+        }
     }
 
     public static void ensureChannel(Context ctx) {

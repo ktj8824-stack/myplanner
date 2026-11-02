@@ -7,8 +7,9 @@
     "build": "node build.js",
     "cap-sync": "npm run build && npx cap sync && node scripts/install-native-alarm.js",
     "android": "npm run cap-sync && npx cap open android",
-    "test": "node test/planner.test.js && node test/recur.test.js",
-    "native-alarm": "node scripts/install-native-alarm.js"
+    "test": "node test/planner.test.js && node test/recur.test.js && node test/live.test.js",
+    "native-alarm": "node scripts/install-native-alarm.js",
+    "test:native": "javac -d test/.out native/android/RecheckMath.java test/java/RecheckMathTest.java && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.RecheckMathTest"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

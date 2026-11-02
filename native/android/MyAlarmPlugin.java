@@ -9,51 +9,86 @@ import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
 
-import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import org.json.JSONArray;
 import org.json.JSONObject;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * JS의 window.Capacitor.Plugins.MyAlarm
- *  - setAll({ alarms: [{ id, at, title, body, scheduleId }] })  기상·출발 알람 전체 교체
+ *  - setPlan({ alarms, rechecks, tmapKey })  최대 45일치 계획 전달 → 앞으로 3일치 예약, 이후 자동 보충
+ *  - getLive() → { live: { occId: { travelMin, checkedAt, prevMin } } }  백그라운드 실시간 값 (가져가면 비움)
  *  - snooze({ id, at, title, body, scheduleId })
- *  - status() → { exact, fullScreen, notifications, battery }
+ *  - status() → { exact, fullScreen, notifications, battery, scheduled, planned }
  *  - openSettings({ which: 'exact' | 'fullscreen' | 'notifications' | 'battery' })
- *  - consumeOpen() → { scheduleId }  알람 화면에서 '일정 보기'를 눌렀으면 그 일정
+ *  - consumeOpen() → { scheduleId }  알람 화면 '일정 보기'·알림을 눌러 앱이 열렸으면 그 일정
  */
 @CapacitorPlugin(name = "MyAlarm")
 public class MyAlarmPlugin extends Plugin {
 
+    public static final String EXTRA_OPEN = "kr.myplanner.OPEN_SCHEDULE";
+
     @Override
     public void load() {
         AlarmReceiver.ensureChannel(getContext());
+        if (getActivity() != null) captureOpen(getActivity().getIntent());
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        captureOpen(intent);
+    }
+
+    private void captureOpen(Intent intent) {
+        if (intent == null) return;
+        String id = intent.getStringExtra(EXTRA_OPEN);
+        if (id != null && !id.isEmpty()) {
+            AlarmStore.setPendingOpen(getContext(), id);
+            intent.removeExtra(EXTRA_OPEN);
+        }
     }
 
     @PluginMethod
-    public void setAll(PluginCall call) {
-        JSArray arr = call.getArray("alarms", new JSArray());
-        List<AlarmStore.Item> items = new ArrayList<>();
+    public void setPlan(PluginCall call) {
         try {
-            for (int i = 0; i < arr.length(); i++) {
-                JSONObject o = arr.getJSONObject(i);
-                items.add(new AlarmStore.Item(o.getInt("id"), o.getLong("at"),
-                        o.optString("title"), o.optString("body"), o.optString("scheduleId")));
-            }
+            JSONObject old = PlanStore.load(getContext());
+            JSONObject plan = new JSONObject();
+            JSONArray alarms = call.getArray("alarms");
+            JSONArray rechecks = call.getArray("rechecks");
+            plan.put("alarms", alarms == null ? new JSONArray() : alarms);
+            plan.put("rechecks", rechecks == null ? new JSONArray() : rechecks);
+            plan.put("tmapKey", call.getString("tmapKey", ""));
+            // 앱이 아직 가져가지 않은 실시간 값은 유지
+            JSONObject live = old.optJSONObject("live");
+            plan.put("live", live == null ? new JSONObject() : live);
+            PlanStore.save(getContext(), plan);
         } catch (Exception e) {
-            call.reject("알람 목록 형식 오류", e);
+            call.reject("계획 저장 실패", e);
             return;
         }
-        int ok = AlarmScheduler.replaceAll(getContext(), items);
+        int ok = AlarmScheduler.syncWindow(getContext());
         JSObject r = new JSObject();
         r.put("scheduled", ok);
+        call.resolve(r);
+    }
+
+    @PluginMethod
+    public void getLive(PluginCall call) {
+        JSONObject plan = PlanStore.load(getContext());
+        JSONObject live = plan.optJSONObject("live");
+        JSObject r = new JSObject();
+        try {
+            r.put("live", live == null ? new JSObject() : JSObject.fromJSONObject(live));
+            plan.put("live", new JSONObject());
+            PlanStore.save(getContext(), plan);
+        } catch (Exception e) {
+            r.put("live", new JSObject());
+        }
         call.resolve(r);
     }
 
@@ -81,6 +116,8 @@ public class MyAlarmPlugin extends Plugin {
         r.put("notifications", nm != null && nm.areNotificationsEnabled());
         r.put("battery", pm != null && pm.isIgnoringBatteryOptimizations(ctx.getPackageName()));
         r.put("scheduled", AlarmStore.all(ctx).size());
+        JSONArray planned = PlanStore.load(ctx).optJSONArray("alarms");
+        r.put("planned", planned == null ? 0 : planned.length());
         call.resolve(r);
     }
 

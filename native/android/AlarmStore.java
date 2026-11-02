@@ -19,6 +19,11 @@ public final class AlarmStore {
     private static final String PREFS = "myplanner_alarms";
     private static final String PREFS_STATE = "myplanner_alarm_state";
 
+    public static final String KIND_FULL = "full";
+    public static final String KIND_NOTE = "note";
+    public static final String KIND_RECHECK = "recheck";
+    public static final String KIND_REFILL = "refill";
+
     private AlarmStore() {}
 
     public static final class Item {
@@ -28,6 +33,8 @@ public final class AlarmStore {
         public String body;
         public String scheduleId;
         public boolean snooze; // '5분 뒤' 알람 — 앱이 알람을 다시 맞출 때 지우지 않음
+        /** full: 전체 화면 알람 · note: 일반 알림 · recheck: 실시간 재계산 · refill: 매일 알람 보충 */
+        public String kind = KIND_FULL;
 
         public Item(int id, long at, String title, String body, String scheduleId) {
             this.id = id;
@@ -46,6 +53,7 @@ public final class AlarmStore {
                 o.put("body", body);
                 o.put("scheduleId", scheduleId);
                 o.put("snooze", snooze);
+                o.put("kind", kind);
                 return o.toString();
             } catch (Exception e) {
                 return "{}";
@@ -57,6 +65,7 @@ public final class AlarmStore {
                 JSONObject o = new JSONObject(s);
                 Item it = new Item(o.getInt("id"), o.getLong("at"), o.optString("title"), o.optString("body"), o.optString("scheduleId"));
                 it.snooze = o.optBoolean("snooze", false);
+                it.kind = o.optString("kind", KIND_FULL);
                 return it;
             } catch (Exception e) {
                 return null;

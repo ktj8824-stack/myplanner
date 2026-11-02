@@ -71,6 +71,59 @@ const Planner = {
     return parts.join(' · ');
   },
 
+  /* ---------- 실시간 교통 반영 ----------
+     s.live = { 'YYYY-MM-DD': { travelMin, checkedAt, prevMin } }
+     자가용·택시는 그날 아침 티맵 실시간 소요시간으로 다시 계산합니다.
+     (버스·지하철은 시간표 기반이라 실시간 재계산 대상이 아님) */
+  LIVE_MODES: ['car', 'taxi'],
+
+  liveFor(s) { return (s.live && s.live[s.date]) || null; },
+
+  /** 이 일정에서 실시간으로 다시 잴 구간 { key: 'route'|'accessRoute', mode, from, to } — 없으면 null */
+  liveLeg(s) {
+    if (this.isTrip(s.mode)) {
+      const m = (s.trip && s.trip.accessMode) || 'transit';
+      return this.LIVE_MODES.includes(m) && s.trip.departStation ? { key: 'accessRoute', mode: m, from: s.origin, to: s.trip.departStation } : null;
+    }
+    return this.LIVE_MODES.includes(s.mode) && s.dest ? { key: 'route', mode: s.mode, from: s.origin, to: s.dest } : null;
+  },
+
+  /** 저장된 경로에 그날의 실시간 소요시간을 덮어씀 */
+  liveRoute(s, key, mode) {
+    const route = s[key];
+    const live = this.liveFor(s);
+    const leg = this.liveLeg(s);
+    if (!route || !live || !leg || leg.key !== key || !this.LIVE_MODES.includes(mode)) return route;
+    const steps = (route.steps || []).map(st => (st.type === 'car' || st.type === 'taxi') ? { ...st, min: live.travelMin } : st);
+    const others = steps.filter(st => st.type !== 'car' && st.type !== 'taxi').reduce((a, st) => a + (st.min || 0), 0);
+    return { ...route, steps, travelMin: live.travelMin + others, source: 'live', summary: `실시간 ${live.travelMin}분` };
+  },
+
+  /**
+   * 백그라운드 재확인 정보: 출발 = anchor − fixedMin − 이동시간
+   * 네이티브가 티맵으로 이동시간만 다시 받아 같은 식으로 출발·기상 알람을 조정합니다.
+   */
+  recheckSpec(s, plan) {
+    const leg = this.liveLeg(s);
+    if (!leg || !leg.from || !leg.to || leg.from.lat == null || leg.to.lat == null) return null;
+    const route = this.liveRoute(s, leg.key, leg.mode);
+    if (!route) return null;
+    const def = this.MODES[leg.mode];
+    const buffer = Number(s.bufferMin ?? 10);
+    let anchor;
+    if (this.isTrip(s.mode)) {
+      const tdef = this.MODES[s.mode], trip = s.trip;
+      const margin = Number(trip.marginMin ?? (s.mode === 'flight' && trip.international ? tdef.intlMarginMin : tdef.marginMin));
+      anchor = this.addMin(this.at(s.date, trip.departTime), -margin);
+    } else {
+      anchor = this.at(s.date, s.arriveBy);
+    }
+    const driveMin = (route.steps || []).filter(st => st.type === 'car' || st.type === 'taxi').reduce((a, st) => a + st.min, 0) || route.travelMin;
+    const fixedMin = buffer + (def.extraMin || 0) + (route.travelMin - driveMin);
+    return { anchorMs: anchor.getTime(), fixedMin, travelMin: driveMin, plannedDepartMs: plan.departAt.getTime(),
+      wakeMs: plan.wakeAt.getTime(), from: leg.from, to: leg.to, mode: leg.mode };
+  },
+
   /**
    * 핵심: 일정 하나의 전체 타임라인을 계산합니다.
    * @param s  일정 { date, arriveBy, mode, prepMin, bufferMin, route, trip, accessRoute, egressRoute }
@@ -94,10 +147,11 @@ const Planner = {
 
       const accessMode = trip.accessMode || 'transit';
       const checkInAt = this.addMin(vehicleDep, -margin);
-      const accessTotal = this.totalMin(s.accessRoute, accessMode);
+      const accessRoute = this.liveRoute(s, 'accessRoute', accessMode);
+      const accessTotal = this.totalMin(accessRoute, accessMode);
       departAt = this.addMin(checkInAt, -(accessTotal + buffer));
 
-      const access = this.expandRoute(s.accessRoute, departAt, accessMode);
+      const access = this.expandRoute(accessRoute, departAt, accessMode);
       items.push(...access.items);
       const stName = (trip.departStation && trip.departStation.name) || (s.mode === 'flight' ? '출발 공항' : '출발역');
       items.push({ at: access.endAt, kind: 'arrive', icon: '📍', title: `${stName} 도착`, detail: `${marginLabel} ${margin}분 + 여유 ${buffer}분 전` });
@@ -121,9 +175,10 @@ const Planner = {
       }
     } else {
       const due = this.at(s.date, s.arriveBy);
-      const total = this.totalMin(s.route, s.mode);
+      const route = this.liveRoute(s, 'route', s.mode);
+      const total = this.totalMin(route, s.mode);
       departAt = this.addMin(due, -(total + buffer));
-      const r = this.expandRoute(s.route, departAt, s.mode);
+      const r = this.expandRoute(route, departAt, s.mode);
       items.push(...r.items);
       arriveAt = r.endAt;
       if (buffer) items.push({ at: arriveAt, kind: 'arrive', icon: '📍', title: `${(s.dest && s.dest.name) || '목적지'} 도착`, detail: `약속 ${buffer}분 전 도착` });
@@ -144,7 +199,7 @@ const Planner = {
     if (s.route && s.route.source === 'estimate' || s.accessRoute && s.accessRoute.source === 'estimate') {
       warnings.push('실제 경로 대신 거리로 추정한 시간이에요. API 키를 넣으면 정확해져요.');
     }
-    return { wakeAt, departAt, arriveAt, items, warnings };
+    return { wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s) };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */

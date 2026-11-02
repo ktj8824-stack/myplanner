@@ -42,6 +42,7 @@ const Timeline = {
           <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
         </div>
         <div class="result-meta">${m.emoji} ${m.label} · 준비 ${s.prepMin}분 · 여유 ${s.bufferMin}분</div>
+        ${plan.live ? `<div class="live-line">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.key('TMAP_APP_KEY') && !s.alarmOff ? `<div class="live-line dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
         ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
       </div>
 
@@ -199,7 +200,13 @@ const Timeline = {
     const isTrip = Planner.isTrip(s.mode);
     const before = Planner.compute(s).departAt;
     try {
-      if (isTrip) {
+      const leg = Planner.liveLeg(s);
+      if (leg) {
+        // 자가용·택시: 지금 교통으로 그날만 다시 계산 (다른 날 회차에는 영향 없음)
+        const r = await Routes.drive(leg.from, leg.to, leg.mode, null);
+        if (r && r.source !== 'estimate') Live.record(s.occId || s.id, { travelMin: r.travelMin, prevMin: s[leg.key].travelMin });
+        else throw new Error('실시간 조회 불가');
+      } else if (isTrip) {
         const r = await Routes.options(s.origin, s.trip.departStation, s.trip.accessMode, Planner.at(s.date, s.trip.departTime));
         if (r[0]) b.accessRoute = this.keepSimilar(b.accessRoute, r);
       } else {
@@ -211,7 +218,7 @@ const Timeline = {
       const after = Planner.compute(this.cur()).departAt;
       const diff = Math.round((before - after) / 60000);
       U.toast(diff > 0 ? `${diff}분 일찍 출발해야 해요. 알람을 당겼어요.` : diff < 0 ? `${-diff}분 늦게 출발해도 돼요.` : '변동 없어요.');
-    } catch (e) { U.toast('경로를 확인하지 못했어요.'); }
+    } catch (e) { U.toast(Routes.key('TMAP_APP_KEY') ? '경로를 확인하지 못했어요.' : '티맵 키가 있어야 실시간 교통을 확인할 수 있어요.'); }
     this.render();
   },
 
@@ -311,7 +318,7 @@ const Settings = {
 
       <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
-        <p class="muted small center">마이플래너 v0.2</p>
+        <p class="muted small center">마이플래너 v0.3</p>
       </div>
     `);
     this.alarmCheck();
@@ -334,7 +341,7 @@ const Settings = {
     if (ns) {
       html += row(ns.exact, '알람 및 리마인더', '정확한 시각에 울리려면 필요해요', "Alarm.openSettings('exact')");
       html += row(ns.fullScreen, '전체 화면 알람', '잠금 화면 위로 알람 화면을 띄워요 (안드로이드 14+)', "Alarm.openSettings('fullscreen')");
-      html += `<p class="muted small">예약된 전체 화면 알람 ${ns.scheduled}개 · 삼성 휴대폰은 '배터리 > 백그라운드 사용 제한'에서 마이플래너를 제외하면 더 안정적이에요.</p>`;
+      html += `<p class="muted small">앞으로 ${Alarm.NATIVE_DAYS}일 알림 ${ns.planned ?? 0}개를 폰에 맡겨 두었어요 (지금 예약 ${ns.scheduled}개, 매일 새벽 자동 보충). 앱을 오래 열지 않아도 이어서 울려요. 삼성 휴대폰은 '배터리 > 백그라운드 사용 제한'에서 마이플래너를 제외하면 더 안정적이에요.</p>`;
     } else if (perm !== 'unsupported') {
       html += `<p class="muted small">웹에서는 이 화면을 열어 둔 동안만 알람이 울려요. 앱을 설치하면 잠금 화면에서도 깨워 드려요.</p>`;
     }

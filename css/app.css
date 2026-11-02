@@ -242,3 +242,7 @@ textarea.input { resize: vertical; }
 .check-row b, .check-row small { display: block; }
 .check-row small { color: var(--muted); font-size: 13px; }
 .check-ic { font-size: 20px; }
+
+/* ── v0.3: 실시간 교통 ── */
+.live-line { margin-top: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(16, 185, 129, .22); font-size: 13px; text-align: center; }
+.live-line.dim { background: rgba(255, 255, 255, .12); opacity: .9; }
