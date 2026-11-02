@@ -1,0 +1,22 @@
+{
+  "name": "myplanner",
+  "version": "0.1.0",
+  "description": "마이플래너 — 도착 시간에서 거꾸로 계산해 깨워 주는 전 국민 플래너",
+  "private": true,
+  "scripts": {
+    "build": "node build.js",
+    "cap-sync": "npm run build && npx cap sync",
+    "android": "npm run cap-sync && npx cap open android",
+    "test": "node test/planner.test.js"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/geolocation": "^8.0.0",
+    "@capacitor/local-notifications": "^8.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0"
+  }
+}
