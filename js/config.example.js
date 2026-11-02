@@ -9,8 +9,8 @@
    ========================================= */
 window.APP_CONFIG = {
   // ── 권장(출시): 키를 앱에 넣지 않고 Supabase 함수가 대신 조회 ──
-  ROUTE_PROXY_URL: '',   // 예: https://abcd1234.supabase.co/functions/v1/route
-  SUPABASE_ANON_KEY: '', // Supabase 공개 키 (Project Settings > API의 anon/publishable 키)
+  ROUTE_PROXY_URL: '',   // 배포됨: https://iaccdqcthhtvvetmbryr.supabase.co/functions/v1/myplanner-route
+  SUPABASE_ANON_KEY: '', // 버디플래너 프로젝트의 legacy anon 키 (eyJ로 시작 — 함수가 JWT 검증을 하므로 sb_publishable_ 키는 안 됨)
 
   // ── 개발·테스트용: 위를 비우면 아래 키로 직접 호출 (APK에서 추출될 수 있음) ──
   ODSAY_API_KEY: '',   // ODsay LAB (lab.odsay.com) — 버스·지하철 경로

@@ -47,6 +47,8 @@ test/               npm test (역산·반복·실시간), npm run test:native (�
 ```
 
 ## API 키
+**권장**: 키를 앱에 넣지 않고 Supabase 함수 `myplanner-route`(버디플래너 프로젝트에 배포됨)가 대신 조회합니다. 설정 방법은 `docs/launch-guide.md` 2번.
+
 `js/config.example.js`를 `js/config.js`로 복사해 키를 넣으세요. (config.js는 깃허브에 올라가지 않음)
 
 | 키 | 발급처 | 용도 |
@@ -81,7 +83,6 @@ npm run android        # www 빌드 → 동기화 → 안드로이드 스튜디�
 
 ## 다음 단계 (예정)
 - 버스 실시간 도착 정보(ODsay/공공데이터)로 버스 일정도 아침 재계산
-- 티맵 키를 앱에 넣지 않도록 Supabase 함수로 경로 조회 대행 (키 보호·호출량 관리)
 - 카카오/구글 로그인 + Supabase 동기화, PRO 구독
 - 코레일·SRT·항공 시간표 공공데이터 연동
 - CEO 플래너 (같은 엔진에 비서 공유·다중 일정 동선 추가)

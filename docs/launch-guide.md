@@ -16,30 +16,36 @@
 
 ---
 
-## 2. API 키 숨기기 — Supabase 경로 함수 (폰 브라우저 5분)
+## 2. API 키 숨기기 — Supabase 경로 함수 ✅ 배포 완료
 
-버디플래너가 쓰는 Supabase 계정에 **새 프로젝트**로 만드는 걸 권장합니다.
+Supabase 무료 플랜의 프로젝트 2개가 이미 차 있어서, **버디플래너 프로젝트에 함수를 함께** 올렸습니다.
+(이름이 달라 버디플래너 기능과 섞이지 않고, 나중에 별도 프로젝트로 옮길 수 있습니다. 무료 호출 한도는 두 앱이 나눠 씁니다.)
 
-☐ supabase.com 로그인 → **New project** → 이름 `myplanner`, 지역 **Seoul (ap-northeast-2)**
-☐ 왼쪽 **Edge Functions** → **Deploy a new function** → **Via Editor**
-☐ 함수 이름 **route** → 기본 코드를 지우고 저장소의 `supabase/functions/route/index.ts` 내용을 통째로 붙여넣기 → **Deploy**
-  (깃허브에서 파일을 열고 Raw 버튼 → 전체 복사)
-☐ **Edge Functions → Secrets**에 추가
+- 함수 이름: `myplanner-route` (JWT 검증 켜짐)
+- 주소: `https://iaccdqcthhtvvetmbryr.supabase.co/functions/v1/myplanner-route`
+- 공개 키: 버디플래너 프로젝트의 **legacy anon 키** (`eyJ`로 시작). `sb_publishable_` 키는 이 함수에서 거절됩니다.
+
+### 남은 일: 키 3개 넣기 (폰 브라우저)
+☐ supabase.com → **buddyplanner** 프로젝트 → **Edge Functions → Secrets** → 아래 3개 추가
   | 이름 | 값 |
   |---|---|
-  | `TMAP_APP_KEY` | 티맵 앱키 (버디플래너 키 재사용 가능) |
-  | `ODSAY_API_KEY` | ODsay 키 |
-  | `ODSAY_REFERER` | `https://ktj8824-stack.github.io` |
+  | `MYPLANNER_TMAP_APP_KEY` | 티맵 앱키 (버디플래너 키 재사용 가능) |
+  | `MYPLANNER_ODSAY_API_KEY` | ODsay 키 |
+  | `MYPLANNER_ODSAY_REFERER` | `https://ktj8824-stack.github.io` |
 ☐ ODsay LAB에서 키를 **웹(URI)** 플랫폼으로 만들고 URI에 `https://ktj8824-stack.github.io` 등록
-☐ **Project Settings → API**에서 두 값을 복사
-  - 함수 주소: `https://<프로젝트ID>.supabase.co/functions/v1/route`
-  - anon(publishable) 키
 
-**바로 시험해 보기** (노트북 없이): 웹 버전 → 설정 → 개발자 설정에
-"경로 서버 주소"와 "Supabase 공개 키"를 넣으면 실제 티맵·ODsay 경로가 나옵니다.
+> 키는 대화창에 붙여 넣지 말고 Supabase 화면에 직접 넣으세요.
+> 버디플래너에 이미 `TMAP_APP_KEY`라는 비밀값이 있으면 함수가 그것을 대신 씁니다.
 
-**앱에 넣기** (나중에 노트북에서): `js/config.js`의 `ROUTE_PROXY_URL`, `SUPABASE_ANON_KEY`에 넣고
-`TMAP_APP_KEY`, `ODSAY_API_KEY`는 **비워 둡니다** → APK에 키가 들어가지 않습니다.
+### 바로 시험해 보기 (노트북 없이)
+웹 버전(1번) → 설정 → 개발자 설정
+- 경로 서버 주소: 위 주소
+- Supabase 공개 키: legacy anon 키
+
+→ 일정 추가에서 장소를 검색해 실제 결과가 나오면 성공. "예시 장소만 검색돼요"가 나오면 키가 아직 안 들어간 것입니다.
+
+### 앱에 넣기 (나중에 노트북에서)
+`js/config.js`의 `ROUTE_PROXY_URL`, `SUPABASE_ANON_KEY`에 위 두 값을 넣고 `TMAP_APP_KEY`, `ODSAY_API_KEY`는 **비워 둡니다** → APK에 키가 들어가지 않습니다.
 
 함수가 막아 주는 것: 한국 밖 좌표, 정해진 5가지 외의 요청, 사용자(IP)당 1분 60회 초과. 같은 요청은 1분간 재사용해 호출 비용을 줄입니다.
 

@@ -7,8 +7,9 @@
 //            | tmap_walk {sx,sy,ex,ey} | odsay_transit {sx,sy,ex,ey}
 // 응답: 원래 API의 JSON 그대로 (앱의 해석 코드가 같도록)
 //
-// 비밀값 (Supabase 대시보드 > Edge Functions > Secrets):
-//   TMAP_APP_KEY, ODSAY_API_KEY, (선택) ODSAY_REFERER = ODsay에 등록한 웹 주소
+// 배포: 버디플래너 Supabase 프로젝트에 함수 이름 myplanner-route 로 올라가 있음
+// 비밀값 (Supabase 대시보드 > Edge Functions > Secrets) — MYPLANNER_ 접두사가 먼저, 없으면 접두사 없는 이름:
+//   MYPLANNER_TMAP_APP_KEY, MYPLANNER_ODSAY_API_KEY, (선택) MYPLANNER_ODSAY_REFERER = ODsay에 등록한 웹 주소
 // =========================================
 
 type Env = { TMAP_APP_KEY?: string; ODSAY_API_KEY?: string; ODSAY_REFERER?: string };
@@ -132,9 +133,11 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
 // deno-lint-ignore no-explicit-any
 const D = (globalThis as any).Deno;
 if (D && D.serve) {
+  // 다른 앱(버디플래너)과 같은 프로젝트에 둘 수 있도록 MYPLANNER_ 접두사 비밀값을 먼저 읽음
+  const env = (k: string) => D.env.get("MYPLANNER_" + k) || D.env.get(k);
   D.serve((req: Request) => handle(req, {
-    TMAP_APP_KEY: D.env.get("TMAP_APP_KEY"),
-    ODSAY_API_KEY: D.env.get("ODSAY_API_KEY"),
-    ODSAY_REFERER: D.env.get("ODSAY_REFERER"),
+    TMAP_APP_KEY: env("TMAP_APP_KEY"),
+    ODSAY_API_KEY: env("ODSAY_API_KEY"),
+    ODSAY_REFERER: env("ODSAY_REFERER"),
   }));
 }
