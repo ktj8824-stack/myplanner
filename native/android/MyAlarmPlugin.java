@@ -25,7 +25,8 @@ import org.json.JSONObject;
  *  - snooze({ id, at, title, body, scheduleId })
  *  - status() → { exact, fullScreen, notifications, battery, scheduled, planned }
  *  - openSettings({ which: 'exact' | 'fullscreen' | 'notifications' | 'battery' })
- *  - consumeOpen() → { scheduleId }  알람 화면 '일정 보기'·알림을 눌러 앱이 열렸으면 그 일정
+ *  - consumeOpen() → { scheduleId, sharedText }  ·  'shared' 이벤트: 문자 앱에서 공유로 들어옴
+ *  - (이전) consumeOpen() → { scheduleId }  알람 화면 '일정 보기'·알림을 눌러 앱이 열렸으면 그 일정
  */
 @CapacitorPlugin(name = "MyAlarm")
 public class MyAlarmPlugin extends Plugin {
@@ -46,6 +47,12 @@ public class MyAlarmPlugin extends Plugin {
 
     private void captureOpen(Intent intent) {
         if (intent == null) return;
+        if (Intent.ACTION_SEND.equals(intent.getAction()) && "text/plain".equals(intent.getType())) {
+            String text = intent.getStringExtra(Intent.EXTRA_TEXT);
+            if (text != null && !text.isEmpty()) AlarmStore.setPendingShare(getContext(), text.length() > 4000 ? text.substring(0, 4000) : text);
+            intent.setAction(Intent.ACTION_MAIN); // 다시 열 때 중복 처리 방지
+            notifyListeners("shared", new JSObject());
+        }
         String id = intent.getStringExtra(EXTRA_OPEN);
         if (id != null && !id.isEmpty()) {
             AlarmStore.setPendingOpen(getContext(), id);
@@ -154,6 +161,7 @@ public class MyAlarmPlugin extends Plugin {
     public void consumeOpen(PluginCall call) {
         JSObject r = new JSObject();
         r.put("scheduleId", AlarmStore.consumePendingOpen(getContext()));
+        r.put("sharedText", AlarmStore.consumePendingShare(getContext()));
         call.resolve(r);
     }
 }

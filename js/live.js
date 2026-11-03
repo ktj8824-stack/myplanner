@@ -74,6 +74,7 @@ const Live = {
   /** 앱 열 때: 백그라운드 값 가져오기 → 자동 재계산 → 알람 다시 맞춤 → 변화 안내 */
   async onOpen() {
     const pulled = await this.pullNative();
+    const wxChanged = typeof Weather !== 'undefined' ? await Weather.refresh() : 0;
     const changes = await this.autoCheck();
     await Alarm.rescheduleAll(); // 변화가 없어도 항상: 날짜가 넘어가면 다음 회차를 이어서 넘겨야 함
     if (changes.length) {
@@ -82,7 +83,7 @@ const Live = {
         ? `🚗 ${c.s.title}: 길이 막혀요. ${-c.delta}분 일찍 ${U.hm(c.after)}에 출발하세요`
         : `🙂 ${c.s.title}: 길이 한산해요. ${U.hm(c.after)}에 출발해도 돼요`);
     }
-    if ((pulled || changes.length) && ['home', 'timeline'].includes(App.current)) App.navigate(App.current, App.params);
+    if ((pulled || wxChanged || changes.length) && ['home', 'timeline'].includes(App.current)) App.navigate(App.current, App.params);
   },
 
   /** 타임라인 표시용 문구 */

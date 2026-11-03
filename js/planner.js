@@ -119,9 +119,34 @@ const Planner = {
       anchor = this.at(s.date, s.arriveBy);
     }
     const driveMin = (route.steps || []).filter(st => st.type === 'car' || st.type === 'taxi').reduce((a, st) => a + st.min, 0) || route.travelMin;
-    const fixedMin = buffer + (def.extraMin || 0) + (route.travelMin - driveMin);
+    const fixedMin = buffer + (def.extraMin || 0) + (route.travelMin - driveMin) + (plan.weather ? plan.weather.extraMin : 0);
     return { anchorMs: anchor.getTime(), fixedMin, travelMin: driveMin, plannedDepartMs: plan.departAt.getTime(),
       wakeMs: plan.wakeAt.getTime(), from: leg.from, to: leg.to, mode: leg.mode };
+  },
+
+  /* ---------- 날씨 반영 ----------
+     s.weather = { 'YYYY-MM-DD': { kind: 'rain'|'heavy'|'snow', prob, mm, temp, checkedAt } }
+     그날 출발 시각 예보에 따라 이동 시간에 여유를 더합니다 (이동수단별 비율·최소값). */
+  WEATHER: {
+    rain:  { icon: '🌧', label: '비 예보',        tip: '우산 챙기세요',            car: [0.15, 5],  taxi: [0.15, 10], transit: [0, 5],  walk: [0.10, 3] },
+    heavy: { icon: '⛈', label: '많은 비 예보',    tip: '우산·여벌 신발 챙기세요',  car: [0.25, 10], taxi: [0.25, 15], transit: [0, 10], walk: [0.20, 5] },
+    snow:  { icon: '❄️', label: '눈 예보',        tip: '미끄럼 조심, 일찍 나가세요', car: [0.40, 15], taxi: [0.40, 20], transit: [0, 15], walk: [0.30, 5] }
+  },
+
+  weatherFor(s) { return (s.weather && s.weather[s.date]) || null; },
+
+  /** 날씨 때문에 더하는 여유(분). mode = 실제로 이동하는 수단 */
+  weatherExtra(s, mode, travelMin) {
+    const w = this.weatherFor(s);
+    const rule = w && this.WEATHER[w.kind];
+    if (!rule || !rule[mode]) return 0;
+    const [pct, min] = rule[mode];
+    return Math.min(60, Math.max(min, Math.round((travelMin || 0) * pct)));
+  },
+
+  weatherItem(s, at, extra) {
+    const w = this.weatherFor(s), rule = this.WEATHER[w.kind];
+    return { at, kind: 'wait', icon: rule.icon, title: `${rule.label} 여유`, detail: `+${extra}분 · ${rule.tip}` };
   },
 
   /**
@@ -135,6 +160,7 @@ const Planner = {
     const warnings = [];
     let items = [];
     let departAt, arriveAt;
+    let wx = 0;
 
     if (this.isTrip(s.mode)) {
       const trip = s.trip || {};
@@ -149,10 +175,12 @@ const Planner = {
       const checkInAt = this.addMin(vehicleDep, -margin);
       const accessRoute = this.liveRoute(s, 'accessRoute', accessMode);
       const accessTotal = this.totalMin(accessRoute, accessMode);
-      departAt = this.addMin(checkInAt, -(accessTotal + buffer));
+      wx = this.weatherExtra(s, accessMode, accessRoute ? accessRoute.travelMin : 0);
+      departAt = this.addMin(checkInAt, -(accessTotal + buffer + wx));
 
       const access = this.expandRoute(accessRoute, departAt, accessMode);
       items.push(...access.items);
+      if (wx) { items.push(this.weatherItem(s, access.endAt, wx)); access.endAt = this.addMin(access.endAt, wx); }
       const stName = (trip.departStation && trip.departStation.name) || (s.mode === 'flight' ? '출발 공항' : '출발역');
       items.push({ at: access.endAt, kind: 'arrive', icon: '📍', title: `${stName} 도착`, detail: `${marginLabel} ${margin}분 + 여유 ${buffer}분 전` });
       items.push({ at: vehicleDep, kind: 'board', icon: def.emoji, title: `${trip.number || def.label} 탑승·출발`, detail: stName });
@@ -177,9 +205,11 @@ const Planner = {
       const due = this.at(s.date, s.arriveBy);
       const route = this.liveRoute(s, 'route', s.mode);
       const total = this.totalMin(route, s.mode);
-      departAt = this.addMin(due, -(total + buffer));
+      wx = this.weatherExtra(s, s.mode, route ? route.travelMin : 0);
+      departAt = this.addMin(due, -(total + buffer + wx));
       const r = this.expandRoute(route, departAt, s.mode);
       items.push(...r.items);
+      if (wx) { items.push(this.weatherItem(s, r.endAt, wx)); r.endAt = this.addMin(r.endAt, wx); }
       arriveAt = r.endAt;
       if (buffer) items.push({ at: arriveAt, kind: 'arrive', icon: '📍', title: `${(s.dest && s.dest.name) || '목적지'} 도착`, detail: `약속 ${buffer}분 전 도착` });
     }
@@ -199,7 +229,9 @@ const Planner = {
     if (s.route && s.route.source === 'estimate' || s.accessRoute && s.accessRoute.source === 'estimate') {
       warnings.push('실제 경로 대신 거리로 추정한 시간이에요. API 키를 넣으면 정확해져요.');
     }
-    return { wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s) };
+    const w = this.weatherFor(s);
+    const weather = w && this.WEATHER[w.kind] ? { ...w, ...this.WEATHER[w.kind], extraMin: wx } : null;
+    return { wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
@@ -210,16 +242,17 @@ const Planner = {
     const firstLabel = firstMove ? `${firstMove.title}${firstMove.detail ? ' (' + firstMove.detail + ')' : ''}` : '';
     const hm = d => U.hm(d);
     const dest = (s.dest && s.dest.name) || '';
+    const wxTxt = plan.weather ? ` ${plan.weather.icon} ${plan.weather.label}(${plan.weather.prob}%) — ${plan.weather.tip}.` : '';
     if (opt.nightBefore) {
       const night = this.at(s.date, '21:00');
       night.setDate(night.getDate() - 1);
       out.push({ key: 'night', at: night, title: `내일 ${hm(plan.wakeAt)} 기상 예정`,
-        body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label})` });
+        body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}` });
     }
     if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
-      body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}` });
+      body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}` });
     if (opt.preDepart) out.push({ key: 'pre', at: this.addMin(plan.departAt, -10), title: '출발 10분 전',
-      body: `${hm(plan.departAt)} 출발 · 소지품을 챙겨 주세요. ${firstLabel}` });
+      body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}. ${firstLabel}` });
     if (opt.depart) out.push({ key: 'depart', at: plan.departAt, alarm: true, title: `🚪 지금 출발하세요 — ${s.title}`,
       body: firstLabel || `${dest}로 출발` });
     return out.filter(a => a.at.getTime() > Date.now());

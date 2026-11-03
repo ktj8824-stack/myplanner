@@ -80,7 +80,12 @@ const PlacePicker = {
         <button class="chip" onclick="PlacePicker.pickCurrent()">📍 현재 위치</button>
       </div>
       <div id="ppResults" class="pp-results"><div class="muted pad">검색어를 입력하세요.</div></div>`);
-    setTimeout(() => document.getElementById('ppInput')?.focus(), 250);
+    if (opts.query) {
+      document.getElementById('ppInput').value = opts.query;
+      this.search();
+    } else {
+      setTimeout(() => document.getElementById('ppInput')?.focus(), 250);
+    }
   },
   debounced() { clearTimeout(this._t); this._t = setTimeout(() => this.search(), 450); },
   async search() {

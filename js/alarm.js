@@ -33,6 +33,9 @@ const Alarm = {
     // 앱을 열 때마다: 백그라운드 실시간 값 가져오기 → 출발 임박 일정 재계산 → 알람 다시 맞춤
     await Live.onOpen();
     this.consumeOpen();
+    // 앱이 켜져 있는 중에 문자 앱에서 공유로 들어온 경우
+    const N0 = this.native();
+    if (N0 && N0.addListener) { try { N0.addListener('shared', () => this.consumeOpen()); } catch (e) {} }
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) return;
       Live.onOpen();
@@ -47,7 +50,11 @@ const Alarm = {
   async consumeOpen() {
     const N = this.native();
     if (!N) return;
-    try { const r = await N.consumeOpen(); if (r && r.scheduleId) this.openSchedule(r.scheduleId); } catch (e) {}
+    try {
+      const r = await N.consumeOpen();
+      if (r && r.sharedText) App.navigate('register', { paste: true, text: r.sharedText });
+      else if (r && r.scheduleId) this.openSchedule(r.scheduleId);
+    } catch (e) {}
   },
 
   /* ---------- 권한 ---------- */

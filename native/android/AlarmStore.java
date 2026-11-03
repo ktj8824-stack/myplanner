@@ -95,6 +95,17 @@ public final class AlarmStore {
         state(ctx).edit().putString("pendingOpen", scheduleId == null ? "" : scheduleId).apply();
     }
 
+    /** 다른 앱(문자·카톡)에서 '공유'로 보낸 글 — 앱이 열리면 문자로 등록 화면에 채움 */
+    public static void setPendingShare(Context ctx, String text) {
+        state(ctx).edit().putString("pendingShare", text == null ? "" : text).apply();
+    }
+
+    public static String consumePendingShare(Context ctx) {
+        String v = state(ctx).getString("pendingShare", "");
+        state(ctx).edit().remove("pendingShare").apply();
+        return v;
+    }
+
     public static String consumePendingOpen(Context ctx) {
         String v = state(ctx).getString("pendingOpen", "");
         state(ctx).edit().remove("pendingOpen").apply();

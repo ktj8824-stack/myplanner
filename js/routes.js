@@ -133,7 +133,9 @@ const Routes = {
         }
       } catch (e) { console.warn('카카오 장소 검색 실패', e); }
     }
-    return this.SAMPLE_PLACES.filter(p => p.name.includes(keyword) || keyword.includes(p.name.replace(/역|공항.*$/, '')));
+    // 예시 장소: "강남"·"판교역 2번 출구"는 찾되, "서울아산병원"이 "서울역"으로 잘못 잡히지 않게
+    return this.SAMPLE_PLACES.filter(p => p.name.includes(keyword) || keyword.includes(p.name)
+      || keyword.replace(/\s/g, '') === p.name.replace(/역$|공항.*$/, ''));
   },
 
   /* ---------- 거리 기반 추정 (키 없음/실패 시) ---------- */

@@ -42,6 +42,7 @@ const Timeline = {
           <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
         </div>
         <div class="result-meta">${m.emoji} ${m.label} · 준비 ${s.prepMin}분 · 여유 ${s.bufferMin}분</div>
+        ${plan.weather ? `<div class="wx-line">${U.esc(Weather.label(plan))}</div>` : ''}
         ${plan.live ? `<div class="live-line">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="live-line dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
         ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
       </div>

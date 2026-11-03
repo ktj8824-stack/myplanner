@@ -32,12 +32,16 @@ const Register = {
     }
     this.draw();
     if (params.id) this.fetchRoutes();
+    if (params.paste) PasteImport.open(params.text || '');
   },
 
   draw() {
     const d = this.d, isTrip = Planner.isTrip(d.mode);
     App.setMain(`
       <header class="top"><h1>${this.editing ? '일정 수정' : '일정 추가'}</h1></header>
+      ${this.editing ? '' : `<button class="paste-cta" onclick="PasteImport.open()">
+        <span class="paste-ic">📋</span><span><b>받은 문자로 채우기</b><small>KTX·SRT·항공권·병원 예약·약속 문자를 붙여넣으세요</small></span><span class="chev">›</span>
+      </button>`}
 
       <div class="card">
         <label class="lbl">무슨 일정인가요?</label>
@@ -279,6 +283,8 @@ const Register = {
     if (!this.ready()) return U.toast('경로를 먼저 찾아 주세요.');
     d.updatedAt = Date.now();
     State.upsert(d);
+    // 저장하자마자 날씨까지 반영해서 알람·안내 시각이 처음부터 맞도록
+    if (typeof Weather !== 'undefined') { try { await Weather.refresh(); } catch (e) {} }
     const list = await Alarm.rescheduleAll();
     const mine = list.filter(a => (a.s.baseId || a.s.id) === d.id);
     const firstWake = mine.find(a => a.key === 'wake');
@@ -287,5 +293,108 @@ const Register = {
     // 반복 일정이면 가장 가까운 회차로 이동
     const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;
     App.navigate('timeline', { id: next ? next.s.occId : d.id });
+  }
+};
+
+/* ---------- 문자로 등록: 붙여넣기 → 해석 → 미리보기 → 폼 채우기 ---------- */
+const PasteImport = {
+  result: null,
+
+  open(text = '') {
+    Sheet.open(`
+      <div class="sheet-head"><b>받은 문자로 채우기</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <textarea id="pasteText" class="input paste-area" rows="6" placeholder="예) [코레일] 11월 5일 KTX 101열차 서울(08:00)→부산(10:40)&#10;예) [OO병원] 11월 6일 오후 2시 30분 진료 예약&#10;예) 내일 오전 10시 판교역 2번 출구에서 미팅"
+        oninput="PasteImport.preview()">${U.esc(text)}</textarea>
+      <div class="paste-row">
+        <button class="btn" onclick="PasteImport.fromClipboard()">📋 복사한 내용 붙여넣기</button>
+      </div>
+      <div id="pastePreview" class="paste-preview"></div>
+      <button id="pasteApply" class="btn primary big" onclick="PasteImport.apply()" disabled>이대로 채우기</button>
+      <p class="muted small center">문자 내용은 휴대폰 안에서만 읽고 어디에도 보내지 않아요.</p>`);
+    if (text) this.preview();
+  },
+
+  async fromClipboard() {
+    try {
+      const t = await navigator.clipboard.readText();
+      if (!t) return U.toast('복사한 내용이 없어요.');
+      document.getElementById('pasteText').value = t;
+      this.preview();
+    } catch (e) {
+      U.toast('입력칸을 길게 눌러 붙여넣기 해 주세요.');
+      document.getElementById('pasteText').focus();
+    }
+  },
+
+  preview() {
+    const text = document.getElementById('pasteText').value;
+    const box = document.getElementById('pastePreview'), btn = document.getElementById('pasteApply');
+    if (!text.trim()) { box.innerHTML = ''; btn.disabled = true; this.result = null; return; }
+    const r = Parse.parse(text);
+    this.result = r;
+    const kindLbl = { train: '🚄 기차', flight: '✈️ 비행기', event: '📍 약속·예약' }[r.kind];
+    const ok = r.found.length > 1 || (r.found.length === 1 && r.kind !== 'event');
+    box.innerHTML = `
+      <div class="pp-kind">${kindLbl}${r.title ? ' · <b>' + U.esc(r.title) + '</b>' : ''}</div>
+      ${r.found.map(f => `<div class="pp-ok">✔ ${U.esc(f)}</div>`).join('')}
+      ${r.missing.map(f => `<div class="pp-miss">✎ ${U.esc(f)} — 채운 뒤 직접 골라 주세요</div>`).join('')}`;
+    btn.disabled = !ok;
+  },
+
+  /** 역·공항·장소 이름 → 첫 검색 결과 (못 찾으면 null) */
+  async lookup(q) {
+    if (!q) return null;
+    try {
+      const list = await Routes.searchPlace(q);
+      return list && list[0] ? list[0] : null;
+    } catch (e) { return null; }
+  },
+
+  async apply() {
+    const r = this.result;
+    if (!r) return;
+    const d = Register.d;
+    Sheet.close();
+    if (r.title) d.title = r.title;
+    if (r.date) d.date = r.date;
+    const unresolved = [];
+
+    if (r.kind === 'train' || r.kind === 'flight') {
+      d.mode = r.kind;
+      d.arriveBy = '';
+      d.route = null;
+      d.trip = { ...d.trip, number: r.trip.number || '', departTime: r.trip.departTime || d.trip.departTime,
+        arriveTime: r.trip.arriveTime || '', international: !!r.trip.international };
+      U.toast('역·공항을 찾는 중…');
+      const [from, to] = await Promise.all([this.lookup(r.trip.from), this.lookup(r.trip.to)]);
+      d.trip.departStation = from || null;
+      d.trip.arriveStation = to || null;
+      if (r.trip.from && !from) unresolved.push(['departStation', r.trip.from, true]);
+      if (r.trip.to && !to && r.kind === 'train') unresolved.push(['arriveStation', r.trip.to, true]);
+      if (r.trip.seat) d.memo = [d.memo, `좌석 ${r.trip.seat}`].filter(Boolean).join('\n');
+    } else {
+      if (Planner.isTrip(d.mode)) d.mode = State.settings.defaultMode || 'transit';
+      if (r.time) d.arriveBy = r.time;
+      if (r.bufferMin) d.bufferMin = r.bufferMin;
+      if (r.place) {
+        U.toast('장소를 찾는 중…');
+        const p = await this.lookup(r.place);
+        if (p) d.dest = p; else unresolved.push(['dest', r.place, false]);
+      }
+    }
+    Register.opts = []; Register.accessOpts = [];
+    Register.draw();
+    Register.fetchRoutes();
+
+    // 못 찾은 장소는 검색어를 넣은 채로 장소 검색창을 열어 줌
+    if (unresolved.length) {
+      const [field, q, isTrip] = unresolved[0];
+      PlacePicker.open(`'${q}' 장소 고르기`, p => {
+        if (isTrip) d.trip[field] = p; else d[field] = p;
+        Register.draw(); Register.fetchRoutes();
+      }, { query: q.replace(/\s*\d+번 출구$/, ''), allowHome: false });
+    } else {
+      U.toast(r.missing.length ? `${r.missing.join('·')}만 확인해 주세요` : '문자 내용으로 채웠어요. 확인 후 저장하세요');
+    }
   }
 };

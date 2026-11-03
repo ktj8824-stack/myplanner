@@ -26,6 +26,9 @@ const Home = {
 
       ${!State.settings.home ? `<button class="notice" onclick="App.navigate('settings')">🏠 집 주소를 등록하면 출발지가 자동으로 들어가요 ›</button>` : ''}
       <div id="permNotice"></div>
+      <button class="paste-cta" onclick="App.navigate('register',{paste:true})">
+        <span class="paste-ic">📋</span><span><b>받은 문자로 일정 만들기</b><small>KTX·항공권·병원 예약 문자를 붙여넣으면 끝</small></span><span class="chev">›</span>
+      </button>
 
       <h2 class="sec">오늘 일정</h2>
       ${today.length ? today.map(s => this.row(s)).join('') : '<div class="muted pad">오늘은 일정이 없어요.</div>'}
@@ -44,7 +47,7 @@ const Home = {
     const mode = Planner.MODES[s.mode];
     return `
       <div class="card hero" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
-        <div class="hero-top"><span class="badge">${U.dateLabel(s.date)}</span><span class="badge soft">${mode.emoji} ${mode.label}</span>${Recur.isRepeating(s) ? '<span class="badge soft">🔁 반복</span>' : ''}</div>
+        <div class="hero-top"><span class="badge">${U.dateLabel(s.date)}</span><span class="badge soft">${mode.emoji} ${mode.label}</span>${Recur.isRepeating(s) ? '<span class="badge soft">🔁 반복</span>' : ''}${plan.weather ? `<span class="badge soft">${plan.weather.icon} ${plan.weather.label}</span>` : ''}</div>
         <div class="hero-title">${U.esc(s.title)}</div>
         <div class="hero-times">
           <div class="${wakePassed ? 'dim' : ''}"><small>기상</small><b>${U.hmRel(plan.wakeAt, s.date)}</b></div>

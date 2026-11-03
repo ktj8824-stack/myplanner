@@ -246,3 +246,22 @@ textarea.input { resize: vertical; }
 /* ── v0.3: 실시간 교통 ── */
 .live-line { margin-top: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(16, 185, 129, .22); font-size: 13px; text-align: center; }
 .live-line.dim { background: rgba(255, 255, 255, .12); opacity: .9; }
+
+/* ── v0.5: 문자로 등록 · 날씨 ── */
+.paste-cta { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 14px; margin-bottom: 12px; border-radius: 16px; background: var(--card); box-shadow: var(--shadow); border: 1.5px dashed #bcd0ff; }
+.paste-cta b, .paste-cta small { display: block; }
+.paste-cta small { color: var(--muted); font-size: 13px; }
+.paste-ic { font-size: 26px; width: 44px; height: 44px; border-radius: 12px; background: var(--accent-soft); display: grid; place-items: center; flex: none; }
+.paste-cta .chev { margin-left: auto; color: var(--muted); font-size: 22px; }
+.paste-area { min-height: 130px; font-size: 15px; line-height: 1.5; }
+.paste-row { display: flex; gap: 8px; margin: 8px 0; }
+.paste-row .btn { flex: 1; }
+.paste-preview { margin: 6px 0 12px; font-size: 15px; }
+.paste-preview:empty { display: none; }
+.pp-kind { font-weight: 700; margin-bottom: 6px; }
+.pp-ok { color: var(--ok); padding: 2px 0; }
+.pp-miss { color: var(--warn); padding: 2px 0; }
+.btn:disabled { opacity: .45; }
+.sheet-panel { overflow-y: auto; }
+.wx-line { margin-top: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(255, 255, 255, .16); font-size: 13px; text-align: center; }
+.wx-badge { display: inline-block; margin-left: 4px; }

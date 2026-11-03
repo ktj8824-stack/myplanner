@@ -98,6 +98,21 @@ const components = `
         </receiver>
 `;
 if (!man.includes('.AlarmActivity')) man = man.replace('</application>', `${components}    </application>`);
+
+// 문자·카톡 '공유' → 마이플래너 (받은 문자로 일정 만들기)
+if (!man.includes('android.intent.action.SEND')) {
+  const share = `
+            <!-- 문자 앱에서 공유로 받기 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+`;
+  const m = man.match(/<activity\b[^>]*android:name="\.MainActivity"[\s\S]*?<\/activity>/);
+  if (m) man = man.replace(m[0], m[0].replace(/\s*<\/activity>$/, `${share}        </activity>`));
+  else console.warn('⚠️  MainActivity를 찾지 못해 공유 받기를 추가하지 못했어요.');
+}
 fs.writeFileSync(manPath, man);
 console.log('✅ AndroidManifest 권한·알람 구성요소 확인 완료');
 console.log('🎉 전체 화면 기상 알람 설치 끝. 안드로이드 스튜디오에서 실행해 보세요.');
