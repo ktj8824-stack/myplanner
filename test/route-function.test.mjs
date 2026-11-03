@@ -73,3 +73,17 @@ await handle(req({ service: 'bus_arrival', stationID: '105123', routeIDs: '100,2
 assert.strictEqual(calls.length, before + 1);
 console.log('✓ 버스 실시간 (정리된 응답·형식 검사·20초 캐시)');
 console.log('\n경로 서버 함수 확인 완료');
+
+// 카카오 장소 검색: 키는 Authorization 헤더로만, 키가 없으면 503 (앱은 예시 장소로 대체)
+{
+  const kc = [];
+  const kf = async (url, init = {}) => { kc.push({ url, init }); return new Response(JSON.stringify({ documents: [{ place_name: '서울아산병원', x: '127.108', y: '37.526' }] }), { status: 200 }); };
+  let k = await handle(req({ service: 'kakao_local', keyword: '아산병원' }, '7.7.7.7'), { ...env, KAKAO_REST_KEY: 'SECRET-KAKAO' }, kf, t + 900000);
+  assert.strictEqual(k.status, 200);
+  assert.strictEqual((await k.json()).documents[0].place_name, '서울아산병원');
+  assert.strictEqual(kc[0].init.headers.Authorization, 'KakaoAK SECRET-KAKAO');
+  assert.ok(!kc[0].url.includes('SECRET'));
+  k = await handle(req({ service: 'kakao_local', keyword: '아산병원2' }, '7.7.7.8'), env, kf, t + 900000);
+  assert.strictEqual(k.status, 503);
+  console.log('✓ 카카오 장소 검색 (키는 서버에만, 없으면 503)');
+}

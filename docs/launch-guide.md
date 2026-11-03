@@ -25,10 +25,12 @@ Supabase 무료 플랜의 프로젝트 2개가 이미 차 있어서, **버디플
 - 주소: `https://iaccdqcthhtvvetmbryr.supabase.co/functions/v1/myplanner-route`
 - 공개 키: 버디플래너 프로젝트의 **legacy anon 키** (`eyJ`로 시작). `sb_publishable_` 키는 이 함수에서 거절됩니다.
 
-### 남은 일: 키 3개 넣기 (폰 브라우저)
-☐ supabase.com → **buddyplanner** 프로젝트 → **Edge Functions → Secrets** → 아래 3개 추가
+### 남은 일: 키 넣기 (폰 브라우저)
+☐ supabase.com → **buddyplanner** 프로젝트 → **Edge Functions → Secrets** → 아래 값 추가
+  (장소 검색만 먼저 살리려면 카카오 키 하나면 됩니다)
   | 이름 | 값 |
   |---|---|
+  | `MYPLANNER_KAKAO_REST_KEY` | 카카오 디벨로퍼스 > 내 애플리케이션 > 앱 키 > REST API 키 (장소 검색, 무료) |
   | `MYPLANNER_TMAP_APP_KEY` | 티맵 앱키 (버디플래너 키 재사용 가능) |
   | `MYPLANNER_ODSAY_API_KEY` | ODsay 키 |
   | `MYPLANNER_ODSAY_REFERER` | `https://ktj8824-stack.github.io` |

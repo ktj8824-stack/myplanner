@@ -10,7 +10,10 @@
 const Routes = {
   key(name) {
     // 설정 > 개발자 설정에서 넣은 값이 우선 (테스트용), 없으면 config.js
-    return (localStorage.getItem('mp_key_' + name) || (window.APP_CONFIG && window.APP_CONFIG[name]) || '').trim();
+    // 그다음 config.js, 마지막으로 공개 기본값(js/defaults.js — 서버 함수 주소·공개 anon 키만)
+    let v = '';
+    try { v = localStorage.getItem('mp_key_' + name) || ''; } catch (e) {}
+    return (v || (window.APP_CONFIG && window.APP_CONFIG[name]) || (window.APP_DEFAULTS && window.APP_DEFAULTS[name]) || '').trim();
   },
 
   /** Supabase 경로 함수 { url, anon } — 설정돼 있으면 모든 티맵·ODsay 호출을 이쪽으로 */
@@ -115,32 +118,46 @@ const Routes = {
   ].map(([name, lat, lng]) => ({ name, address: '', lat, lng })),
 
   /* ---------- 장소 검색 ---------- */
+  /** 마지막 검색이 어디서 왔는지 — 'tmap' | 'kakao' | 'sample' (검색 화면 안내 문구에 씀) */
+  lastSource: '',
+
   async searchPlace(keyword) {
     keyword = (keyword || '').trim();
     if (!keyword) return [];
+    const px = this.proxy();
     if (this.can('tmap')) {
       const data = await this.api('tmap_pois', { keyword });
-      if (data) {
-        const pois = data?.searchPoiInfo?.pois?.poi || [];
+      const pois = data?.searchPoiInfo?.pois?.poi || [];
+      if (pois.length) {
+        this.lastSource = 'tmap';
         return pois.map(p => ({
           name: p.name,
           address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' '),
           lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon)
-        }));
+        })).filter(p => isFinite(p.lat) && isFinite(p.lng));
       }
+      if (data && !px) { this.lastSource = 'tmap'; return []; } // 직접 키로 찾았는데 결과 없음
+    }
+    // 카카오 (서버 함수 → 직접 키 순서)
+    let docs = null;
+    if (px) {
+      const data = await this.api('kakao_local', { keyword });
+      if (data && Array.isArray(data.documents)) docs = data.documents;
     }
     const kakao = this.key('KAKAO_REST_KEY');
-    if (kakao) {
+    if (!docs && kakao) {
       try {
         const res = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=15&query=' + encodeURIComponent(keyword),
           { headers: { Authorization: 'KakaoAK ' + kakao } });
-        if (res.ok) {
-          const data = await res.json();
-          return (data.documents || []).map(d => ({ name: d.place_name, address: d.road_address_name || d.address_name, lat: +d.y, lng: +d.x }));
-        }
+        if (res.ok) docs = (await res.json()).documents || [];
       } catch (e) { console.warn('카카오 장소 검색 실패', e); }
     }
+    if (docs) {
+      this.lastSource = 'kakao';
+      return docs.map(d => ({ name: d.place_name, address: d.road_address_name || d.address_name, lat: +d.y, lng: +d.x }));
+    }
     // 예시 장소: "강남"·"판교역 2번 출구"는 찾되, "서울아산병원"이 "서울역"으로 잘못 잡히지 않게
+    this.lastSource = 'sample';
     return this.SAMPLE_PLACES.filter(p => p.name.includes(keyword) || keyword.includes(p.name)
       || keyword.replace(/\s/g, '') === p.name.replace(/역$|공항.*$/, ''));
   },

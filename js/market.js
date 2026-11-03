@@ -18,7 +18,7 @@ const MarketView = {
 
   /** 마켓 서버 주소: SUPABASE_URL, 없으면 경로 함수 주소(같은 Supabase 프로젝트)에서 꺼냄 */
   server() {
-    const c = window.APP_CONFIG || {};
+    const c = Object.assign({}, window.APP_DEFAULTS, window.APP_CONFIG);
     let url = c.MARKET_SUPABASE_URL || c.SUPABASE_URL || '';
     if (!url && c.ROUTE_PROXY_URL) { try { url = new URL(c.ROUTE_PROXY_URL).origin; } catch (e) {} }
     return { url: url.replace(/\/$/, ''), key: c.MARKET_SUPABASE_ANON_KEY || c.SUPABASE_ANON_KEY || '' };

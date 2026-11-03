@@ -5,15 +5,16 @@
 // 요청: POST { service, ...값 }
 //   service: tmap_pois {keyword} | tmap_route {sx,sy,ex,ey} | tmap_predict {sx,sy,ex,ey,predictionTime}
 //            | tmap_walk {sx,sy,ex,ey} | odsay_transit {sx,sy,ex,ey}
+//            | kakao_local {keyword}  (카카오 키워드 장소 검색 — 티맵 키가 없거나 결과가 없을 때)
 //            | bus_arrival {stationID, routeIDs?}  → { arrivals: [{ routeId, routeNm, sec, left }] } (정리된 형태)
 // 응답: 원래 API의 JSON 그대로 (앱의 해석 코드가 같도록) — bus_arrival만 앱·폰이 바로 쓰기 쉽게 정리
 //
 // 배포: 버디플래너 Supabase 프로젝트에 함수 이름 myplanner-route 로 올라가 있음
 // 비밀값 (Supabase 대시보드 > Edge Functions > Secrets) — MYPLANNER_ 접두사가 먼저, 없으면 접두사 없는 이름:
-//   MYPLANNER_TMAP_APP_KEY, MYPLANNER_ODSAY_API_KEY, (선택) MYPLANNER_ODSAY_REFERER = ODsay에 등록한 웹 주소
+//   MYPLANNER_TMAP_APP_KEY, MYPLANNER_ODSAY_API_KEY, MYPLANNER_KAKAO_REST_KEY, (선택) MYPLANNER_ODSAY_REFERER = ODsay에 등록한 웹 주소
 // =========================================
 
-type Env = { TMAP_APP_KEY?: string; ODSAY_API_KEY?: string; ODSAY_REFERER?: string };
+type Env = { TMAP_APP_KEY?: string; ODSAY_API_KEY?: string; ODSAY_REFERER?: string; KAKAO_REST_KEY?: string };
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const CORS = {
@@ -98,6 +99,12 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
     if (!keyword) return json({ error: "검색어 없음" }, 400);
     url = `https://apis.openapi.sk.com/tmap/pois?version=1&count=15&${GEO}&searchKeyword=${encodeURIComponent(keyword)}`;
     init = { headers: { appKey: tmap } };
+  } else if (service === "kakao_local") {
+    const keyword = String(p.keyword || "").trim().slice(0, 60);
+    if (!keyword) return json({ error: "검색어 없음" }, 400);
+    if (!env.KAKAO_REST_KEY) return json({ error: "카카오 키가 설정되지 않음" }, 503);
+    url = `https://dapi.kakao.com/v2/local/search/keyword.json?size=15&query=${encodeURIComponent(keyword)}`;
+    init = { headers: { Authorization: "KakaoAK " + env.KAKAO_REST_KEY } };
   } else if (service === "bus_arrival") {
     const stationID = String(p.stationID || "");
     const routeIDs = String(p.routeIDs || "");
@@ -178,5 +185,6 @@ if (D && D.serve) {
     TMAP_APP_KEY: env("TMAP_APP_KEY"),
     ODSAY_API_KEY: env("ODSAY_API_KEY"),
     ODSAY_REFERER: env("ODSAY_REFERER"),
+    KAKAO_REST_KEY: env("KAKAO_REST_KEY"),
   }));
 }

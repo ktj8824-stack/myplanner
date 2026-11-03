@@ -4,11 +4,11 @@ const path = require('path');
 
 const src = __dirname;
 const dest = path.join(__dirname, 'www');
-const include = ['index.html', 'privacy.html', 'terms.html', 'manifest.json', 'sw.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'css', 'js'];
+const include = ['index.html', 'privacy.html', 'terms.html', 'manifest.json', 'sw.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'css', 'js', 'fonts'];
 const skip = ['config.example.js'];
 
 if (!fs.existsSync(path.join(src, 'js', 'config.js'))) {
-  console.warn('⚠️  js/config.js가 없습니다. 키 없이(추정치 모드로) 빌드합니다. 출시 전에는 config.example.js를 복사해 키를 넣으세요.');
+  console.warn('⚠️  js/config.js가 없습니다. js/defaults.js의 서버 함수로 검색·경로를 조회합니다.');
 }
 
 function copy(from, to) {

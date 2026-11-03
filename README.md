@@ -47,6 +47,9 @@ js/weather.js       날씨 예보 반영 (Open-Meteo — 상업 출시 전 유�
 js/routes.js        장소 검색 · ODsay · 티맵 · 길안내 링크
 js/alarm.js         기상·출발 알람 (Capacitor 로컬 알림 / 웹 알림)
 js/core.js          공통 도구(U) · 저장소(State)
+js/icons.js         선 아이콘 (화면 속 이모지를 자동으로 같은 아이콘으로)
+js/defaults.js      공개 기본값 (서버 함수 주소·anon 키)
+fonts/              시각 숫자 글꼴 (TeX Gyre Heros Cn 숫자만, GUST 라이선스)
 js/home.js          홈 · 캘린더
 js/register.js      일정 등록·수정
 js/timeline.js      타임라인 · 설정
@@ -62,7 +65,7 @@ test/               npm test (역산·반복·실시간·문자 해석·날씨·
 ```
 
 ## API 키
-**권장**: 키를 앱에 넣지 않고 Supabase 함수 `myplanner-route`(버디플래너 프로젝트에 배포됨)가 대신 조회합니다. 설정 방법은 `docs/launch-guide.md` 2번.
+**권장**: 키를 앱에 넣지 않고 Supabase 함수 `myplanner-route`(버디플래너 프로젝트에 배포됨)가 대신 조회합니다. 함수 주소와 공개 anon 키는 `js/defaults.js`에 들어 있어(공개해도 되는 값) 웹·앱 모두 바로 서버를 씁니다. 실제 키(카카오·티맵·ODsay)는 서버 비밀값에만 넣습니다. 설정 방법은 `docs/launch-guide.md` 2번.
 
 `js/config.example.js`를 `js/config.js`로 복사해 키를 넣으세요. (config.js는 깃허브에 올라가지 않음)
 

@@ -10,6 +10,8 @@ const App = {
   async init() {
     State.load();
     Cloud.init();
+    // 화면 글자 속 이모지를 같은 선 아이콘으로 (나중에 채워지는 부분까지)
+    ['main', 'sheet', 'ringing'].forEach(id => Icons.watch(document.getElementById(id)));
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     this.navigate(first ? 'welcome' : 'home');
@@ -44,12 +46,16 @@ const App = {
   },
 
   renderNav() {
-    const items = [['home', '🏠', '홈'], ['calendar', '📅', '캘린더'], ['register', '＋', '일정 추가'], ['market', '🛍️', '마켓'], ['settings', '⚙️', '설정']];
+    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['register', 'plus', '일정 추가'], ['market', 'bag', '마켓'], ['settings', 'settings', '설정']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
-      `<button data-nav="${k}" class="${k === 'register' ? 'nav-add' : ''}" onclick="App.navigate('${k}')"><span class="nav-ic">${ic}</span><span>${label}</span></button>`).join('');
+      `<button data-nav="${k}" class="${k === 'register' ? 'nav-add' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${Icons.svg(ic)}</span><span>${label}</span></button>`).join('');
   },
 
-  setMain(html) { document.getElementById('main').innerHTML = html; }
+  setMain(html) {
+    const el = document.getElementById('main');
+    el.innerHTML = html;
+    Icons.apply(el); // 바로 바꿔서 이모지가 잠깐 보이지 않게
+  }
 };
 
 /* ---------- 아래에서 올라오는 시트 (장소 검색 등) ---------- */
@@ -57,6 +63,7 @@ const Sheet = {
   open(html) {
     const el = document.getElementById('sheet');
     el.innerHTML = `<div class="sheet-bg" onclick="Sheet.close()"></div><div class="sheet-panel">${html}</div>`;
+    Icons.apply(el);
     el.classList.add('show');
   },
   close() { document.getElementById('sheet').classList.remove('show'); },
@@ -73,15 +80,16 @@ const PlacePicker = {
     Sheet.open(`
       <div class="sheet-head"><b>${U.esc(title)}</b><button class="x" onclick="Sheet.close()">✕</button></div>
       <div class="search-row">
-        <input id="ppInput" class="input" placeholder="장소, 역, 주소 검색 (예: 강남역)" enterkeyhint="search"
-          onkeydown="if(event.key==='Enter'){PlacePicker.search()}" oninput="PlacePicker.debounced()">
+        <div class="search-box">${Icons.svg('search')}
+          <input id="ppInput" class="input" placeholder="장소·역·주소 (예: 서울아산병원)" enterkeyhint="search" autocomplete="off"
+            onkeydown="if(event.key==='Enter'){PlacePicker.search()}" oninput="PlacePicker.debounced()"></div>
         <button class="btn primary" onclick="PlacePicker.search()">검색</button>
       </div>
       <div class="quick-row">
-        ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">🏠 집 · ${U.esc(home.name)}</button>` : ''}
-        <button class="chip" onclick="PlacePicker.pickCurrent()">📍 현재 위치</button>
+        ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">${Icons.svg('home')}&nbsp;집 · ${U.esc(home.name)}</button>` : ''}
+        <button class="chip" onclick="PlacePicker.pickCurrent()">${Icons.svg('locate')}&nbsp;현재 위치</button>
       </div>
-      <div id="ppResults" class="pp-results"><div class="muted pad">검색어를 입력하세요.</div></div>`);
+      <div id="ppResults" class="pp-results"><div class="muted pad">가는 곳 이름을 적어 주세요.</div></div>`);
     if (opts.query) {
       document.getElementById('ppInput').value = opts.query;
       this.search();
@@ -94,16 +102,22 @@ const PlacePicker = {
     const q = document.getElementById('ppInput').value;
     if (!q.trim()) return;
     const box = document.getElementById('ppResults');
-    box.innerHTML = '<div class="muted pad">검색 중…</div>';
-    this.results = await Routes.searchPlace(q);
+    box.innerHTML = '<div class="muted pad">찾는 중…</div>';
+    const seq = (this._seq = (this._seq || 0) + 1);
+    const results = await Routes.searchPlace(q);
+    if (seq !== this._seq) return; // 더 최근 검색이 있으면 무시
+    this.results = results;
+    const sampleNote = Routes.lastSource === 'sample'
+      ? `<div class="pp-note">지금은 장소 검색 서버가 준비 중이라 주요 역·공항만 찾을 수 있어요. 곧 모든 장소가 검색돼요.</div>` : '';
     if (!this.results.length) {
-      box.innerHTML = `<div class="muted pad">검색 결과가 없어요.${Routes.can('tmap') || Routes.key('KAKAO_REST_KEY') ? '' : '<br><small>장소 검색 키가 없어 예시 장소(주요 역·공항)만 검색돼요.</small>'}</div>`;
+      box.innerHTML = `<div class="muted pad">‘${U.esc(q.trim())}’ 검색 결과가 없어요. 다른 이름이나 주소로 찾아 보세요.</div>${sampleNote}`;
       return;
     }
     box.innerHTML = this.results.map((p, i) => `
       <button class="pp-item" onclick="PlacePicker.pick(${i})">
-        <b>${U.esc(p.name)}</b><small>${U.esc(p.address || '')}</small>
-      </button>`).join('');
+        <span class="pp-pin">${Icons.svg('pin')}</span>
+        <span><b>${U.esc(p.name)}</b>${p.address ? `<small>${U.esc(p.address)}</small>` : ''}</span>
+      </button>`).join('') + sampleNote;
   },
   pick(i) { this.done(this.results[i]); },
   pickHome() { this.done({ ...State.settings.home }); },
@@ -122,9 +136,9 @@ const Welcome = {
   render() {
     App.setMain(`
       <div class="welcome">
-        <div class="welcome-logo">🗓️</div>
+        <div class="welcome-logo">${Icons.svg('mark')}</div>
         <h1>마이플래너</h1>
-        <p class="lead">도착 시간만 정하면<br>언제 일어나고 언제 나가야 할지<br>거꾸로 계산해서 깨워 드려요.</p>
+        <p class="lead">도착 시간만 정하면,<br>언제 일어나고 언제 나가야 할지<br>거꾸로 계산해서 깨워 드려요.</p>
         <div class="card">
           <label class="lbl">이름 (선택)</label>
           <input id="wName" class="input" placeholder="예: 김민지" value="${U.esc(State.settings.name)}">

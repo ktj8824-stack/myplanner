@@ -118,7 +118,8 @@ const Timeline = {
     if (!el || s.alarmOff) return;
     const list = Planner.alarms(s, plan);
     el.innerHTML = list.length
-      ? list.map(a => `· ${U.dateLabel(U.ymd(a.at)).split(' · ')[0]} ${U.hm(a.at)} — ${U.esc(a.title.replace(/ — .*/, ''))}${a.alarm ? ' <span class="tag">전체 화면</span>' : ''}`).join('<br>')
+      ? list.map(a => `<div class="al-row"><span class="al-day">${U.dateLabel(U.ymd(a.at)).split(' · ')[0]}</span><b class="num">${U.hm(a.at)}</b>
+          <span class="grow">${U.esc(a.title.replace(/ — .*/, '').replace(/^[^\w가-힣]+/u, ''))}${a.alarm ? '<span class="tag">전체 화면</span>' : ''}</span></div>`).join('')
       : '남은 알람이 없어요.';
   },
 
@@ -371,7 +372,7 @@ const Settings = {
 
       <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
-        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v0.7</p>
+        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v0.9</p>
       </div>
     `);
     this.alarmCheck();
