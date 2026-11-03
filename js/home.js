@@ -26,6 +26,10 @@ const Home = {
 
       ${!State.settings.home ? `<button class="notice" onclick="App.navigate('settings')">🏠 집 주소를 등록하면 출발지가 자동으로 들어가요 ›</button>` : ''}
       <div id="permNotice"></div>
+      <button class="ai-cta" onclick="App.navigate('assistant')">
+        <span class="ai-cta-ic">🎙</span><span><b>AI 비서에게 말로 부탁하기</b><small>"내일 10시 아산병원 가야 돼" 한마디면 알람까지</small></span><span class="chev">›</span>
+      </button>
+      ${Briefing.card()}
       <button class="paste-cta" onclick="App.navigate('register',{paste:true})">
         <span class="paste-ic">📋</span><span><b>받은 문자로 일정 만들기</b><small>KTX·항공권·병원 예약 문자를 붙여넣으면 끝</small></span><span class="chev">›</span>
       </button>

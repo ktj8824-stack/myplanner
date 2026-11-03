@@ -72,6 +72,19 @@ Supabase 무료 플랜의 프로젝트 2개가 이미 차 있어서, **버디플
 
 ---
 
+## 2-2. AI 비서 켜기 (PRO 핵심 기능)
+
+서버 함수 `myplanner-ai`는 배포돼 있어요. 아래만 하면 바로 써요.
+☐ 위 2-1의 **테이블 적용**에 AI 사용량 테이블(mp_ai_usage)도 들어 있어요 — 같이 승인
+☐ Claude API 키: 버디플래너용 `ANTHROPIC_API_KEY`가 이미 있으면 그대로 써요. 따로 관리하려면 Secrets에 `MYPLANNER_ANTHROPIC_API_KEY` 추가
+☐ 출시 전 시험: Secrets에 `MYPLANNER_AI_ALLOW_ALL` = `true` (모두 PRO 취급) → **출시 전 꼭 삭제**
+☐ 한도 조정(선택): `MYPLANNER_AI_FREE_DAILY`(기본 5), `MYPLANNER_AI_PRO_DAILY`(기본 60)
+☐ PRO 결제 연결(나중): RevenueCat에 마이플래너 앱 추가 → `MYPLANNER_REVENUECAT_SECRET_KEY`, 권한 이름 `pro`
+
+구글 플레이 '생성형 AI' 정책: AI 답변을 신고하는 기능이 필요해요 — 출시 전에 추가 예정 (버디플래너 ai_reports 방식)
+
+---
+
 ## 3. 구글 플레이 콘솔 — 권한 신고 (출시할 때)
 
 플레이 콘솔 → 앱 → **앱 콘텐츠(Monitor and improve > App content)**

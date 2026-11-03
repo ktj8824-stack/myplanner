@@ -5,7 +5,7 @@
 const App = {
   current: null,
   params: {},
-  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, market: () => MarketView },
+  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, assistant: () => Assistant, market: () => MarketView },
 
   async init() {
     State.load();

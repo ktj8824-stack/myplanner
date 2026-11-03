@@ -1,0 +1,508 @@
+/* =========================================
+   MyPlanner — AI 비서 (PRO 핵심 기능)
+   말·글로 부탁 → 서버(myplanner-ai, Claude)가 '제안' → 앱 계산 엔진이 경로·기상·출발을 계산한
+   큰 확인 카드 → 사용자가 [저장]을 눌러야 저장. AI가 시각을 직접 정하지 않음.
+   40~60대를 위해: 큰 글씨, 마이크 버튼, 대답 소리로 읽기, "회사"·"엄마 집" 같은 말 기억
+   ========================================= */
+
+const Voice = {
+  Rec: window.SpeechRecognition || window.webkitSpeechRecognition,
+  canListen() { return !!this.Rec; },
+  canSpeak() { return 'speechSynthesis' in window; },
+
+  speak(text) {
+    if (!this.canSpeak() || !text) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(String(text).replace(/[🚌🚗🚕🚶🚄✈️⏰🚪🌧⛈❄️📍🎯✅👨‍👩‍👧]/gu, ''));
+      u.lang = 'ko-KR'; u.rate = 0.95;
+      const ko = speechSynthesis.getVoices().find(v => /ko/i.test(v.lang));
+      if (ko) u.voice = ko;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  },
+  stop() { try { speechSynthesis.cancel(); } catch (e) {} },
+
+  /** 말 듣기: 중간 결과는 onText, 끝나면 onDone(최종 문장) */
+  listen(onText, onDone, onEnd) {
+    if (!this.Rec) return null;
+    const r = new this.Rec();
+    r.lang = 'ko-KR'; r.interimResults = true; r.maxAlternatives = 1;
+    let final = '';
+    r.onresult = e => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
+      }
+      onText((final + interim).trim());
+    };
+    r.onerror = e => { if (e.error === 'not-allowed') U.toast('마이크 권한을 허용해 주세요'); };
+    r.onend = () => { onEnd && onEnd(); if (final.trim()) onDone(final.trim()); };
+    try { r.start(); } catch (e) { return null; }
+    return r;
+  }
+};
+
+const Assistant = {
+  KEY: 'mp_ai_history',
+  msgs: [],          // [{ role, content, actions?, cards? }]
+  idxMap: [],        // 서버에 보낸 일정 목록 idx → occId
+  busy: false,
+  rec: null,
+  speakOn: true,
+
+  SUGGEST: ['내일 일정 알려 줘', '내일 오전 10시 서울아산병원 가야 돼', '평일 9시까지 회사 출근', '이번 주 일정 뭐 있어?'],
+  ALIASES: ['회사', '직장', '사무실', '학교', '엄마 집', '아빠 집', '부모님 집', '본가', '시댁', '처가', '친정', '교회', '성당', '병원', '헬스장', '어린이집', '유치원', '학원'],
+
+  load() {
+    try { this.msgs = JSON.parse(localStorage.getItem(this.KEY) || '[]'); } catch (e) { this.msgs = []; }
+    try { this.speakOn = localStorage.getItem('mp_ai_speak') !== 'off'; } catch (e) {}
+  },
+  persist() {
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.msgs.slice(-40).map(m => ({ role: m.role, content: m.content, cards: m.cards })))); } catch (e) {}
+  },
+
+  render() {
+    if (!this.msgs.length) this.load();
+    App.setMain(`
+      <header class="top row-between">
+        <button class="back" onclick="Voice.stop();App.navigate('home')">‹</button>
+        <div class="grow"><h1>AI 비서</h1><div class="muted small" id="aiQuota">${this.quotaLabel()}</div></div>
+        <button class="btn small" onclick="Assistant.toggleSpeak()" id="aiSpeakBtn">${this.speakOn ? '🔊 읽어 주기' : '🔇 소리 끔'}</button>
+      </header>
+      <div id="aiLog" class="ai-log">${this.msgs.length ? this.msgs.map((m, i) => this.bubble(m, i)).join('') : this.welcome()}</div>
+      <div class="ai-suggest" id="aiSuggest">${this.SUGGEST.map(s => `<button class="chip" onclick="Assistant.send(${JSON.stringify(s).replace(/"/g, '&quot;')})">${U.esc(s)}</button>`).join('')}</div>
+      <div class="ai-input">
+        ${Voice.canListen() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">🎙</button>` : ''}
+        <input id="aiText" class="input" placeholder="${Voice.canListen() ? '말하거나 여기에 쓰세요' : '여기에 쓰세요'}"
+          enterkeyhint="send" onkeydown="if(event.key==='Enter'){Assistant.send()}">
+        <button class="btn primary" onclick="Assistant.send()">보내기</button>
+      </div>`);
+    document.getElementById('nav').style.display = 'none';
+    this.scroll();
+    // 지난 대화의 카드는 다시 계산해서 보여 줌
+    this.msgs.forEach((m, i) => (m.cards || []).forEach((c, j) => { if (c.state === 'ready' || c.state === 'pending') this.prepare(i, j); }));
+  },
+
+  welcome() {
+    const name = State.settings.name ? `${U.esc(State.settings.name)}님, ` : '';
+    return `<div class="ai-msg bot"><div class="ai-bubble">${name}안녕하세요. 일정을 말로 부탁하시면 출발·기상 시간을 계산해서 알람까지 맞춰 드려요.<br><br>
+      예) "내일 오전 10시 아산병원 가야 돼"<br>예) "다음 주 화요일 KTX 8시 서울역에서 부산"<br>예) "내일 출근 몇 시에 나가야 돼?"</div></div>`;
+  },
+
+  quotaLabel() {
+    const q = this.quota;
+    if (!q) return Cloud.isSignedIn() ? '말로 일정을 만들고 물어보세요' : '카카오 로그인 후 쓸 수 있어요';
+    return q.pro ? `PRO · 오늘 ${q.remaining}번 남음` : `무료 · 오늘 ${q.remaining}번 남음`;
+  },
+
+  toggleSpeak() {
+    this.speakOn = !this.speakOn;
+    try { localStorage.setItem('mp_ai_speak', this.speakOn ? 'on' : 'off'); } catch (e) {}
+    if (!this.speakOn) Voice.stop();
+    document.getElementById('aiSpeakBtn').textContent = this.speakOn ? '🔊 읽어 주기' : '🔇 소리 끔';
+  },
+
+  mic() {
+    const btn = document.getElementById('aiMic'), input = document.getElementById('aiText');
+    if (this.rec) { try { this.rec.stop(); } catch (e) {} return; }
+    Voice.stop();
+    btn.classList.add('on');
+    input.placeholder = '듣고 있어요… 말씀하세요';
+    this.rec = Voice.listen(t => { input.value = t; }, t => this.send(t), () => {
+      this.rec = null; btn.classList.remove('on'); input.placeholder = '말하거나 여기에 쓰세요';
+    });
+    if (!this.rec) { btn.classList.remove('on'); U.toast('이 기기에서는 말하기를 쓸 수 없어요. 키보드의 마이크 버튼을 써 주세요'); }
+  },
+
+  bubble(m, i) {
+    const cls = m.role === 'user' ? 'me' : 'bot';
+    const cards = (m.cards || []).map((c, j) => `<div class="ai-card" id="aiCard_${i}_${j}">${this.cardHtml(c, i, j)}</div>`).join('');
+    return `<div class="ai-msg ${cls}"><div class="ai-bubble">${U.esc(m.content).replace(/\n/g, '<br>')}</div>${cards}</div>`;
+  },
+
+  scroll() { setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 50); },
+
+  /* ---------- 서버에 보낼 내 정보 ---------- */
+  context() {
+    const now = new Date();
+    const up = State.upcoming(14).slice(0, 25);
+    this.idxMap = up.map(x => x.s.occId || x.s.id);
+    const places = Object.keys(State.settings.places || {});
+    const family = typeof Cloud !== 'undefined' && Cloud.isSignedIn() ? Cloud.familyPeople().map(p => p.display_name).filter(Boolean) : [];
+    return {
+      today: U.today(), weekday: U.DOW[now.getDay()] + '요일', now: U.hm(now),
+      userName: State.settings.name || '', home: State.settings.home ? State.settings.home.name : '',
+      defaultMode: Planner.MODES[State.settings.defaultMode || 'transit'].label, prepMin: State.settings.prepMin || 60,
+      places, family,
+      upcoming: up.map(({ s, plan }, idx) => ({
+        idx, title: s.title, date: s.date, weekday: U.DOW[Planner.at(s.date, '12:00').getDay()],
+        kind: Planner.isTrip(s.mode) ? s.mode : 'event',
+        time: Planner.isTrip(s.mode) ? s.trip.departTime + ' 출발' : s.arriveBy + ' 도착',
+        wake: U.hm(plan.wakeAt), depart: U.hm(plan.departAt), mode: Planner.MODES[s.mode].label,
+        to: s.dest ? s.dest.name : (s.trip && s.trip.departStation ? s.trip.departStation.name : ''),
+        repeat: Recur.isRepeating(s) ? Recur.label(s) : undefined, weather: plan.weather ? plan.weather.label : undefined,
+        shared_from: s._shared ? s._shared.from : undefined
+      }))
+    };
+  },
+
+  /* ---------- 보내기 ---------- */
+  async send(text) {
+    const input = document.getElementById('aiText');
+    text = (text != null ? text : (input ? input.value : '')).trim();
+    if (!text || this.busy) return;
+    if (input) input.value = '';
+    Voice.stop();
+    document.getElementById('aiSuggest')?.classList.add('hide');
+    this.push({ role: 'user', content: text });
+
+    // 로그인·서버 없이도 되는 것: 브리핑
+    if (/^(오늘|내일)?\s*(아침\s*)?브리핑/.test(text)) {
+      const day = /내일/.test(text) ? Recur.shift(U.today(), 1) : U.today();
+      return this.reply(Briefing.text(day));
+    }
+    if (!Cloud.isConfigured()) return this.reply('AI 비서를 쓰려면 서버 연결이 필요해요. 설정 > 개발자 설정을 확인해 주세요.');
+    if (!Cloud.isSignedIn()) {
+      return this.reply('AI 비서는 카카오로 로그인한 뒤 쓸 수 있어요. 로그인하면 폰을 바꿔도 일정이 그대로예요.', [{ kind: 'login', state: 'ready' }]);
+    }
+
+    this.busy = true;
+    const typing = this.push({ role: 'assistant', content: '…', typing: true });
+    try {
+      const history = this.msgs.filter(m => !m.typing && !m.local).slice(-11, -1).map(m => ({ role: m.role, content: m.content }));
+      const res = await this.call({ message: text, history, context: this.context() });
+      this.msgs.splice(this.msgs.indexOf(typing), 1);
+      if (res.remaining != null) this.quota = { remaining: res.remaining, pro: res.pro };
+      const q = document.getElementById('aiQuota'); if (q) q.textContent = this.quotaLabel();
+      const cards = (res.actions || []).map(a => ({ kind: a.type, action: a, state: 'pending' }));
+      this.reply(res.reply, cards);
+    } catch (e) {
+      this.msgs.splice(this.msgs.indexOf(typing), 1);
+      const cards = e.code === 'daily_limit' && !e.pro ? [{ kind: 'pro', state: 'ready' }] : e.code === 'login_required' ? [{ kind: 'login', state: 'ready' }] : [];
+      this.reply(e.message || '잠시 연결이 안 돼요. 조금 뒤에 다시 말씀해 주세요.', cards, true);
+    }
+    this.busy = false;
+  },
+
+  async call(body) {
+    const { url, key } = Cloud.cfg();
+    const res = await fetch(`${url}/functions/v1/myplanner-ai`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${await Cloud._token()}` },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.message || `연결 오류 (${res.status})`); e.code = data.error; e.pro = data.pro; throw e; }
+    return data;
+  },
+
+  push(m) {
+    this.msgs.push(m);
+    this.redraw();
+    return m;
+  },
+
+  reply(text, cards = [], local) {
+    const m = { role: 'assistant', content: text, cards, local };
+    this.msgs.push(m);
+    this.persist();
+    this.redraw();
+    if (this.speakOn) Voice.speak(text);
+    const i = this.msgs.length - 1;
+    cards.forEach((c, j) => { if (c.state === 'pending') this.prepare(i, j); });
+  },
+
+  redraw() {
+    const log = document.getElementById('aiLog');
+    if (!log) return;
+    log.innerHTML = this.msgs.map((m, i) => m.typing ? `<div class="ai-msg bot"><div class="ai-bubble typing"><i></i><i></i><i></i></div></div>` : this.bubble(m, i)).join('');
+    this.scroll();
+  },
+
+  card(i, j) { return (this.msgs[i].cards || [])[j]; },
+  paintCard(i, j) {
+    const el = document.getElementById(`aiCard_${i}_${j}`);
+    if (el) el.innerHTML = this.cardHtml(this.card(i, j), i, j);
+    this.persist();
+  },
+
+  /* ---------- 장소 찾기: "집" · 기억한 이름 · 전에 간 곳 · 검색 ---------- */
+  async resolvePlace(q) {
+    q = String(q || '').trim();
+    if (!q) return null;
+    const st = State.settings;
+    if (/^(home|집|우리\s*집|자택)$/i.test(q)) return st.home ? { ...st.home } : null;
+    const saved = st.places || {};
+    const key = Object.keys(saved).find(k => k === q || q.includes(k) || k.includes(q));
+    if (key) return { ...saved[key] };
+    const prev = State.schedules.map(s => s.dest).filter(Boolean).find(d => d.name === q || (q.length >= 3 && d.name.includes(q)));
+    if (prev) return { ...prev };
+    if (this.ALIASES.some(a => q === a)) return null; // "회사" 같은 말은 검색하면 엉뚱한 곳이 나와서 직접 고르게 함
+    const list = await Routes.searchPlace(q);
+    return list && list[0] ? list[0] : null;
+  },
+
+  rememberPlace(name, place) {
+    if (!name || !place || /^(home|집)$/i.test(name)) return;
+    State.settings.places = State.settings.places || {};
+    State.settings.places[name] = { name: place.name, address: place.address || '', lat: place.lat, lng: place.lng };
+    State.save();
+  },
+
+  /* ---------- 제안 → 실제 일정 초안 (경로·시각 계산) ---------- */
+  async prepare(i, j) {
+    const c = this.card(i, j);
+    if (!c) return;
+    c.state = 'pending'; this.paintCard(i, j);
+    try {
+      if (c.kind === 'schedule') await this.prepareSchedule(c);
+      else if (c.kind === 'update') this.prepareUpdate(c);
+      else c.state = 'ready';
+    } catch (e) { c.state = 'error'; c.error = e.message; }
+    this.paintCard(i, j);
+  },
+
+  async prepareSchedule(c) {
+    const a = c.action, st = State.settings;
+    const isTrip = a.kind === 'train' || a.kind === 'flight';
+    const mode = isTrip ? a.kind : (a.mode || st.defaultMode || 'transit');
+    const d = c.draft || {
+      id: U.uid(), title: a.title, date: a.date, arriveBy: isTrip ? '' : a.time, mode,
+      origin: null, dest: null, prepMin: a.prep_min ?? st.prepMin ?? 60, bufferMin: a.buffer_min ?? st.bufferMin ?? 10,
+      route: null, accessRoute: null, egressRoute: null, memo: a.memo || '',
+      trip: { accessMode: isTrip ? (a.mode || 'transit') : 'transit', egressMode: 'transit', departTime: isTrip ? a.time : '08:00',
+        arriveTime: a.arrive_time || '', number: a.number || '', international: !!a.international },
+      repeat: { type: a.repeat && a.repeat !== 'none' ? a.repeat : 'none', days: a.repeat_days || [], until: '', skipHolidays: true },
+      alarm: { ...st.alarm }, skips: [], overrides: {}
+    };
+    c.draft = d;
+    if (!d.origin) {
+      const o = await this.resolvePlace(a.origin || 'home');
+      if (!o) { c.state = 'need'; c.need = { field: 'origin', q: a.origin && a.origin !== 'home' ? a.origin : '' , label: a.origin && a.origin !== 'home' ? `'${a.origin}'` : '출발지(집)' }; return; }
+      d.origin = o;
+    }
+    if (isTrip) {
+      if (!d.trip.departStation) {
+        const p = await this.resolvePlace(a.from_station);
+        if (!p) { c.state = 'need'; c.need = { field: 'departStation', q: a.from_station, label: `'${a.from_station}'` }; return; }
+        d.trip.departStation = p;
+      }
+      if (a.to_station && !d.trip.arriveStation) d.trip.arriveStation = await this.resolvePlace(a.to_station);
+      if (!d.accessRoute) d.accessRoute = (await Routes.options(d.origin, d.trip.departStation, d.trip.accessMode, Planner.at(d.date, d.trip.departTime)))[0] || null;
+    } else {
+      if (!d.dest) {
+        const p = await this.resolvePlace(a.place);
+        if (!p) { c.state = 'need'; c.need = { field: 'dest', q: a.place, label: `'${a.place}'` }; return; }
+        d.dest = p;
+      }
+      if (!d.route) d.route = (await Routes.options(d.origin, d.dest, d.mode, Planner.at(d.date, d.arriveBy)))[0] || null;
+    }
+    if (isTrip ? !d.accessRoute : !d.route) throw new Error('경로를 찾지 못했어요');
+    c.plan = this.planSummary(d);
+    c.state = 'ready';
+  },
+
+  planSummary(d) {
+    const p = Planner.compute(d);
+    return { wake: U.hmRel(p.wakeAt, d.date), depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(p.arriveAt),
+      endLabel: Planner.isTrip(d.mode) ? '탑승' : '도착', warn: p.warnings.filter(w => !/추정한 시간/.test(w))[0] || '',
+      estimate: p.warnings.some(w => /추정한 시간/.test(w)), weather: p.weather ? `${p.weather.icon} ${p.weather.label} — ${p.weather.tip}` : '' };
+  },
+
+  /** 못 찾은 장소: 검색창을 열고, 고른 곳을 그 이름으로 기억 */
+  pickNeed(i, j) {
+    const c = this.card(i, j);
+    const need = c.need;
+    PlacePicker.open(`${need.label} 고르기`, p => {
+      const d = c.draft;
+      if (need.field === 'departStation') d.trip.departStation = p; else d[need.field] = p;
+      if (need.q && this.ALIASES.includes(need.q)) { this.rememberPlace(need.q, p); U.toast(`다음부터 '${need.q}'라고만 말씀하셔도 돼요`); }
+      this.prepare(i, j);
+    }, { query: need.q && !this.ALIASES.includes(need.q) ? need.q : '', allowHome: need.field === 'origin' });
+  },
+
+  async save(i, j) {
+    const c = this.card(i, j);
+    if (!c || c.state !== 'ready') return;
+    c.state = 'saving'; this.paintCard(i, j);
+    const d = c.draft;
+    State.upsert(d);
+    try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
+    await Alarm.rescheduleAll();
+    const saved = Recur.isRepeating(d) ? (State.upcoming(14).find(x => x.s.baseId === d.id) || {}).s : d;
+    c.savedId = saved ? (saved.occId || saved.id) : d.id;
+    c.plan = this.planSummary(saved || d);
+    // 가족에게도 보내기
+    const names = c.action.share_with || [];
+    if (names.length && Cloud.isSignedIn()) {
+      const people = Cloud.familyPeople();
+      const ids = people.filter(p => names.some(n => (p.display_name || '').includes(n) || n.includes(p.display_name || '~'))).map(p => p.user_id);
+      try { if (ids.length) { await Cloud.setShares(d.id, ids); c.shared = people.filter(p => ids.includes(p.user_id)).map(p => p.display_name); } }
+      catch (e) { c.shareError = true; }
+    }
+    c.state = 'saved';
+    this.paintCard(i, j);
+    const msg = `저장했어요. ${c.plan.wake.replace('전날 ', '전날 ')}에 깨워 드리고, ${c.plan.depart}에 출발 알람을 울려 드릴게요.` + (c.shared ? ` ${c.shared.join(', ')}님 폰에도 알람을 보냈어요.` : '');
+    if (this.speakOn) Voice.speak(msg);
+  },
+
+  edit(i, j) {
+    const c = this.card(i, j);
+    if (!c || !c.draft) return;
+    App.navigate('register', { draft: c.draft });
+  },
+
+  /* ---------- 변경 제안 ---------- */
+  prepareUpdate(c) {
+    const a = c.action;
+    const occId = this.idxMap[a.idx];
+    const cur = occId && Recur.resolve(occId);
+    if (!cur) throw new Error('그 일정을 찾지 못했어요');
+    if (cur._shared) throw new Error('가족이 공유한 일정은 보낸 사람만 바꿀 수 있어요');
+    const before = Planner.compute(cur);
+    const next = JSON.parse(JSON.stringify(cur));
+    const rep = Recur.isRepeating(cur);
+    if (a.skip) { c.summary = { title: cur.title, date: cur.date, skip: true, rep }; c.occId = occId; c.state = 'ready'; return; }
+    if (a.new_time) { if (Planner.isTrip(cur.mode)) next.trip.departTime = a.new_time; else next.arriveBy = a.new_time; }
+    if (a.new_date && !rep) next.date = a.new_date;
+    if (a.prep_min != null) next.prepMin = a.prep_min;
+    if (a.buffer_min != null) next.bufferMin = a.buffer_min;
+    const after = Planner.compute(next);
+    c.occId = occId;
+    c.summary = { title: cur.title, date: next.date, rep, oldDate: cur.date,
+      before: { wake: U.hm(before.wakeAt), depart: U.hm(before.departAt), time: Planner.isTrip(cur.mode) ? cur.trip.departTime : cur.arriveBy },
+      after: { wake: U.hm(after.wakeAt), depart: U.hm(after.departAt), time: Planner.isTrip(next.mode) ? next.trip.departTime : next.arriveBy } };
+    c.change = { new_time: a.new_time, new_date: rep ? null : a.new_date, prep_min: a.prep_min, buffer_min: a.buffer_min };
+    c.state = 'ready';
+  },
+
+  async applyUpdate(i, j) {
+    const c = this.card(i, j);
+    if (!c || c.state !== 'ready') return;
+    const cur = Recur.resolve(c.occId);
+    const base = State.get(cur.baseId || cur.id);
+    if (c.summary.skip) {
+      base.skips = [...new Set([...(base.skips || []), cur.date])];
+    } else if (Recur.isRepeating(base)) {
+      // 반복 일정은 그날만 바꿈
+      const ov = { ...(base.overrides || {})[cur.date] };
+      if (c.change.new_time) { if (Planner.isTrip(base.mode)) ov.trip = { ...base.trip, departTime: c.change.new_time }; else ov.arriveBy = c.change.new_time; }
+      if (c.change.prep_min != null) ov.prepMin = c.change.prep_min;
+      if (c.change.buffer_min != null) ov.bufferMin = c.change.buffer_min;
+      base.overrides = { ...(base.overrides || {}), [cur.date]: ov };
+    } else {
+      if (c.change.new_time) { if (Planner.isTrip(base.mode)) base.trip.departTime = c.change.new_time; else base.arriveBy = c.change.new_time; }
+      if (c.change.new_date) base.date = c.change.new_date;
+      if (c.change.prep_min != null) base.prepMin = c.change.prep_min;
+      if (c.change.buffer_min != null) base.bufferMin = c.change.buffer_min;
+      if (c.change.new_date || c.change.new_time) { base.live = {}; }
+    }
+    State.upsert(base);
+    try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
+    await Alarm.rescheduleAll();
+    c.state = 'saved';
+    this.paintCard(i, j);
+    if (this.speakOn) Voice.speak(c.summary.skip ? '그날은 건너뛸게요. 알람도 꺼 뒀어요.' : `바꿨어요. 이제 ${c.summary.after.wake}에 깨워 드릴게요.`);
+  },
+
+  dismiss(i, j) { const c = this.card(i, j); c.state = 'dismissed'; this.paintCard(i, j); },
+
+  /* ---------- 카드 그리기 ---------- */
+  cardHtml(c, i, j) {
+    if (!c) return '';
+    if (c.kind === 'login') return `<div class="ai-c-body">카카오로 로그인하면 바로 쓸 수 있어요.</div><button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
+    if (c.kind === 'pro') return `<div class="ai-c-title">⭐ PRO로 바꾸면</div><div class="ai-c-body">AI 비서를 하루 60번까지 쓰고, 말 한마디로 일정·알람·가족 공유까지 해결해요.</div>
+      <button class="btn primary big" onclick="U.toast('PRO 결제는 앱 출시 때 열려요')">PRO 알아보기</button>`;
+    if (c.state === 'dismissed') return `<div class="muted small">취소했어요</div>`;
+    if (c.state === 'error') return `<div class="ai-c-body">⚠️ ${U.esc(c.error || '처리하지 못했어요')}</div>`;
+    if (c.state === 'pending' || c.state === 'saving') return `<div class="ai-c-body muted">🔎 ${c.state === 'saving' ? '알람 맞추는 중…' : '경로를 찾아 시간을 계산하는 중…'}</div>`;
+
+    if (c.kind === 'schedule') {
+      const d = c.draft || {}, a = c.action, m = Planner.MODES[d.mode || 'transit'];
+      const head = `<div class="ai-c-title">${U.esc(a.title)}</div>
+        <div class="ai-c-sub">${U.dateLabel(a.date)} · ${m.emoji} ${m.label}${d.repeat && d.repeat.type !== 'none' ? ' · 🔁 ' + U.esc(Recur.label(d)) : ''}</div>
+        <div class="ai-c-sub">${d.origin ? '🏠 ' + U.esc(d.origin.name) : ''}${d.dest ? ' → 🎯 ' + U.esc(d.dest.name) : d.trip && d.trip.departStation ? ' → 📍 ' + U.esc(d.trip.departStation.name) : ''}</div>`;
+      if (c.state === 'need') return head + `<div class="ai-c-body">${U.esc(c.need.label)}이(가) 어디인지 골라 주세요.</div>
+        <button class="btn primary big" onclick="Assistant.pickNeed(${i},${j})">📍 장소 고르기</button>
+        <button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button>`;
+      const p = c.plan;
+      const times = `<div class="ai-times"><div><small>기상</small><b>${p.wake}</b></div><div><small>출발</small><b>${p.depart}</b></div><div><small>${p.endLabel}</small><b>${p.end}</b></div></div>
+        ${p.weather ? `<div class="ai-c-note">${U.esc(p.weather)}</div>` : ''}${p.warn ? `<div class="ai-c-note warn">⚠️ ${U.esc(p.warn)}</div>` : ''}
+        ${p.estimate ? `<div class="ai-c-note">거리로 추정한 시간이에요</div>` : ''}`;
+      if (c.state === 'saved') return head + times + `<div class="ai-c-done">✅ 저장했어요 · 알람을 맞췄어요${c.shared ? ` · ${U.esc(c.shared.join(', '))}님께도 보냈어요` : ''}</div>
+        <button class="btn ghost" onclick="App.navigate('timeline',{id:'${U.esc(c.savedId)}'})">일정 보기</button>`;
+      const shareNote = (a.share_with || []).length ? `<div class="ai-c-note">👨‍👩‍👧 ${U.esc(a.share_with.join(', '))}님 폰에도 알람을 보내요</div>` : '';
+      return head + times + shareNote + `<button class="btn primary big" onclick="Assistant.save(${i},${j})">✓ 이대로 저장하고 알람 켜기</button>
+        <div class="ai-c-row"><button class="link" onclick="Assistant.edit(${i},${j})">고쳐서 저장</button><button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button></div>`;
+    }
+
+    if (c.kind === 'update') {
+      const s = c.summary;
+      if (!s) return '';
+      const head = `<div class="ai-c-title">${U.esc(s.title)}</div><div class="ai-c-sub">${U.dateLabel(s.oldDate || s.date)}${s.rep && !s.skip ? ' · 이 날만 바꿔요' : ''}</div>`;
+      if (s.skip) {
+        return head + (c.state === 'saved' ? `<div class="ai-c-done">✅ 이 날은 건너뛰어요 (알람 꺼짐)</div>`
+          : `<div class="ai-c-body">이 날 하루만 건너뛸까요? 알람이 울리지 않아요.</div><button class="btn primary big" onclick="Assistant.applyUpdate(${i},${j})">✓ 건너뛰기</button><button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button>`);
+      }
+      const row = (k, label) => s.before[k] !== s.after[k] ? `<div class="ai-diff"><span>${label}</span><s>${s.before[k]}</s> → <b>${s.after[k]}</b></div>` : '';
+      return head + `${s.oldDate && s.date !== s.oldDate ? `<div class="ai-diff"><span>날짜</span><s>${U.dateLabel(s.oldDate).split(' · ')[0]}</s> → <b>${U.dateLabel(s.date).split(' · ')[0]}</b></div>` : ''}
+        ${row('time', '약속')}${row('wake', '기상')}${row('depart', '출발')}`
+        + (c.state === 'saved' ? `<div class="ai-c-done">✅ 바꿨어요 · 알람도 다시 맞췄어요</div>`
+          : `<button class="btn primary big" onclick="Assistant.applyUpdate(${i},${j})">✓ 이렇게 바꾸기</button><button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button>`);
+    }
+    return '';
+  }
+};
+
+/* =========================================
+   아침 브리핑 — AI 비용 없이 계산 엔진이 만든 문장 (무료)
+   ========================================= */
+const Briefing = {
+  /** 받침에 맞게 '으로/로' */
+  ro(w) {
+    const c = String(w).charCodeAt(String(w).length - 1);
+    if (c >= 0xAC00 && c <= 0xD7A3) { const b = (c - 0xAC00) % 28; return w + (b === 0 || b === 8 ? '로' : '으로'); }
+    return w + '로';
+  },
+  ampm(hm) {
+    const [h, m] = hm.split(':').map(Number);
+    return `${h < 12 ? '오전' : '오후'} ${h % 12 || 12}시${m ? ' ' + m + '분' : ''}`;
+  },
+
+  text(day) {
+    const list = Recur.between(State.schedules, day, day).filter(s => !s.alarmOff || s._shared)
+      .map(s => ({ s, plan: Planner.compute(s) })).sort((a, b) => a.plan.departAt - b.plan.departAt);
+    const isToday = day === U.today();
+    const when = isToday ? '오늘' : '내일';
+    if (!list.length) return `${when}은 예정된 일정이 없어요. 편안한 하루 보내세요.`;
+    const now = Date.now();
+    const parts = list.map(({ s, plan }, n) => {
+      const m = Planner.MODES[s.mode];
+      const how = Planner.isTrip(s.mode)
+        ? `${this.ro(Planner.MODES[s.trip.accessMode || 'transit'].label)} ${s.trip.departStation ? this.ro(s.trip.departStation.name) + ' ' : ''}`
+        : `${this.ro(m.label)} `;
+      const go = plan.departAt.getTime() < now && isToday ? '이미 출발 시간이 지났어요' : `${this.ampm(U.hm(plan.departAt))}에 ${how}출발하세요`;
+      const what = Planner.isTrip(s.mode) ? `${this.ampm(s.trip.departTime)} ${s.trip.number || m.label}` : `${this.ampm(s.arriveBy)} ${s.title}`;
+      const wake = !isToday && n === 0 ? ` ${this.ampm(U.hm(plan.wakeAt))}에 깨워 드릴게요.` : '';
+      const wx = plan.weather ? ` ${plan.weather.label}가 있으니 ${plan.weather.tip}.` : '';
+      const live = plan.live ? ` 지금 교통 상황을 반영했어요.` : '';
+      return `${n === 0 ? '' : '그다음 '}${what}${Planner.isTrip(s.mode) ? '' : (s.dest ? ', ' + s.dest.name : '')}. ${go}.${wake}${wx}${live}`;
+    });
+    const hello = isToday ? (new Date().getHours() < 11 ? '좋은 아침이에요. ' : '') : '';
+    return `${hello}${when} 일정은 ${list.length}개예요. ${parts.join(' ')}`.replace(/\s+/g, ' ').trim();
+  },
+
+  /** 홈 카드: 저녁 6시 이후면 내일 브리핑 */
+  card() {
+    const evening = new Date().getHours() >= 18;
+    const day = evening ? Recur.shift(U.today(), 1) : U.today();
+    const has = Recur.between(State.schedules, day, day).length > 0;
+    if (!has) return '';
+    const t = this.text(day);
+    return `<div class="card brief">
+      <div class="row-between"><b>${evening ? '🌙 내일 브리핑' : '☀️ 오늘 브리핑'}</b>
+        ${Voice.canSpeak() ? `<button class="btn small" onclick="Voice.speak(Briefing.text('${day}'))">🔊 듣기</button>` : ''}</div>
+      <p>${U.esc(t)}</p></div>`;
+  }
+};

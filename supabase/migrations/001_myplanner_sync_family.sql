@@ -212,3 +212,30 @@ revoke all on public.mp_profiles, public.mp_schedules, public.mp_families,
 comment on table public.mp_schedules is '마이플래너 일정 (일정 하나 = 한 줄, 앱의 일정 JSON)';
 comment on table public.mp_families is '마이플래너 가족 그룹 (초대 코드로 참여)';
 comment on table public.mp_schedule_shares is '마이플래너 일정 공유: 받은 사람 폰에서도 알람';
+
+-- 9) AI 비서 하루 사용량 (서버 함수만 기록) --------------------------------
+-- 버디플래너 ai_usage와 따로 셉니다 (앱마다 한도가 다름)
+create table if not exists public.mp_ai_usage (
+  user_id uuid    not null references auth.users (id) on delete cascade,
+  day     date    not null,
+  count   integer not null default 0,
+  primary key (user_id, day)
+);
+alter table public.mp_ai_usage enable row level security;
+-- 정책 없음: 앱은 읽기·쓰기 불가, 서버 함수(service_role)만 사용
+
+-- 한도 안이면 1 늘리고 남은 횟수, 넘으면 -1 (동시 요청에도 안전)
+create or replace function public.mp_ai_try_use(p_user uuid, p_limit integer)
+returns integer language plpgsql security definer set search_path = '' as $$
+declare
+  today date := (now() at time zone 'Asia/Seoul')::date;
+  n integer;
+begin
+  insert into public.mp_ai_usage (user_id, day, count) values (p_user, today, 1)
+  on conflict (user_id, day) do update set count = public.mp_ai_usage.count + 1
+  where public.mp_ai_usage.count < p_limit
+  returning count into n;
+  return case when n is null then -1 else p_limit - n end;
+end $$;
+revoke all on function public.mp_ai_try_use(uuid, integer) from public, anon, authenticated;
+grant execute on function public.mp_ai_try_use(uuid, integer) to service_role;
