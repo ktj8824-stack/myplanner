@@ -5,7 +5,7 @@
 const App = {
   current: null,
   params: {},
-  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome },
+  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, market: () => MarketView },
 
   async init() {
     State.load();
@@ -42,7 +42,7 @@ const App = {
   },
 
   renderNav() {
-    const items = [['home', '🏠', '홈'], ['calendar', '📅', '캘린더'], ['register', '＋', '일정 추가'], ['settings', '⚙️', '설정']];
+    const items = [['home', '🏠', '홈'], ['calendar', '📅', '캘린더'], ['register', '＋', '일정 추가'], ['market', '🛍️', '마켓'], ['settings', '⚙️', '설정']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
       `<button data-nav="${k}" class="${k === 'register' ? 'nav-add' : ''}" onclick="App.navigate('${k}')"><span class="nav-ic">${ic}</span><span>${label}</span></button>`).join('');
   },
