@@ -26,6 +26,7 @@ const Timeline = {
         <div class="grow"><div class="muted">${U.dateLabel(s.date)}${hol ? ` · <span class="holiday">${hol}</span>` : ''}</div><h1>${U.esc(s.title)}</h1></div>
       </header>
 
+      ${s._shared ? `<div class="shared-bar">👨‍👩‍👧 <b>${U.esc(s._shared.from)}</b>님이 공유한 일정 · 내 폰에서도 알람이 울려요</div>` : ''}
       ${rep ? `
         <div class="repeat-bar">
           <span>🔁 ${U.esc(Recur.label(s))}${s.hasOverride ? ' · <b>이 날만 변경됨</b>' : ''}</span>
@@ -73,7 +74,7 @@ const Timeline = {
         <div id="alarmList" class="muted small"></div>
       </div>
 
-      ${rep ? `
+      ${rep && !s._shared ? `
         <div class="card">
           <label class="lbl">이 날만</label>
           <div class="grid2 gap">
@@ -88,9 +89,17 @@ const Timeline = {
         <button class="btn ghost" onclick="Timeline.refresh()">↻ 실시간 경로로 다시 계산</button>
       </div>
       <div class="actions">
+        <button class="btn ghost" onclick="Share.send('${U.esc(s.occId || s.id)}')">📤 카톡으로 보내기</button>
+        ${!s._shared && Cloud.isSignedIn() ? `<button class="btn ghost" onclick="Timeline.familyShare()">👨‍👩‍👧 가족 공유${(Cloud.sharedTargets(s.baseId || s.id).length ? ' · ' + Cloud.sharedTargets(s.baseId || s.id).length + '명' : '')}</button>` : ''}
+      </div>
+      ${s._shared ? `
+      <div class="actions">
+        <button class="btn ghost danger" onclick="Timeline.declineShared()">공유 그만 받기</button>
+      </div>` : `
+      <div class="actions">
         <button class="btn ghost danger" onclick="Timeline.remove()">삭제</button>
         <button class="btn primary" onclick="App.navigate('register',{id:'${s.baseId || s.id}'})">${rep ? '반복 전체 수정' : '수정'}</button>
-      </div>
+      </div>`}
     `);
     this.showAlarms(s, plan);
     Bus.renderInto('busCard', s, plan);
@@ -232,6 +241,45 @@ const Timeline = {
     return list.find(r => sig(r) === sig(prev)) || list[0];
   },
 
+  /** 이 일정을 가족 누구에게 공유할지 고르기 */
+  async familyShare() {
+    const s = this.base();
+    if (!Cloud.families.length) { try { await Cloud.loadFamilies(); } catch (e) {} }
+    const people = Cloud.familyPeople();
+    if (!people.length) {
+      Sheet.open(`<div class="sheet-head"><b>가족 공유</b><button class="x" onclick="Sheet.close()">✕</button></div>
+        <p>아직 가족이 없어요. <b>설정 &gt; 가족</b>에서 가족을 만들고 초대 코드를 보내 주세요.</p>
+        <button class="btn primary big" onclick="Sheet.close();App.navigate('settings')">가족 만들러 가기</button>`);
+      return;
+    }
+    const on = Cloud.sharedTargets(s.id);
+    Sheet.open(`
+      <div class="sheet-head"><b>누구 폰에서 알람이 울릴까요?</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <p class="muted small">고른 가족의 폰에도 이 일정과 기상·출발 알람이 들어가요. 고치면 가족 폰에도 반영돼요.</p>
+      ${people.map(p => `<label class="toggle-row"><span>${U.esc(p.display_name || '가족')} <small class="muted">${U.esc(p.family)}</small></span>
+        <input type="checkbox" class="fs-pick" value="${p.user_id}" ${on.includes(p.user_id) ? 'checked' : ''}></label>`).join('')}
+      <button class="btn primary big" style="margin-top:14px" onclick="Timeline.saveFamilyShare()">저장</button>
+      <p class="muted small center">가족 폰은 마이플래너를 열 때 일정을 받아요.</p>`);
+  },
+
+  async saveFamilyShare() {
+    const s = this.base();
+    const picks = [...document.querySelectorAll('.fs-pick:checked')].map(x => x.value);
+    try {
+      await Cloud.setShares(s.id, picks);
+      Sheet.close();
+      U.toast(picks.length ? `${picks.length}명에게 공유했어요` : '공유를 껐어요');
+      this.render();
+    } catch (e) { U.toast('공유하지 못했어요: ' + e.message); }
+  },
+
+  async declineShared() {
+    const s = this.base();
+    if (!confirm(`${s._shared.from}님이 공유한 이 일정을 그만 받을까요? 내 폰에서 알람이 울리지 않아요.`)) return;
+    try { await Cloud.declineShare(s); U.toast('공유를 그만 받아요'); App.navigate('home'); }
+    catch (e) { U.toast('처리하지 못했어요: ' + e.message); }
+  },
+
   async remove() {
     const s = this.cur(), b = this.base();
     if (Recur.isRepeating(s)) {
@@ -269,7 +317,7 @@ const Timeline = {
 const Settings = {
   render() {
     const st = State.settings;
-    const keys = [['ROUTE_PROXY_URL', '경로 서버 주소 (Supabase 함수 URL)'], ['SUPABASE_ANON_KEY', 'Supabase 공개 키 (anon)'], ['ODSAY_API_KEY', 'ODsay 키 (버스·지하철)'], ['TMAP_APP_KEY', '티맵 앱키 (자가용·도보·장소)'], ['KAKAO_REST_KEY', '카카오 REST 키 (장소 검색)']];
+    const keys = [['ROUTE_PROXY_URL', '경로 서버 주소 (Supabase 함수 URL)'], ['SUPABASE_ANON_KEY', 'Supabase 공개 키 (anon)'], ['SUPABASE_URL', 'Supabase 주소 (비우면 경로 서버 주소에서 자동)'], ['ODSAY_API_KEY', 'ODsay 키 (버스·지하철)'], ['TMAP_APP_KEY', '티맵 앱키 (자가용·도보·장소)'], ['KAKAO_REST_KEY', '카카오 REST 키 (장소 검색)']];
     const reps = State.repeating();
     App.setMain(`
       <header class="top"><h1>설정</h1></header>
@@ -280,6 +328,8 @@ const Settings = {
         <label class="lbl">집 (기본 출발지)</label>
         <button class="input place-btn" onclick="Settings.pickHome()">${st.home ? '🏠 ' + U.esc(st.home.name) : '집 주소 검색'}</button>
       </div>
+
+      <div class="card" id="cloudCard"></div>
 
       <div class="card" id="alarmCheck">
         <label class="lbl">알람 점검</label>
@@ -321,10 +371,83 @@ const Settings = {
 
       <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
-        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v0.4</p>
+        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v0.7</p>
       </div>
     `);
     this.alarmCheck();
+    this.cloudCard();
+  },
+
+  /** 로그인 · 동기화 · 가족 */
+  cloudCard() {
+    const el = document.getElementById('cloudCard');
+    if (!el) return;
+    if (!Cloud.isConfigured()) {
+      el.innerHTML = `<label class="lbl">로그인 · 가족 공유</label><p class="muted small">서버 연결 전이에요. 개발자 설정에 경로 서버 주소와 Supabase 공개 키를 넣으면 쓸 수 있어요.</p>`;
+      return;
+    }
+    if (!Cloud.isSignedIn()) {
+      el.innerHTML = `<label class="lbl">로그인 · 가족 공유</label>
+        <p class="small">로그인하면 폰을 바꿔도 일정이 그대로고, <b>가족 폰에 내 일정 알람</b>을 보낼 수 있어요. (예: 엄마 병원 일정을 등록하면 엄마 폰에서 알람)</p>
+        <button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
+      return;
+    }
+    const st = { synced: '✅ 동기화됨', syncing: '⏳ 맞추는 중…', offline: '📴 오프라인', error: '⚠️ 동기화 오류', no_server: '🛠 서버 준비 중 (가족 공유 테이블 설정 필요)' }[Cloud.status] || '';
+    const last = +localStorage.getItem(Cloud.LAST_KEY);
+    const fams = Cloud.families;
+    el.innerHTML = `
+      <label class="lbl">계정</label>
+      <div class="row-between"><div class="grow"><b>${U.esc(Cloud.myName())}</b> <small class="muted">카카오</small><br><small class="muted">${st}${last ? ' · ' + U.hm(new Date(last)) : ''}</small></div>
+        <button class="btn small" onclick="Cloud.sync().catch(e=>U.toast(e.message))">지금 맞추기</button></div>
+      <label class="lbl">가족</label>
+      ${fams.length ? fams.map(f => `
+        <div class="fam">
+          <div class="row-between"><b>${U.esc(f.name)}</b><button class="link" onclick="Settings.leaveFamily('${f.id}')">나가기</button></div>
+          <div class="chips">${f.members.map(m => `<span class="chip">${m.user_id === Cloud.userId() ? '나' : U.esc(m.display_name || '가족')}${m.role === 'owner' ? ' 👑' : ''}</span>`).join('')}</div>
+          <button class="btn ghost" onclick="Settings.sendInvite('${f.id}')">초대 코드 <b class="mono">${f.invite_code}</b> 보내기</button>
+        </div>`).join('') : `<p class="muted small">가족을 만들고 초대 코드를 보내면, 서로 일정 알람을 보낼 수 있어요.</p>`}
+      <div class="grid2 gap">
+        <button class="btn ghost" onclick="Settings.newFamily()">＋ 가족 만들기</button>
+        <button class="btn ghost" onclick="Settings.joinFamily()">코드로 참여</button>
+      </div>
+      <div class="row-between"><button class="link" onclick="Settings.signOut()">로그아웃</button>
+        <button class="link danger-link" onclick="Settings.deleteData()">서버 데이터 삭제</button></div>`;
+  },
+
+  async newFamily() {
+    const name = prompt('가족 이름 (예: 우리 집, 부모님)', '우리 가족');
+    if (name == null) return;
+    try { const r = await Cloud.createFamily(name); U.toast(`가족을 만들었어요. 초대 코드 ${r.invite_code}`); this.cloudCard(); }
+    catch (e) { U.toast('만들지 못했어요: ' + e.message); }
+  },
+  async joinFamily() {
+    const code = prompt('받은 초대 코드 6자리');
+    if (!code) return;
+    try { const r = await Cloud.joinFamily(code.trim()); U.toast(`'${r.name}' 가족에 참여했어요`); this.cloudCard(); }
+    catch (e) { U.toast(e.message.includes('찾을 수') ? '초대 코드를 찾을 수 없어요' : '참여하지 못했어요: ' + e.message); }
+  },
+  async leaveFamily(id) {
+    if (!confirm('이 가족에서 나갈까요? 서로 공유한 일정도 끊겨요.')) return;
+    try { await Cloud.leaveFamily(id); await Cloud.sync(); U.toast('가족에서 나왔어요'); this.cloudCard(); }
+    catch (e) { U.toast('나가지 못했어요: ' + e.message); }
+  },
+  async sendInvite(id) {
+    const f = Cloud.families.find(x => x.id === id);
+    if (!f) return;
+    const text = `[마이플래너] '${f.name}' 가족 초대\n초대 코드: ${f.invite_code}\n마이플래너 > 설정 > 가족 > 코드로 참여에 입력해 주세요.\n${Share.WEB}`;
+    try { if (navigator.share) { await navigator.share({ title: '마이플래너 가족 초대', text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); U.toast('초대 문구를 복사했어요'); } catch (e) { prompt('복사해서 보내 주세요', f.invite_code); }
+  },
+  async deleteData() {
+    if (!confirm('서버에 올린 마이플래너 일정·가족·공유를 모두 지우고 로그아웃할까요? 이 폰의 일정은 남아요. 되돌릴 수 없어요.')) return;
+    try { await Cloud.deleteMyData(); U.toast('서버 데이터를 지웠어요'); this.render(); }
+    catch (e) { U.toast('지우지 못했어요: ' + e.message); }
+  },
+  async signOut() {
+    if (!confirm('로그아웃할까요? 내 일정은 이 폰에 남고, 가족이 공유한 일정은 사라져요.')) return;
+    await Cloud.signOut();
+    U.toast('로그아웃했어요');
+    this.render();
   },
 
   /** 알람이 확실히 울리는지 항목별 점검 + 바로 설정 열기 */

@@ -1,0 +1,124 @@
+/* =========================================
+   MyPlanner — 링크로 일정 보내기 (로그인 없이)
+   일정을 링크에 담아 카톡 등으로 보내면, 받은 사람이 링크를 눌러(또는 붙여넣어)
+   자기 폰 알람에 추가합니다. 서버를 거치지 않고 링크 안에 일정이 들어 있음.
+   ========================================= */
+
+const Share = {
+  WEB: 'https://ktj8824-stack.github.io/myplanner/',   // 앱 안에서 만든 링크도 웹으로 열리게
+
+  b64e(str) {
+    const bytes = new TextEncoder().encode(str);
+    let bin = '';
+    bytes.forEach(b => { bin += String.fromCharCode(b); });
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  },
+  b64d(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s);
+    return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)));
+  },
+
+  /** 링크에 넣을 일정 (기기 전용·개인 값은 뺌) */
+  pack(s) {
+    const keep = ['title', 'date', 'arriveBy', 'mode', 'prepMin', 'bufferMin', 'origin', 'dest', 'route', 'trip',
+      'accessRoute', 'egressRoute', 'memo', 'repeat'];
+    const o = { v: 1 };
+    keep.forEach(k => { if (s[k] != null && s[k] !== '') o[k] = s[k]; });
+    if (o.repeat && o.repeat.type === 'none') delete o.repeat;
+    return this.b64e(JSON.stringify(o));
+  },
+
+  baseUrl() {
+    const isWeb = /^https?:$/.test(location.protocol) && !/localhost|127\.0\.0\.1/.test(location.hostname);
+    return isWeb ? location.origin + location.pathname : this.WEB;
+  },
+  link(s) { return this.baseUrl() + '#mp=' + this.pack(s); },
+
+  /** 글 안에서 마이플래너 일정 링크 찾기 → 일정 객체 (없으면 null) */
+  detect(text) {
+    const m = String(text || '').match(/#mp=([A-Za-z0-9_-]{20,})/);
+    if (!m) return null;
+    try {
+      const o = JSON.parse(this.b64d(m[1]));
+      if (!o || o.v !== 1 || !o.title || !o.date || !o.mode || !Planner.MODES[o.mode]) return null;
+      return o;
+    } catch (e) { return null; }
+  },
+
+  /** 보내기: 휴대폰 공유창(카톡 등) → 안 되면 복사 */
+  async send(id) {
+    const s = Recur.resolve(id);
+    if (!s) return;
+    const base = State.get(s.baseId || s.id) || s;
+    const plan = Planner.compute(s);
+    const m = Planner.MODES[s.mode];
+    const when = Planner.isTrip(s.mode) ? `${s.trip.departTime} ${m.label} 출발` : `${s.arriveBy} 도착`;
+    const text = `[마이플래너] ${s.title}\n${U.dateLabel(s.date).split(' · ')[0]} ${when}${s.dest ? ' · ' + s.dest.name : ''}\n`
+      + `⏰ 기상 ${U.hm(plan.wakeAt)} · 🚪 출발 ${U.hm(plan.departAt)} (${m.label})\n`
+      + `링크를 누르면 내 폰 알람에 추가돼요 👇`;
+    const url = this.link({ ...base, date: s.date });
+    try {
+      if (navigator.share) { await navigator.share({ title: s.title, text, url }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    try {
+      await navigator.clipboard.writeText(text + '\n' + url);
+      U.toast('링크를 복사했어요. 카톡에 붙여넣어 보내 주세요');
+    } catch (e) {
+      Sheet.open(`<div class="sheet-head"><b>링크 복사</b><button class="x" onclick="Sheet.close()">✕</button></div>
+        <textarea class="input paste-area" readonly onclick="this.select()">${U.esc(text + '\n' + url)}</textarea>
+        <p class="muted small">길게 눌러 복사한 뒤 카톡에 붙여넣으세요.</p>`);
+    }
+  },
+
+  /** 받은 일정 미리보기 → 내 일정 추가 화면으로 */
+  openImport(o) {
+    this._incoming = o;
+    const m = Planner.MODES[o.mode];
+    const home = State.settings.home;
+    const plan = (() => { try { return Planner.compute({ ...o, alarm: {} }); } catch (e) { return null; } })();
+    const sameHome = home && o.origin && Math.abs(home.lat - o.origin.lat) < 0.002 && Math.abs(home.lng - o.origin.lng) < 0.002;
+    Sheet.open(`
+      <div class="sheet-head"><b>받은 일정</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="card import-card">
+        <div class="muted small">${U.dateLabel(o.date)} · ${m.emoji} ${m.label}${o.repeat ? ' · 🔁 ' + U.esc(Recur.label(o)) : ''}</div>
+        <div class="import-title">${U.esc(o.title)}</div>
+        <div class="small">${o.origin ? '🏠 ' + U.esc(o.origin.name) : ''}${o.dest ? ' → 🎯 ' + U.esc(o.dest.name) : ''}</div>
+        ${plan ? `<div class="small muted">기상 ${U.hm(plan.wakeAt)} · 출발 ${U.hm(plan.departAt)}</div>` : ''}
+      </div>
+      ${home && !sameHome && o.origin ? `
+        <p class="small">출발지가 보낸 사람 기준(<b>${U.esc(o.origin.name)}</b>)이에요.</p>
+        <button class="btn primary big" onclick="Share.accept(true)">🏠 내 집(${U.esc(home.name)})에서 출발로 추가</button>
+        <button class="btn ghost" onclick="Share.accept(false)">${U.esc(o.origin.name)}에서 출발 그대로 추가</button>`
+      : `<button class="btn primary big" onclick="Share.accept(false)">내 알람에 추가</button>`}
+      <p class="muted small center">추가 화면에서 확인한 뒤 저장하면 알람이 맞춰져요.</p>`);
+  },
+
+  accept(useHome) {
+    const o = this._incoming;
+    if (!o) return;
+    Sheet.close();
+    const st = State.settings;
+    const draft = {
+      ...o, id: U.uid(), alarm: { ...st.alarm }, skips: [], overrides: {},
+      repeat: o.repeat || { type: 'none', days: [], until: '', skipHolidays: true },
+      trip: o.trip || { accessMode: 'transit', egressMode: 'transit', departTime: '08:00', arriveTime: '', international: false }
+    };
+    delete draft.v;
+    if (useHome && st.home) {
+      draft.origin = { ...st.home };
+      draft.route = null; draft.accessRoute = null; // 내 집 기준으로 경로 다시 찾기
+    }
+    App.navigate('register', { draft });
+  },
+
+  /** 앱이 링크로 열렸을 때 */
+  fromLocation() {
+    const o = this.detect(location.hash);
+    if (!o) return false;
+    history.replaceState(null, document.title, location.pathname + location.search);
+    setTimeout(() => this.openImport(o), 300);
+    return true;
+  }
+};

@@ -70,7 +70,7 @@ const Home = {
       <button class="row" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
         <div class="row-ic">${m.emoji}</div>
         <div class="row-main">
-          <b>${Recur.isRepeating(s) ? '🔁 ' : ''}${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}</b>
+          <b>${s._shared ? '👨‍👩‍👧 ' : ''}${Recur.isRepeating(s) ? '🔁 ' : ''}${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}</b>
           <small>${s.date !== U.today() ? U.dateLabel(s.date) + ' · ' : ''}${timeLabel}${s.dest ? ' · ' + U.esc(s.dest.name) : ''}</small>
         </div>
         <div class="row-side"><small>기상</small><b>${U.hm(plan.wakeAt)}</b></div>

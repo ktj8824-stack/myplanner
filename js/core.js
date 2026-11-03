@@ -61,13 +61,25 @@ const State = {
     } catch (e) { U.toast('저장 공간이 부족해요.'); }
   },
   get(id) { return this.schedules.find(s => s.id === id); },
+  /** 사용자가 바꾼 일정 저장 → 로그인 상태면 서버에도 올림 (공유받은 일정은 내 폰에만) */
   upsert(s) {
+    if (!s._shared) s.updatedAt = Date.now();
+    this.putRaw(s);
+    this.save();
+    if (!s._shared && typeof Cloud !== 'undefined') Cloud.markDirty(s.id);
+  },
+  /** 서버에서 받은 일정 넣기 (다시 올리지 않음) */
+  putRaw(s) {
     const i = this.schedules.findIndex(x => x.id === s.id);
     if (i >= 0) this.schedules[i] = s; else this.schedules.push(s);
     this.schedules.sort((a, b) => (a.date + (a.arriveBy || a.trip?.departTime || '')).localeCompare(b.date + (b.arriveBy || b.trip?.departTime || '')));
-    this.save();
   },
-  remove(id) { this.schedules = this.schedules.filter(s => s.id !== id); this.save(); },
+  remove(id) {
+    const s = this.get(id);
+    this.schedules = this.schedules.filter(x => x.id !== id);
+    this.save();
+    if (s && !s._shared && typeof Cloud !== 'undefined') Cloud.markDirty(id);
+  },
   /** 그 날짜의 일정 (반복 일정은 그날 회차로 펼침) */
   byDate(ymd) {
     return Recur.between(this.schedules, ymd, ymd)
@@ -84,5 +96,5 @@ const State = {
       .sort((a, b) => a.plan.wakeAt - b.plan.wakeAt);
   },
   /** 반복 일정 중 '단발 일정이 아닌' 원본 목록 */
-  repeating() { return this.schedules.filter(s => Recur.isRepeating(s)); }
+  repeating() { return this.schedules.filter(s => Recur.isRepeating(s) && !s._shared); }
 };

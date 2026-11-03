@@ -9,9 +9,11 @@ const App = {
 
   async init() {
     State.load();
+    Cloud.init();
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     this.navigate(first ? 'welcome' : 'home');
+    Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
     await Alarm.init();
     if (this.current === 'home') Home.render();
 

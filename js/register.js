@@ -12,6 +12,20 @@ const Register = {
   QUICK: ['출근', '회의', '미팅', '병원', '약속', '등교', '여행', '면접'],
 
   render(params = {}) {
+    if (params.id && State.get(params.id) && State.get(params.id)._shared) {
+      U.toast('가족이 공유한 일정은 보낸 사람만 고칠 수 있어요');
+      return App.navigate('timeline', { id: params.id });
+    }
+    if (params.draft) {
+      // 링크로 받은 일정 → 새 일정으로 확인·저장
+      this.d = JSON.parse(JSON.stringify(params.draft));
+      this.editing = false;
+      this.opts = []; this.accessOpts = [];
+      this.draw();
+      if (!this.ready()) this.fetchRoutes();
+      U.toast('받은 일정이에요. 확인하고 저장하세요');
+      return;
+    }
     if (params.id && State.get(params.id)) {
       this.d = JSON.parse(JSON.stringify(State.get(params.id)));
       this.d.repeat = this.d.repeat || { type: 'none', days: [], until: '', skipHolidays: true };
@@ -330,6 +344,8 @@ const PasteImport = {
     const text = document.getElementById('pasteText').value;
     const box = document.getElementById('pastePreview'), btn = document.getElementById('pasteApply');
     if (!text.trim()) { box.innerHTML = ''; btn.disabled = true; this.result = null; return; }
+    const shared = Share.detect(text);
+    if (shared) { Sheet.close(); return Share.openImport(shared); }
     const r = Parse.parse(text);
     this.result = r;
     const kindLbl = { train: '🚄 기차', flight: '✈️ 비행기', event: '📍 약속·예약' }[r.kind];
