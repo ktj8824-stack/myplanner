@@ -29,6 +29,20 @@ files.forEach(f => {
 });
 console.log(`✅ 알람 자바 파일 ${files.length}개 복사 → ${path.relative(root, pkgDir)}`);
 
+// 2-1) 위젯 리소스 (레이아웃·모양·설정·문구)
+const resSrc = path.join(srcDir, 'res');
+const resDst = path.join(android, 'res');
+if (fs.existsSync(resSrc)) {
+  for (const dir of fs.readdirSync(resSrc)) {
+    fs.mkdirSync(path.join(resDst, dir), { recursive: true });
+    for (const f of fs.readdirSync(path.join(resSrc, dir))) fs.copyFileSync(path.join(resSrc, dir, f), path.join(resDst, dir, f));
+  }
+  fs.mkdirSync(path.join(resDst, 'values'), { recursive: true });
+  fs.writeFileSync(path.join(resDst, 'values', 'mp_strings.xml'),
+    '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="mp_widget_desc">다음 일정의 기상·출발·도착 시각</string>\n    <string name="mp_widget_label">마이플래너 다음 일정</string>\n</resources>\n');
+  console.log('✅ 위젯 리소스 복사');
+}
+
 // 3) MainActivity에 플러그인 등록
 const mainPath = path.join(pkgDir, 'MainActivity.java');
 let main = fs.existsSync(mainPath) ? fs.readFileSync(mainPath, 'utf8') : '';
@@ -98,6 +112,18 @@ const components = `
         </receiver>
 `;
 if (!man.includes('.AlarmActivity')) man = man.replace('</application>', `${components}    </application>`);
+
+// 홈 화면 위젯
+if (!man.includes('.NextWidget')) {
+  man = man.replace('</application>', `        <!-- 마이플래너 홈 화면 위젯 -->
+        <receiver android:name=".NextWidget" android:exported="false" android:label="@string/mp_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/mp_widget_info" />
+        </receiver>
+    </application>`);
+}
 
 // 문자·카톡 '공유' → 마이플래너 (받은 문자로 일정 만들기)
 if (!man.includes('android.intent.action.SEND')) {

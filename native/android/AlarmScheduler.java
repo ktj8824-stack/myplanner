@@ -125,6 +125,7 @@ public final class AlarmScheduler {
             if (schedule(ctx, it)) ok++;
         }
         scheduleRefill(ctx);
+        NextWidget.updateAll(ctx); // 홈 화면 위젯도 새로 그림
         Log.d(TAG, "3일 창 동기화: " + ok + "개 예약");
         return ok;
     }

@@ -59,4 +59,17 @@ console.log('✓ 사용자당 1분 60회 제한 후 회복');
 // 7) CORS 사전 요청
 assert.strictEqual((await handle(req(null, '1.1.1.1', 'OPTIONS'), env, fakeFetch, t)).headers.get('Access-Control-Allow-Origin'), '*');
 console.log('✓ 웹 CORS');
+// 8) 버스 실시간: 정리된 형태로 반환, 정류장 ID 형식 검사, 20초 캐시
+const busFetch = async (url) => { calls.push({ url }); return new Response(JSON.stringify({ result: { real: [{ routeId: 100, routeNm: '7714', arrival1: { arrivalSec: 300, leftStation: 2 }, arrival2: { arrivalSec: 1200 } }] } }), { status: 200 }); };
+r = await handle(req({ service: 'bus_arrival', stationID: '105123', routeIDs: '100,200' }, '7.7.7.7'), env, busFetch, t);
+const bj = await r.json();
+assert.deepStrictEqual(bj.arrivals.map(a => a.sec), [300, 1200]);
+assert.ok(calls.at(-1).url.includes('realtimeStation') && calls.at(-1).url.includes('stationID=105123'));
+assert.strictEqual((await handle(req({ service: 'bus_arrival', stationID: '1; drop' }, '7.7.7.7'), env, busFetch, t)).status, 400);
+const before = calls.length;
+await handle(req({ service: 'bus_arrival', stationID: '105123', routeIDs: '100,200' }, '7.7.7.7'), env, busFetch, t + 10000);
+assert.strictEqual(calls.length, before);
+await handle(req({ service: 'bus_arrival', stationID: '105123', routeIDs: '100,200' }, '7.7.7.7'), env, busFetch, t + 25000);
+assert.strictEqual(calls.length, before + 1);
+console.log('✓ 버스 실시간 (정리된 응답·형식 검사·20초 캐시)');
 console.log('\n경로 서버 함수 확인 완료');

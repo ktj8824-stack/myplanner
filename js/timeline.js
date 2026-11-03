@@ -47,6 +47,7 @@ const Timeline = {
         ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
       </div>
 
+      <div id="busCard"></div>
       <div class="nav-btns">
         ${navMode === 'taxi' ? `<button class="btn" onclick="Routes.openNav('kakaot')">🚕 카카오T</button>` : ''}
         <button class="btn" onclick="Timeline.nav('kakaomap')">🗺️ 카카오맵</button>
@@ -92,6 +93,7 @@ const Timeline = {
       </div>
     `);
     this.showAlarms(s, plan);
+    Bus.renderInto('busCard', s, plan);
   },
 
   skippedList() {

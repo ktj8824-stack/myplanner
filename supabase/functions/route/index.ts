@@ -5,7 +5,8 @@
 // 요청: POST { service, ...값 }
 //   service: tmap_pois {keyword} | tmap_route {sx,sy,ex,ey} | tmap_predict {sx,sy,ex,ey,predictionTime}
 //            | tmap_walk {sx,sy,ex,ey} | odsay_transit {sx,sy,ex,ey}
-// 응답: 원래 API의 JSON 그대로 (앱의 해석 코드가 같도록)
+//            | bus_arrival {stationID, routeIDs?}  → { arrivals: [{ routeId, routeNm, sec, left }] } (정리된 형태)
+// 응답: 원래 API의 JSON 그대로 (앱의 해석 코드가 같도록) — bus_arrival만 앱·폰이 바로 쓰기 쉽게 정리
 //
 // 배포: 버디플래너 Supabase 프로젝트에 함수 이름 myplanner-route 로 올라가 있음
 // 비밀값 (Supabase 대시보드 > Edge Functions > Secrets) — MYPLANNER_ 접두사가 먼저, 없으면 접두사 없는 이름:
@@ -44,6 +45,32 @@ function coords(p: Record<string, unknown>) {
   return c;
 }
 
+/** ODsay 실시간 도착 응답 → [{ routeId, routeNm, sec, left }] (앱 Routes.normalizeBus와 같은 규칙) */
+// deno-lint-ignore no-explicit-any
+export function normalizeBus(data: any) {
+  const res = data && data.result ? data.result : {};
+  let real = res.real || res.realtime || res.arrival || [];
+  if (!Array.isArray(real)) real = [real];
+  const out: { routeId: string; routeNm: string; sec: number; left: number | null }[] = [];
+  // deno-lint-ignore no-explicit-any
+  real.forEach((r: any) => {
+    if (!r) return;
+    const routeId = String(r.routeId ?? r.routeID ?? r.busID ?? "");
+    const routeNm = String(r.routeNm ?? r.routeName ?? r.busNo ?? "");
+    // deno-lint-ignore no-explicit-any
+    [r.arrival1, r.arrival2].forEach((a: any) => {
+      if (!a) return;
+      let sec = a.arrivalSec ?? a.predictTimeSec;
+      if (sec == null && a.arrivalMin != null) sec = a.arrivalMin * 60;
+      if (sec == null && a.predictTime != null) sec = a.predictTime * 60;
+      sec = Number(sec);
+      if (!isFinite(sec) || sec < 0 || sec > 7200) return;
+      out.push({ routeId, routeNm, sec, left: a.leftStation ?? a.leftStop ?? null });
+    });
+  });
+  return out.sort((x, y) => x.sec - y.sec);
+}
+
 function limited(ip: string, now: number) {
   const r = rate.get(ip);
   if (!r || now - r.t > 60_000) { rate.set(ip, { n: 1, t: now }); return false; }
@@ -71,6 +98,13 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
     if (!keyword) return json({ error: "검색어 없음" }, 400);
     url = `https://apis.openapi.sk.com/tmap/pois?version=1&count=15&${GEO}&searchKeyword=${encodeURIComponent(keyword)}`;
     init = { headers: { appKey: tmap } };
+  } else if (service === "bus_arrival") {
+    const stationID = String(p.stationID || "");
+    const routeIDs = String(p.routeIDs || "");
+    if (!/^\d{1,12}$/.test(stationID) || !/^[\d,]{0,200}$/.test(routeIDs)) return json({ error: "정류장 정보가 올바르지 않음" }, 400);
+    if (!env.ODSAY_API_KEY) return json({ error: "ODsay 키가 설정되지 않음" }, 503);
+    url = `https://api.odsay.com/v1/api/realtimeStation?lang=0&stationBase=0&stationID=${stationID}${routeIDs ? "&routeIDs=" + routeIDs : ""}&apiKey=${encodeURIComponent(env.ODSAY_API_KEY)}`;
+    init = env.ODSAY_REFERER ? { headers: { Referer: env.ODSAY_REFERER } } : {};
   } else if (["tmap_route", "tmap_predict", "tmap_walk", "odsay_transit"].includes(service)) {
     const c = coords(p);
     if (!c) return json({ error: "좌표가 올바르지 않음" }, 400);
@@ -113,12 +147,17 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
   // 실시간 경로(tmap_route)는 1분 캐시, 나머지도 같은 요청이면 재사용
   const cacheKey = service + "|" + url + "|" + (init.body || "");
   const hit = cache.get(cacheKey);
-  if (hit && now - hit.at < CACHE_MS) return json(hit.body, hit.status);
+  const ttl = service === "bus_arrival" ? 20_000 : CACHE_MS; // 실시간 버스는 20초만 재사용
+  if (hit && now - hit.at < ttl) return json(hit.body, hit.status);
 
   try {
     const res = await fetchFn(url, init);
     if (res.status === 204) return json({}, 200); // 티맵 검색 결과 없음
-    const body = await res.text();
+    let body = await res.text();
+    if (res.ok && service === "bus_arrival") {
+      try { body = JSON.stringify({ arrivals: normalizeBus(JSON.parse(body)), source: "odsay" }); }
+      catch { return json({ error: "실시간 응답 해석 실패" }, 502); }
+    }
     if (res.ok) {
       cache.set(cacheKey, { at: now, status: res.status, body });
       if (cache.size > 500) cache.delete(cache.keys().next().value as string);

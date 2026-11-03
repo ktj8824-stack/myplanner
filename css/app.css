@@ -265,3 +265,13 @@ textarea.input { resize: vertical; }
 .sheet-panel { overflow-y: auto; }
 .wx-line { margin-top: 10px; padding: 8px 11px; border-radius: 10px; background: rgba(255, 255, 255, .16); font-size: 13px; text-align: center; }
 .wx-badge { display: inline-block; margin-left: 4px; }
+
+/* ── v0.6: 버스 실시간 ── */
+.bus-card { margin-bottom: 12px; padding: 12px 14px; border-radius: 14px; background: #e7f6ee; color: #065f46; }
+.bus-card b, .bus-card small { display: block; }
+.bus-card small { margin-top: 2px; font-size: 13px; opacity: .9; }
+.bus-card.warn { background: var(--warn-soft); color: var(--warn); }
+.bus-card.info, .bus-card.dim { background: var(--input); color: var(--text-2); font-size: 14px; }
+.bus-card .link { padding: 4px 0 0; font-size: 13px; }
+.hero #heroBus .bus-card { margin: 10px 0 0; background: rgba(255, 255, 255, .16); color: #fff; }
+.hero #heroBus .bus-card .link { color: #fff; }

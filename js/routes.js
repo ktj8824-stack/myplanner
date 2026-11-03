@@ -67,6 +67,13 @@ const Routes = {
             body: JSON.stringify({ startX: p.sx, startY: p.sy, endX: p.ex, endY: p.ey, startName: p.sname || '출발', endName: p.ename || '도착', reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO' })
           });
           break;
+        case 'bus_arrival': {
+          const k = this.key('ODSAY_API_KEY');
+          if (!k) return null;
+          res = await fetch(`https://api.odsay.com/v1/api/realtimeStation?lang=0&stationBase=0&stationID=${encodeURIComponent(p.stationID)}${p.routeIDs ? '&routeIDs=' + encodeURIComponent(p.routeIDs) : ''}&apiKey=${encodeURIComponent(k)}`);
+          if (!res.ok) return null;
+          return { arrivals: this.normalizeBus(await res.json()), source: 'odsay' };
+        }
         case 'odsay_transit': {
           const k = this.key('ODSAY_API_KEY');
           if (!k) return null;
@@ -199,7 +206,13 @@ const Routes = {
           type: isSubway ? 'subway' : 'bus',
           label: name + (others.length ? ` (또는 ${others.slice(0, 3).join(', ')})` : ''),
           from: sp.startName, to: sp.endName, stops: sp.stationCount, min: sp.sectionTime,
-          way: sp.way // 지하철 방면
+          way: sp.way, // 지하철 방면
+          // 실시간 버스 도착 조회용: ODsay 정류장 ID + 노선 ID(같은 정류장에서 타는 다른 노선 포함)
+          ...(isSubway ? {} : {
+            stationId: sp.startID, arsId: sp.startArsID,
+            routeIds: (sp.lane || []).map(l => l.busID).filter(Boolean),
+            routeNos: (sp.lane || []).map(l => l.busNo).filter(Boolean)
+          })
         });
       }
     });
@@ -210,6 +223,41 @@ const Routes = {
       payment: info.payment,
       summary: `${info.totalTime}분 · 환승 ${Math.max(0, transfers)}회 · ${info.payment ? info.payment.toLocaleString() + '원' : ''}`.replace(/ · $/, '')
     };
+  },
+
+  /**
+   * ODsay 실시간 도착 응답 → [{ routeId, routeNm, sec, left }]
+   * (응답 필드 이름이 문서마다 달라 여러 형태를 모두 받아들임 — 서버 함수와 같은 규칙)
+   */
+  normalizeBus(data) {
+    const res = data && data.result ? data.result : {};
+    let real = res.real || res.realtime || res.arrival || [];
+    if (!Array.isArray(real)) real = [real];
+    const out = [];
+    real.forEach(r => {
+      if (!r) return;
+      const routeId = String(r.routeId ?? r.routeID ?? r.busID ?? '');
+      const routeNm = String(r.routeNm ?? r.routeName ?? r.busNo ?? '');
+      [r.arrival1, r.arrival2].forEach(a => {
+        if (!a) return;
+        let sec = a.arrivalSec ?? a.predictTimeSec;
+        if (sec == null && a.arrivalMin != null) sec = a.arrivalMin * 60;
+        if (sec == null && a.predictTime != null) sec = a.predictTime * 60;
+        sec = Number(sec);
+        if (!isFinite(sec) || sec < 0 || sec > 7200) return;
+        out.push({ routeId, routeNm, sec, left: a.leftStation ?? a.leftStop ?? null });
+      });
+    });
+    return out.sort((x, y) => x.sec - y.sec);
+  },
+
+  /** 첫 버스 정류장의 실시간 도착 (해당 노선만). 실패하면 null */
+  async busArrivals(step) {
+    if (!step || !step.stationId || !this.can('odsay')) return null;
+    const data = await this.api('bus_arrival', { stationID: step.stationId, routeIDs: (step.routeIds || []).join(',') });
+    if (!data || !Array.isArray(data.arrivals)) return null;
+    const ids = (step.routeIds || []).map(String), nos = (step.routeNos || []).map(String);
+    return data.arrivals.filter(a => !ids.length || ids.includes(a.routeId) || nos.includes(a.routeNm));
   },
 
   /* ---------- 자가용·택시 (티맵, 도착 시각 기준 예측 / 없으면 실시간) ---------- */

@@ -37,6 +37,7 @@ const Home = {
       ${up.filter(x => x.s.date !== U.today()).slice(0, 6).map(x => this.row(x.s, x.plan)).join('') || '<div class="muted pad">다가오는 일정이 없어요.</div>'}
     `);
     this.checkPermission();
+    if (next) Bus.renderInto('heroBus', next.s, next.plan);
   },
 
   heroCard({ s, plan }) {
@@ -57,6 +58,7 @@ const Home = {
           <div><small>${Planner.isTrip(s.mode) ? '탑승' : '도착'}</small><b>${Planner.isTrip(s.mode) ? s.trip.departTime : s.arriveBy}</b></div>
         </div>
         <div class="hero-left">${plan.departAt.getTime() < now ? '이동 중' : (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</div>
+        <div id="heroBus"></div>
       </div>`;
   },
 

@@ -49,6 +49,11 @@ public final class Recheck {
         JSONArray rechecks = plan.optJSONArray("rechecks");
         JSONObject spec = rechecks == null ? null : PlanStore.findById(rechecks, recheckId);
         if (spec == null || (key.isEmpty() && proxyUrl.isEmpty())) return;
+        if ("bus".equals(spec.optString("type"))) {
+            // 버스 실시간 도착은 서버 함수로만 조회 (ODsay 키를 앱에 넣지 않음)
+            if (!proxyUrl.isEmpty()) BusCheck.run(ctx, plan, spec, proxyUrl, proxyKey);
+            return;
+        }
 
         double sx = spec.optDouble("sx"), sy = spec.optDouble("sy"), ex = spec.optDouble("ex"), ey = spec.optDouble("ey");
         int live = proxyUrl.isEmpty() ? tmapMinutes(key, sx, sy, ex, ey) : proxyMinutes(proxyUrl, proxyKey, sx, sy, ex, ey);

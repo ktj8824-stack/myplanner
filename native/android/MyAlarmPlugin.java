@@ -71,6 +71,8 @@ public class MyAlarmPlugin extends Plugin {
             plan.put("rechecks", rechecks == null ? new JSONArray() : rechecks);
             plan.put("tmapKey", call.getString("tmapKey", ""));
             plan.put("proxyUrl", call.getString("proxyUrl", ""));
+            JSONArray widget = call.getArray("widget");
+            plan.put("widget", widget == null ? new JSONArray() : widget);
             plan.put("proxyKey", call.getString("proxyKey", ""));
             // 앱이 아직 가져가지 않은 실시간 값은 유지
             JSONObject live = old.optJSONObject("live");

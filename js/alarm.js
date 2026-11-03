@@ -12,6 +12,7 @@ const Alarm = {
   NATIVE_DAYS: 45,      // 앱(네이티브): 45일치 계획을 넘기면 폰이 매일 3일치씩 알아서 보충
   RECHECK_BEFORE_WAKE: 20,   // 기상 20분 전 실시간 재계산
   RECHECK_BEFORE_DEPART: 30, // 출발 30분 전 실시간 재계산
+  BUS_CHECK_BEFORE: 15,      // 출발 15분 전 버스 실시간 도착 확인
   webTimers: [],
 
   isNative() { const C = window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform()); },
@@ -117,6 +118,17 @@ const Alarm = {
     list.forEach(a => {
       if (seen.has(a.sid) || a.s.alarmOff) return;
       seen.add(a.sid);
+      // 버스: 출발 15분 전에 첫 정류장 실시간 도착 확인 (서버 함수가 있을 때만)
+      const bl = typeof Bus !== 'undefined' ? Bus.leg(a.s) : null;
+      if (bl && Routes.proxy()) {
+        const at = a.plan.departAt.getTime() - this.BUS_CHECK_BEFORE * 60000;
+        if (at > now) out.push({
+          id: this.numId(a.sid + 'bus'), at, type: 'bus', occId: a.sid, title: a.s.title,
+          stationId: String(bl.step.stationId), routeIds: (bl.step.routeIds || []).join(','), busName: Bus.busName(bl.step),
+          walkMin: bl.walkMin, preStopMin: bl.preStopMin, plannedDepart: a.plan.departAt.getTime(),
+          preId: this.numId(a.sid + 'pre'), departId: this.numId(a.sid + 'depart')
+        });
+      }
       const spec = Planner.recheckSpec(a.s, a.plan);
       if (!spec) return;
       const times = [spec.wakeMs - this.RECHECK_BEFORE_WAKE * 60000, spec.plannedDepartMs - this.RECHECK_BEFORE_DEPART * 60000];
@@ -135,6 +147,19 @@ const Alarm = {
     return out;
   },
 
+  /** 홈 화면 위젯에 보여 줄 다음 일정 5개 */
+  widgetItems() {
+    return State.upcoming(this.NATIVE_DAYS).slice(0, 5).map(({ s, plan }) => {
+      const isTrip = Planner.isTrip(s.mode), m = Planner.MODES[s.mode], sid = s.occId || s.id;
+      const end = isTrip ? Planner.at(s.date, s.trip.departTime) : plan.arriveAt;
+      const note = plan.weather ? `${plan.weather.icon} ${plan.weather.label} · ${plan.weather.tip}`
+        : plan.live ? `📡 실시간 교통 ${plan.live.travelMin}분 반영` : (s.dest ? `📍 ${s.dest.name}` : '');
+      return { occId: sid, title: s.title, wakeMs: plan.wakeAt.getTime(), departMs: plan.departAt.getTime(),
+        endMs: end.getTime(), endLabel: isTrip ? '탑승' : '도착', modeEmoji: m.emoji, modeLabel: m.label, note,
+        wakeId: this.numId(sid + 'wake'), departId: this.numId(sid + 'depart') };
+    });
+  },
+
   async rescheduleAll() {
     const N = this.native();
     if (N && N.setPlan) {
@@ -145,6 +170,7 @@ const Alarm = {
           alarms: list.map(a => ({ id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body,
             scheduleId: a.sid, kind: a.alarm ? 'full' : 'note' })),
           rechecks: this.rechecks(list),
+          widget: this.widgetItems(),
           // 폰이 백그라운드에서 티맵을 부를 방법: 서버 함수(권장) 또는 키
           tmapKey: Routes.proxy() ? '' : Routes.key('TMAP_APP_KEY'),
           proxyUrl: Routes.proxy() ? Routes.proxy().url : '',
