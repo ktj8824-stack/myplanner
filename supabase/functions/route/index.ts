@@ -165,6 +165,10 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
       try { body = JSON.stringify({ arrivals: normalizeBus(JSON.parse(body)), source: "odsay" }); }
       catch { return json({ error: "실시간 응답 해석 실패" }, 502); }
     }
+    if (!res.ok || (service.startsWith("odsay") && body.includes('"error"'))) {
+      // 원인 확인용 기록 (ODsay는 오류도 200으로 보냄) (키는 URL·헤더에만 있고 여기엔 남기지 않음)
+      console.warn(`[myplanner-route] ${service} upstream ${res.status}: ${body.slice(0, 300)}`);
+    }
     if (res.ok) {
       cache.set(cacheKey, { at: now, status: res.status, body });
       if (cache.size > 500) cache.delete(cache.keys().next().value as string);
