@@ -19,6 +19,9 @@ const Planner = {
   // 역·공항까지 갈 때 쓸 수 있는 수단
   ACCESS_MODES: ['transit', 'car', 'taxi', 'walk'],
 
+  HOME_READY_MIN: 5,   // 일정 끝나고 나서기까지
+  LAST_MARGIN_MIN: 5,  // 막차 시각보다 정류장·역에 일찍 도착
+
   isTrip(mode) { return mode === 'train' || mode === 'flight'; },
 
   /** 'YYYY-MM-DD' + 'HH:MM' → Date (한국 시간 기준 기기 로컬) */
@@ -221,11 +224,34 @@ const Planner = {
     else items.unshift({ at: wakeAt, kind: 'wake', icon: '⏰', title: '기상 · 준비 시작', detail: `준비 시간 ${prep}분` }, departRow);
     // 출발 행 바로 뒤의 첫 이동 항목과 시각이 같으므로, 출발이 먼저 보이도록 안정 정렬
     if (s.arriveBy) items.push({ at: this.at(s.date, s.arriveBy), kind: 'event', icon: '🎯', title: s.title || '일정 시작', detail: (s.dest && s.dest.name) || '' });
+    let homeAt = null, homeDepartAt = null, lastLeaveAt = null;
     if (s.endBy && /^\d\d:\d\d$/.test(s.endBy)) {
       let end = this.at(s.date, s.endBy);
       const start = s.arriveBy ? this.at(s.date, s.arriveBy) : arriveAt;
       if (end <= start) end = this.addMin(end, 24 * 60);
       items.push({ at: end, kind: 'end', icon: '🏁', title: '일정 끝', detail: (s.dest && s.dest.name) || '' });
+      // 끝나고 집에 가는 길 (s.goHome = { on, mode, route, lastTime })
+      const gh = s.goHome;
+      if (gh && gh.on) {
+        const hm = gh.mode || 'transit';
+        const hr = gh.route || null;
+        homeDepartAt = this.addMin(end, this.HOME_READY_MIN);
+        homeAt = this.addMin(homeDepartAt, this.totalMin(hr, hm));
+        items.push({ at: homeDepartAt, kind: 'home-depart', icon: '🏠', title: '집으로 출발',
+          detail: `${this.MODES[hm].label}${hr ? ' · ' + hr.travelMin + '분' : ''}` });
+        if (gh.lastTime && /^\d\d:\d\d$/.test(gh.lastTime) && hm === 'transit') {
+          let last = this.at(s.date, gh.lastTime);
+          if (last < end && last.getHours() < 4) last = this.addMin(last, 24 * 60); // 00:10 같은 자정 넘은 막차
+          const walk = hr && hr.steps && hr.steps[0] && hr.steps[0].type === 'walk' ? hr.steps[0].min : 0;
+          lastLeaveAt = this.addMin(last, -(walk + this.LAST_MARGIN_MIN));
+          items.push({ at: lastLeaveAt, kind: 'last', icon: '🚇', title: '막차 타려면 늦어도 출발',
+            detail: `막차 ${gh.lastTime}${walk ? ` · 정류장·역까지 걸어서 ${walk}분` : ''}` });
+          if (lastLeaveAt < homeDepartAt) warnings.push(`막차(${gh.lastTime})를 타려면 일정이 끝나기 전에 나서야 해요. 택시를 고려해 보세요.`);
+        } else if (hm === 'transit' && (homeDepartAt.getHours() >= 23 || homeDepartAt.getHours() < 4)) {
+          warnings.push('밤 11시가 넘으면 버스·지하철이 끊길 수 있어요. 카카오맵에서 막차 시간을 확인해 넣어 두세요.');
+        }
+        items.push({ at: homeAt, kind: 'home', icon: '🏠', title: '집 도착', detail: (gh.to && gh.to.name) || '' });
+      }
     }
     items = items.map((it, i) => ({ ...it, _i: i })).sort((a, b) => (a.at - b.at) || (a._i - b._i));
 
@@ -237,7 +263,7 @@ const Planner = {
     }
     const w = this.weatherFor(s);
     const weather = w && this.WEATHER[w.kind] ? { ...w, ...this.WEATHER[w.kind], extraMin: wx } : null;
-    return { wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather };
+    return { wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
@@ -262,6 +288,15 @@ const Planner = {
       body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
     if (opt.depart) out.push({ key: 'depart', at: plan.departAt, alarm: true, title: `🚪 지금 출발하세요 — ${s.title}`,
       body: firstLabel || `${dest}로 출발` });
+    if (plan.homeDepartAt && opt.goHome !== false) {
+      const gh = s.goHome || {};
+      out.push({ key: 'home', at: plan.homeDepartAt, title: `🏠 집에 갈 시간이에요 — ${s.title}`,
+        body: `지금 나서면 ${hm(plan.homeAt)}에 집에 도착해요 (${this.MODES[gh.mode || 'transit'].label}${gh.route ? ' ' + gh.route.travelMin + '분' : ''}).` });
+    }
+    if (plan.lastLeaveAt) {
+      out.push({ key: 'last', at: this.addMin(plan.lastLeaveAt, -15), alarm: true, title: `🚇 막차까지 15분 — ${s.title}`,
+        body: `${hm(plan.lastLeaveAt)}에는 나서야 막차(${s.goHome.lastTime})를 탈 수 있어요.` });
+    }
     return out.filter(a => a.at.getTime() > Date.now());
   }
 };

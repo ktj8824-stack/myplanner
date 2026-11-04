@@ -23,6 +23,7 @@ const Timeline = {
     const routeLeg = Planner.isTrip(s.mode) ? s.accessRoute : s.route;
     const info = s.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, `여유 ${s.bufferMin}분`] : [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
     if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(routeLeg.summary) : ''}`);
+    if (plan.homeAt) info.push(`🏠 ${U.hm(plan.homeAt)} 집 도착${plan.lastLeaveAt ? ` · 막차 ${U.esc(s.goHome.lastTime)}` : ''}`);
     if (Planner.isTrip(s.mode) && s.trip.number) info.push(`${U.modeIcon(s.mode)} ${U.esc(s.trip.number)}${s.trip.seat ? ' · ' + U.esc(s.trip.seat) : ''}`);
     App.setMain(`
       <header class="subhead"><button class="back" onclick="App.navigate('home')" aria-label="뒤로"></button><h1>일정</h1>
@@ -73,6 +74,7 @@ const Timeline = {
         <button class="btn" onclick="Timeline.nav('kakaomap')">🗺️ 카카오맵 경로</button>
         ${navMode === 'taxi' ? `<button class="btn primary" onclick="Routes.openNav('kakaot')">카카오T 부르기</button>` : `<button class="btn primary" onclick="Timeline.nav('${['car'].includes(navMode) ? 'tmap' : 'kakaomap'}')">${navMode === 'car' ? '티맵 길안내' : '길안내 시작'}</button>`}
       </div>
+      ${plan.homeAt && s.dest && s.goHome && s.goHome.to ? `<button class="btn ghost full-w" style="margin:-4px 0 12px" onclick="Timeline.navHome()">🏠 끝나고 집으로 길안내 (${U.esc(Planner.MODES[s.goHome.mode || 'transit'].label)})</button>` : ''}
 
       ${this.packCard(s, plan)}
 
@@ -115,6 +117,14 @@ const Timeline = {
   },
 
   /** 🎒 챙길 것 카드 */
+  navHome() {
+    const s = this.cur();
+    if (!s || !s.goHome || !s.goHome.to) return;
+    const m = s.goHome.mode || 'transit';
+    if (m === 'taxi') return Routes.openNav('kakaot');
+    Routes.openNav(m === 'car' ? 'tmap' : 'kakaomap', m, s.dest, s.goHome.to);
+  },
+
   packCard(s, plan) {
     const list = Pack.list(s, plan);
     const left = list.filter(x => !x.done).length;

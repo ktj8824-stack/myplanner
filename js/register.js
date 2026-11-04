@@ -70,7 +70,7 @@ const Register = {
           <div><label class="lbl">${isTrip ? '목적지 도착 희망 (선택)' : '도착 시간'}</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
         </div>
         ${isTrip ? '' : `<div class="grid2 mt">
-          <div><label class="lbl">끝나는 시간 (선택)</label><input type="time" class="input" value="${d.endBy || ''}" onchange="Register.d.endBy=this.value"></div>
+          <div><label class="lbl">끝나는 시간 (선택)</label><input type="time" class="input" value="${d.endBy || ''}" onchange="Register.setEnd(this.value)"></div>
           <div class="end-hint">다음 일정·귀가 시간을<br>계산할 때 써요</div>
         </div>`}
         <label class="lbl">일정 이름</label>
@@ -99,6 +99,8 @@ const Register = {
         ${this.repeatForm()}
       </div>
 
+      ${this.goHomeForm()}
+
       <div class="card">
         <div class="q">알림</div>
         ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람'], ['preDepart', '출발 10분 전 알림'], ['depart', '출발 알람']].map(([k, label]) => `
@@ -109,6 +111,84 @@ const Register = {
 
       <div class="cta-bar"><button class="btn primary big" onclick="Register.save()">⏰ 저장하고 알람 켜기</button></div>
     `);
+  },
+
+  /* ---------- 끝나고 집에 가는 길 · 막차 ---------- */
+  HOME_MODES: ['transit', 'car', 'taxi', 'walk'],
+
+  goHomeForm() {
+    const d = this.d;
+    if (Planner.isTrip(d.mode)) return '';
+    const gh = d.goHome || {};
+    const home = State.settings.home;
+    const can = !!d.endBy && !!d.dest;
+    let body = '';
+    if (gh.on && can) {
+      const r = gh.route;
+      let plan = null;
+      try { if (this.ready()) plan = Planner.compute(d); } catch (e) {}
+      body = `
+        <div class="seg">${this.HOME_MODES.map(k => `<button class="${(gh.mode || 'transit') === k ? 'on' : ''}" onclick="Register.setHome('mode','${k}')">${U.modeIcon(k)} ${Planner.MODES[k].label}</button>`).join('')}</div>
+        <div class="gh-res">${this.homeLoading ? '🔎 집까지 경로를 찾는 중…'
+          : r ? `${U.esc((d.dest && d.dest.name) || '')} → 집 <b>${U.durLabel(r.travelMin)}</b>${r.summary ? ` <small>${U.esc(r.summary)}</small>` : ''}${plan && plan.homeAt ? `<br>${U.esc(d.endBy)}에 끝나면 <b>${U.hm(plan.homeAt)}</b> 집 도착` : ''}`
+          : `<button class="link" onclick="Register.fetchHome()">🔎 집까지 경로 찾기</button>`}</div>
+        ${(gh.mode || 'transit') === 'transit' ? `
+          <div class="grid2 mt">
+            <div><label class="lbl">막차 시간 (선택)</label><input type="time" class="input" value="${gh.lastTime || ''}" onchange="Register.setHome('lastTime',this.value)"></div>
+            <div class="end-hint"><button class="link" style="padding:0" onclick="Register.checkLast()">🗺️ 카카오맵에서<br>막차 확인하기</button></div>
+          </div>
+          ${plan && plan.lastLeaveAt ? `<div class="gh-res">🚇 막차를 타려면 늦어도 <b>${U.hm(plan.lastLeaveAt)}</b>에 나서야 해요 · 15분 전에 알람</div>` : ''}` : ''}`;
+    }
+    return `<div class="card">
+      <div class="q">끝나고 집에 갈 때</div>
+      <label class="toggle-row"><span class="tr-2">집에 가는 시간도 알려 주기<small>${!d.endBy ? '위에서 끝나는 시간을 넣으면 켤 수 있어요' : !home ? '설정에서 집 주소를 넣으면 정확해요' : '일정이 끝나면 집 도착 시각과 함께 알려 드려요'}</small></span>
+        <input type="checkbox" ${gh.on && can ? 'checked' : ''} ${can ? '' : 'disabled'} onchange="Register.toggleHome(this.checked)"></label>
+      ${body}
+    </div>`;
+  },
+
+  setEnd(v) {
+    this.d.endBy = v;
+    if (!v && this.d.goHome) this.d.goHome.on = false;
+    this.draw();
+  },
+
+  toggleHome(on) {
+    const d = this.d;
+    d.goHome = { mode: d.mode === 'car' ? 'car' : 'transit', route: null, lastTime: '', ...(d.goHome || {}), on };
+    this.draw();
+    if (on && !d.goHome.route) this.fetchHome();
+  },
+
+  setHome(k, v) {
+    const gh = this.d.goHome;
+    gh[k] = v;
+    this.draw();
+    if (k === 'mode') { gh.route = null; this.fetchHome(); }
+  },
+
+  homePlace() {
+    return State.settings.home || (this.d.chained ? null : this.d.origin);
+  },
+
+  async fetchHome() {
+    const d = this.d, gh = d.goHome, home = this.homePlace();
+    if (!gh || !d.dest) return;
+    if (!home) return U.toast('설정에서 집 주소를 먼저 넣어 주세요.');
+    this.homeLoading = true; this.draw();
+    try {
+      const list = await Routes.options(d.dest, home, gh.mode || 'transit', null);
+      gh.route = list[0] || null;
+      gh.to = { name: home.name, address: home.address || '', lat: home.lat, lng: home.lng };
+    } catch (e) { U.toast('집까지 경로를 찾지 못했어요.'); }
+    this.homeLoading = false;
+    this.draw();
+  },
+
+  checkLast() {
+    const home = this.homePlace();
+    if (!this.d.dest || !home) return;
+    Routes.openNav('kakao', 'transit', this.d.dest, home);
   },
 
   /** 같은 날 앞 일정이 있으면 '그 장소에서 바로 출발' 버튼 */
@@ -280,7 +360,12 @@ const Register = {
   },
 
   pick(field, title) {
-    PlacePicker.open(title, p => { this.d[field] = p; if (field === 'origin') this.unchain(); this.draw(); this.fetchRoutes(); });
+    PlacePicker.open(title, p => {
+      this.d[field] = p;
+      if (field === 'origin') this.unchain();
+      this.draw(); this.fetchRoutes();
+      if (field === 'dest' && this.d.goHome && this.d.goHome.on) { this.d.goHome.route = null; this.fetchHome(); }
+    });
   },
   pickTrip(field, title) {
     PlacePicker.open(title, p => { this.d.trip[field] = p; this.draw(); this.fetchRoutes(); }, { allowHome: false });

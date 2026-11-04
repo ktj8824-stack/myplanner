@@ -61,6 +61,12 @@ const Demo = {
         { type: 'bus', label: '3313번', from: '잠실역', to: '서울아산병원', stops: 5, min: 13 },
         { type: 'walk', label: '도보', to: '서울아산병원 신관', min: 5 }] },
       weather: { [d2]: { kind: 'rain', prob: 70, mm: 2.4, temp: 9, checkedAt: now } },
+      goHome: { on: true, mode: 'transit', lastTime: '', to: { ...home }, route: { travelMin: 50, source: 'odsay', summary: '환승 2회 · 1,650원', steps: [
+        { type: 'walk', label: '도보', to: '아산병원 정류장', min: 5 },
+        { type: 'bus', label: '3216번', from: '서울아산병원', to: '잠실역', stops: 4, min: 10 },
+        { type: 'subway', label: '2호선', from: '잠실', to: '을지로4가', stops: 12, min: 22 },
+        { type: 'subway', label: '5호선', from: '을지로4가', to: '공덕', stops: 5, min: 9 },
+        { type: 'walk', label: '도보', to: '집', min: 4 }] } },
       memo: '신관 2층 내과 접수 · 오후 반차 냈음'
     };
 

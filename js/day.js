@@ -96,6 +96,10 @@ const DayView = {
       if (!s.chained) h += `<div class="tl-item wake ${past(plan.wakeAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.wakeAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>기상 · 준비</b><small>준비 ${s.prepMin}분${i ? ' · 집에 들렀다 가는 일정' : ''}</small></div></div>`;
       h += `<div class="tl-item depart ${past(plan.departAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.departAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>${U.esc((s.origin && s.origin.name) || '집')}에서 출발</b><small>${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${Planner.MODES[trip ? s.trip.accessMode : s.mode].label}${(trip ? s.accessRoute : s.route) ? ' · ' + U.durLabel((trip ? s.accessRoute : s.route).travelMin) : ''}</small></div></div>`;
       h += `<div class="tl-item event ${past(x.start)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(x.start)}</div><div class="tl-dot"></div><div class="tl-body"><b>${U.esc(s.title)}</b><small>${trip ? `${U.esc(s.trip.number || Planner.MODES[s.mode].label)} 탑승 · ${U.esc((s.trip.departStation && s.trip.departStation.name) || '')}` : U.esc((s.dest && s.dest.name) || '')}${x.end ? ` · ${U.hm(x.end)}까지` : ''}</small></div></div>`;
+      if (plan.homeAt && i === list.length - 1) {
+        if (plan.lastLeaveAt) h += `<div class="tl-item last ${past(plan.lastLeaveAt)}"><div class="tl-time">${U.hm(plan.lastLeaveAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>막차 타려면 늦어도 출발</b><small>막차 ${U.esc(s.goHome.lastTime)}</small></div></div>`;
+        h += `<div class="tl-item home ${past(plan.homeAt)}"><div class="tl-time">${U.hm(plan.homeAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>집 도착</b><small>${U.modeIcon(s.goHome.mode || 'transit')} ${Planner.MODES[s.goHome.mode || 'transit'].label}${s.goHome.route ? ' · ' + U.durLabel(s.goHome.route.travelMin) : ''}</small></div></div>`;
+      }
       return h;
     }).join('');
 
@@ -107,7 +111,7 @@ const DayView = {
         ${list.length ? `<div class="tri">
           <div class="on"><small>첫 기상</small><b>${first ? U.hm(first.plan.wakeAt) : '--:--'}</b></div>
           <div><small>첫 출발</small><b>${U.hm(list[0].plan.departAt)}</b></div>
-          <div><small>${last.end ? '마지막 끝' : '마지막 일정'}</small><b>${U.hm(last.end || last.start)}</b></div>
+          ${last.plan.homeAt ? `<div><small>집 도착</small><b>${U.hm(last.plan.homeAt)}</b></div>` : `<div><small>${last.end ? '마지막 끝' : '마지막 일정'}</small><b>${U.hm(last.end || last.start)}</b></div>`}
         </div>` : ''}
         ${list.some(x => x.conflict) ? '<div class="info"><span>⚠️ 시간이 겹치는 일정이 있어요</span></div>' : ''}
       </div>
