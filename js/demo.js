@@ -101,6 +101,6 @@ const Demo = {
   /** 홈 맨 위 안내 막대 */
   bar() {
     if (!this.has()) return '';
-    return `<div class="demo-bar"><span>${Icons.svg('sparkles')}&nbsp;예시 일정으로 둘러보는 중이에요</span><button onclick="Demo.remove()">지우기</button></div>`;
+    return `<div class="demo-bar"><span>✨ 예시 일정으로 둘러보는 중이에요</span><button onclick="Demo.remove()">지우기</button></div>`;
   }
 };

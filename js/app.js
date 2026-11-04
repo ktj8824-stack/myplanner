@@ -11,8 +11,6 @@ const App = {
     State.load();
     this.applyTextSize();
     Cloud.init();
-    // 화면 글자 속 이모지를 같은 선 아이콘으로 (나중에 채워지는 부분까지)
-    ['main', 'sheet', 'ringing'].forEach(id => Icons.watch(document.getElementById(id)));
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     this.navigate(first ? 'welcome' : 'home');
@@ -40,6 +38,11 @@ const App = {
     const view = this.screens[name]();
     document.getElementById('nav').style.display = name === 'welcome' ? 'none' : '';
     document.querySelectorAll('#nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
+    // 버디플래너처럼: 큰 화면은 남색 상단 바, 상세 화면은 흰 머리 + 뒤로
+    const b = document.body.classList;
+    b.toggle('has-topbar', ['home', 'calendar', 'market', 'settings'].includes(name));
+    b.toggle('has-hero', name === 'home');
+    b.toggle('no-nav', name === 'welcome' || name === 'assistant');
     const main = document.getElementById('main');
     main.scrollTop = 0;
     window.scrollTo(0, 0);
@@ -47,9 +50,29 @@ const App = {
   },
 
   renderNav() {
-    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['register', 'plus', '일정 추가'], ['market', 'bag', '마켓'], ['settings', 'settings', '설정']];
+    document.getElementById('topbar').innerHTML = `
+      <div class="topbar-in">
+        <button class="brand" onclick="App.navigate('home')"><img src="icon-192.png" alt="">마이플래너</button>
+        <button class="top-btn" onclick="App.openMenu()" aria-label="전체 메뉴"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3.5 7h17M3.5 12h17M3.5 17h17"/></svg></button>
+      </div>`;
+    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', 'sparkles', 'AI 비서'], ['market', 'bag', '마켓'], ['settings', 'user', '마이']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
-      `<button data-nav="${k}" class="${k === 'register' ? 'nav-add' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${Icons.svg(ic)}</span><span>${label}</span></button>`).join('');
+      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${Icons.svg(ic)}</span><span>${label}</span></button>`).join('');
+  },
+
+  /** 전체 메뉴 (상단 ≡) */
+  openMenu() {
+    const items = [
+      ['register', 'img/icons/register.png', '일정 추가', '도착 시간만 넣으면 알람까지'],
+      ['paste', 'img/icons/message.png', '받은 문자로 등록', 'KTX·항공권·병원 예약 문자'],
+      ['assistant', 'img/icons/community.png', 'AI 비서', '말로 일정 등록 · 질문'],
+      ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
+      ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
+      ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
+    ];
+    Sheet.open(`<div class="sheet-head"><b>전체 메뉴</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="menu-list">${items.map(([k, img, t, d]) => `<button class="menu-item" onclick="Sheet.close();${k === 'paste' ? "App.navigate('register',{paste:true})" : `App.navigate('${k}')`}"><img src="${img}" alt=""><span>${t}<small>${d}</small></span></button>`).join('')}
+      ${typeof Demo !== 'undefined' ? `<button class="menu-item" onclick="Sheet.close();${Demo.has() ? 'Demo.remove()' : 'Demo.add()'}"><img src="img/icons/timeline.png" alt=""><span>${Demo.has() ? '예시 일정 지우기' : '예시 일정으로 둘러보기'}<small>기능을 한눈에 보는 일정 3개</small></span></button>` : ''}</div>`);
   },
 
   /** 글자 크기: 보통 / 크게 / 아주 크게 (40~60대) — 화면 전체를 같은 비율로 키움 */
@@ -60,11 +83,7 @@ const App = {
     document.documentElement.style.setProperty('--zoom', this.TEXT_SIZES[k] || 1);
   },
 
-  setMain(html) {
-    const el = document.getElementById('main');
-    el.innerHTML = html;
-    Icons.apply(el); // 바로 바꿔서 이모지가 잠깐 보이지 않게
-  }
+  setMain(html) { document.getElementById('main').innerHTML = html; }
 };
 
 /* ---------- 아래에서 올라오는 시트 (장소 검색 등) ---------- */
@@ -72,7 +91,6 @@ const Sheet = {
   open(html) {
     const el = document.getElementById('sheet');
     el.innerHTML = `<div class="sheet-bg" onclick="Sheet.close()"></div><div class="sheet-panel">${html}</div>`;
-    Icons.apply(el);
     el.classList.add('show');
   },
   close() { document.getElementById('sheet').classList.remove('show'); },
@@ -95,8 +113,8 @@ const PlacePicker = {
         <button class="btn primary" onclick="PlacePicker.search()">검색</button>
       </div>
       <div class="quick-row">
-        ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">${Icons.svg('home')}&nbsp;집 · ${U.esc(home.name)}</button>` : ''}
-        <button class="chip" onclick="PlacePicker.pickCurrent()">${Icons.svg('locate')}&nbsp;현재 위치</button>
+        ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">🏠 집 · ${U.esc(home.name)}</button>` : ''}
+        <button class="chip" onclick="PlacePicker.pickCurrent()">📍 현재 위치</button>
       </div>
       <div id="ppResults" class="pp-results"><div class="muted pad">가는 곳 이름을 적어 주세요.</div></div>`);
     if (opts.query) {
@@ -124,7 +142,7 @@ const PlacePicker = {
     }
     box.innerHTML = this.results.map((p, i) => `
       <button class="pp-item" onclick="PlacePicker.pick(${i})">
-        <span class="pp-pin">${Icons.svg('pin')}</span>
+        <span class="pp-pin">📍</span>
         <span><b>${U.esc(p.name)}</b>${p.address ? `<small>${U.esc(p.address)}</small>` : ''}</span>
       </button>`).join('') + sampleNote;
   },
@@ -146,15 +164,15 @@ const Welcome = {
     const st = State.settings;
     App.setMain(`
       <div class="welcome">
-        <div class="welcome-logo">${Icons.svg('mark')}</div>
+        <div class="welcome-logo"><img src="icon-192.png" alt=""></div>
         <h1>마이플래너</h1>
         <p class="lead">도착 시간만 정하면, 언제 일어나고<br>언제 나가야 할지 거꾸로 계산해서 깨워 드려요.</p>
 
         <div class="welcome-demo" aria-label="예: 9시 도착이면 7시 12분 기상">
           <div><small>도착</small><b>09:00</b></div>
-          <span>${Icons.svg('chevronLeft')}</span>
+          <span>‹</span>
           <div><small>출발</small><b>08:12</b></div>
-          <span>${Icons.svg('chevronLeft')}</span>
+          <span>‹</span>
           <div class="wake"><small>기상</small><b>07:12</b></div>
         </div>
         <p class="welcome-caption">버스·지하철·자가용 경로와 날씨, 아침 교통까지 반영해요</p>

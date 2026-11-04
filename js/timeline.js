@@ -21,10 +21,8 @@ const Timeline = {
     const hol = Recur.holiday(s.date);
 
     App.setMain(`
-      <header class="top row-between">
-        <button class="back" onclick="App.navigate('home')">‹</button>
-        <div class="grow"><div class="muted">${U.dateLabel(s.date)}${hol ? ` · <span class="holiday">${hol}</span>` : ''}</div><h1>${U.esc(s.title)}</h1></div>
-      </header>
+      <header class="subhead"><button class="back" onclick="App.navigate('home')" aria-label="뒤로"></button><h1>${U.esc(s.title)}</h1><span></span></header>
+      <div class="muted center" style="margin:-4px 0 12px;font-weight:700">${U.dateLabel(s.date)}${hol ? ` · <span class="holiday">${hol}</span>` : ''}</div>
 
       ${s._shared ? `<div class="shared-bar">👨‍👩‍👧 <b>${U.esc(s._shared.from)}</b>님이 공유한 일정 · 내 폰에서도 알람이 울려요</div>` : ''}
       ${rep ? `
@@ -330,19 +328,23 @@ const Settings = {
     const keys = [['ROUTE_PROXY_URL', '경로 서버 주소 (Supabase 함수 URL)'], ['SUPABASE_ANON_KEY', 'Supabase 공개 키 (anon)'], ['SUPABASE_URL', 'Supabase 주소 (비우면 경로 서버 주소에서 자동)'], ['ODSAY_API_KEY', 'ODsay 키 (버스·지하철)'], ['TMAP_APP_KEY', '티맵 앱키 (자가용·도보·장소)'], ['KAKAO_REST_KEY', '카카오 REST 키 (장소 검색)']];
     const reps = State.repeating();
     App.setMain(`
-      <header class="top"><h1>설정</h1></header>
+      <div class="profile-head">
+        <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2, -1) : st.name[0]) : '🙂'}</div>
+        <div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div>
+      </div>
+      <div class="pro-card"><div><small>마이플래너 PRO</small><b>AI 비서로 말 한마디에 일정 등록</b></div><button onclick="App.navigate('assistant')">써 보기</button></div>
 
       <div class="card">
-        <label class="lbl">이름</label>
+        <label class="lbl">🙂 이름</label>
         <input class="input" value="${U.esc(st.name)}" onchange="State.settings.name=this.value.trim();State.save()">
-        <label class="lbl">집 (기본 출발지)</label>
+        <label class="lbl">🏠 집 <small>기본 출발지</small></label>
         <button class="input place-btn" onclick="Settings.pickHome()">${st.home ? '🏠 ' + U.esc(st.home.name) : '집 주소 검색'}</button>
       </div>
 
       <div class="card" id="cloudCard"></div>
 
       <div class="card" id="alarmCheck">
-        <label class="lbl">알람 점검</label>
+        <label class="lbl">⏰ 알람 점검</label>
         <div class="muted small">확인 중…</div>
       </div>
 
@@ -356,14 +358,14 @@ const Settings = {
         </div>` : ''}
 
       <div class="card">
-        <label class="lbl">글자 크기</label>
+        <label class="lbl">🔠 글자 크기</label>
         <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>
           `<button class="${(st.textSize || 'normal') === k ? 'on' : ''} ts-${k}" onclick="Settings.setTextSize('${k}')">${l}</button>`).join('')}</div>
         <p class="muted small" style="margin:10px 0 0">글자와 버튼이 함께 커져요.</p>
       </div>
 
       <div class="card">
-        <label class="lbl">기본 이동수단</label>
+        <label class="lbl">🚗 기본 이동수단</label>
         <div class="seg wrap">${['transit', 'car', 'taxi', 'walk'].map(k => `<button class="${st.defaultMode === k ? 'on' : ''}" onclick="Settings.set('defaultMode','${k}')">${Planner.MODES[k].emoji} ${Planner.MODES[k].label}</button>`).join('')}</div>
         <label class="lbl">기본 준비 시간</label>
         <div class="seg">${[20, 30, 45, 60, 90, 120].map(v => `<button class="${+st.prepMin === v ? 'on' : ''}" onclick="Settings.set('prepMin',${v})">${U.durLabel(v)}</button>`).join('')}</div>
@@ -372,7 +374,7 @@ const Settings = {
       </div>
 
       <div class="card">
-        <label class="lbl">새 일정의 기본 알림</label>
+        <label class="lbl">🔔 새 일정의 기본 알림</label>
         ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람 (전체 화면)'], ['preDepart', '출발 10분 전'], ['depart', '출발 알람 (전체 화면)']].map(([k, l]) => `
           <label class="toggle-row"><span>${l}</span><input type="checkbox" ${st.alarm[k] ? 'checked' : ''} onchange="State.settings.alarm['${k}']=this.checked;State.save()"></label>`).join('')}
         <button class="btn ghost" onclick="Settings.test()">🔊 알람 미리 듣기</button>

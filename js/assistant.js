@@ -65,11 +65,9 @@ const Assistant = {
   render() {
     if (!this.msgs.length) this.load();
     App.setMain(`
-      <header class="top row-between">
-        <button class="back" onclick="Voice.stop();App.navigate('home')">‹</button>
-        <div class="grow"><h1>AI 비서</h1><div class="muted small" id="aiQuota">${this.quotaLabel()}</div></div>
-        <button class="btn small" onclick="Assistant.toggleSpeak()" id="aiSpeakBtn">${this.speakOn ? '🔊 읽어 주기' : '🔇 소리 끔'}</button>
-      </header>
+      <header class="subhead"><button class="back" onclick="Voice.stop();App.navigate('home')" aria-label="뒤로"></button><h1>AI 비서</h1>
+        <button class="side btn small" style="padding:6px 10px" onclick="Assistant.toggleSpeak()" id="aiSpeakBtn" aria-label="소리">${this.speakOn ? '🔊' : '🔇'}</button></header>
+      <div class="muted small center" id="aiQuota" style="margin:-4px 0 6px">${this.quotaLabel()}</div>
       <div id="aiLog" class="ai-log">${this.msgs.length ? this.msgs.map((m, i) => this.bubble(m, i)).join('') : this.welcome()}</div>
       <div class="ai-suggest" id="aiSuggest">${this.SUGGEST.map(s => `<button class="chip" onclick="Assistant.send(${JSON.stringify(s).replace(/"/g, '&quot;')})">${U.esc(s)}</button>`).join('')}</div>
       <div class="ai-input">
@@ -100,7 +98,7 @@ const Assistant = {
     this.speakOn = !this.speakOn;
     try { localStorage.setItem('mp_ai_speak', this.speakOn ? 'on' : 'off'); } catch (e) {}
     if (!this.speakOn) Voice.stop();
-    document.getElementById('aiSpeakBtn').textContent = this.speakOn ? '🔊 읽어 주기' : '🔇 소리 끔';
+    document.getElementById('aiSpeakBtn').textContent = this.speakOn ? '🔊' : '🔇';
   },
 
   mic() {
