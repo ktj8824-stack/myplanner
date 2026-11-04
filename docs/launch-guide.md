@@ -24,7 +24,7 @@
 ☐ 1. 구글 플레이 개발자 계정 (1회 25달러)
 ☐ 2. 앱 콘텐츠 신고: 전체 화면 알람·정확한 알람·데이터 보안 (아래 3번)
 ☐ 3. 스토어 등록정보·스크린샷 (아래 4번, 예시 일정으로 찍기)
-☐ 4. `MYPLANNER_AI_ALLOW_ALL` 삭제, AI 답변 신고 기능 추가(Claude에게 요청)
+☐ 4. `MYPLANNER_AI_ALLOW_ALL` 삭제 (AI 답변 신고 기능은 ✅ 추가됨 — 신고는 Supabase > Table Editor > mp_ai_reports에서 확인)
 ☐ 5. 날씨: 상업용 출시 전 Open-Meteo 유료 또는 기상청 API로 교체(Claude에게 요청)
 
 ---
@@ -106,7 +106,9 @@ Supabase 무료 플랜의 프로젝트 2개가 이미 차 있어서, **버디플
 ☐ 한도 조정(선택): `MYPLANNER_AI_FREE_DAILY`(기본 5), `MYPLANNER_AI_PRO_DAILY`(기본 60)
 ☐ PRO 결제 연결(나중): RevenueCat에 마이플래너 앱 추가 → `MYPLANNER_REVENUECAT_SECRET_KEY`, 권한 이름 `pro`
 
-구글 플레이 '생성형 AI' 정책: AI 답변을 신고하는 기능이 필요해요 — 출시 전에 추가 예정 (버디플래너 ai_reports 방식)
+구글 플레이 '생성형 AI' 정책: ✅ AI 답변마다 '답변 신고' 버튼 (mp_ai_reports, 운영자만 열람)
+
+**AI 말 알아듣기 평가 (선택, 노트북):** 프롬프트를 고친 뒤 `ANTHROPIC_API_KEY=키 npm run eval:ai` → 40~60대 말 30문장 통과 수 확인 (test/ai-eval/cases.json)
 
 ---
 

@@ -537,3 +537,14 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .result-row b, .result.big .result-row b { font-size: min(34px, 10.6cqi); }
 .ai-times b { font-size: min(28px, 9.6cqi); }
 .repeat-bar > span:first-child { display: block; }
+
+/* 첫 화면 — 거꾸로 계산을 한눈에 */
+.welcome-demo { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 18px 18px; border-radius: 22px; background: linear-gradient(180deg, var(--board), var(--board-2)); color: #fff; box-shadow: var(--lift); container-type: inline-size; }
+.welcome-demo > div small { display: block; font-size: 13px; color: var(--on-board-2); font-weight: 600; }
+.welcome-demo > div b { display: block; font-size: min(30px, 11cqi); font-weight: 800; letter-spacing: -.035em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.welcome-demo > div.wake b { color: var(--dawn); }
+.welcome-demo > span { color: rgba(255, 255, 255, .35); display: grid; }
+.welcome-demo > span .ic { width: 18px; height: 18px; }
+.welcome-caption { margin: 10px 4px 22px; color: var(--muted); font-size: 14px; }
+.welcome .btn.ghost.big { margin-top: 10px; }
+.welcome .lead { margin-bottom: 20px; }

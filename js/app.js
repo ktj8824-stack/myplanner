@@ -143,33 +143,64 @@ const PlacePicker = {
 /* ---------- 첫 실행 안내 ---------- */
 const Welcome = {
   render() {
+    const st = State.settings;
     App.setMain(`
       <div class="welcome">
         <div class="welcome-logo">${Icons.svg('mark')}</div>
         <h1>마이플래너</h1>
-        <p class="lead">도착 시간만 정하면,<br>언제 일어나고 언제 나가야 할지<br>거꾸로 계산해서 깨워 드려요.</p>
-        <div class="card">
-          <label class="lbl">이름 (선택)</label>
-          <input id="wName" class="input" placeholder="예: 김민지" value="${U.esc(State.settings.name)}">
-          <label class="lbl">집 (출발지)</label>
-          <button id="wHome" class="input place-btn" onclick="Welcome.pickHome()">${State.settings.home ? '🏠 ' + U.esc(State.settings.home.name) : '집 주소 검색'}</button>
+        <p class="lead">도착 시간만 정하면, 언제 일어나고<br>언제 나가야 할지 거꾸로 계산해서 깨워 드려요.</p>
+
+        <div class="welcome-demo" aria-label="예: 9시 도착이면 7시 12분 기상">
+          <div><small>도착</small><b>09:00</b></div>
+          <span>${Icons.svg('chevronLeft')}</span>
+          <div><small>출발</small><b>08:12</b></div>
+          <span>${Icons.svg('chevronLeft')}</span>
+          <div class="wake"><small>기상</small><b>07:12</b></div>
         </div>
-        <button class="btn primary big" onclick="Welcome.finish()">시작하기</button>
-        <p class="muted small center">알람을 받으려면 다음 화면에서 알림을 허용해 주세요.</p>
+        <p class="welcome-caption">버스·지하철·자가용 경로와 날씨, 아침 교통까지 반영해요</p>
+
+        <div class="card">
+          <label class="lbl">이름 <small class="muted">(선택)</small></label>
+          <input id="wName" class="input" placeholder="예: 김민지" value="${U.esc(st.name)}" autocomplete="name">
+          <label class="lbl">집 <small class="muted">출발지로 써요</small></label>
+          <button id="wHome" class="input place-btn" onclick="Welcome.pickHome()">${st.home ? '🏠 ' + U.esc(st.home.name) : '🔎 집 주소 검색'}</button>
+          <label class="lbl">글자 크기</label>
+          <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>
+            `<button class="${(st.textSize || 'normal') === k ? 'on' : ''} ts-${k}" onclick="Welcome.setText('${k}')">${l}</button>`).join('')}</div>
+        </div>
+
+        <button class="btn primary big" onclick="Welcome.finish('register')">첫 일정 만들기</button>
+        <button class="btn ghost big" onclick="Welcome.finish('demo')">✨ 예시 일정으로 먼저 둘러보기</button>
+        <p class="muted small center" style="margin-top:14px">알람을 받으려면 다음에 나오는 알림 허용을 눌러 주세요.</p>
       </div>`);
   },
+  keepName() {
+    const el = document.getElementById('wName');
+    if (el) State.settings.name = el.value.trim();
+  },
+  setText(k) {
+    this.keepName();
+    State.settings.textSize = k;
+    State.save();
+    App.applyTextSize();
+    this.render();
+  },
   pickHome() {
+    this.keepName();
     PlacePicker.open('집 주소', p => {
       State.settings.home = { ...p, name: p.name === '현재 위치' ? '집' : p.name };
-      document.getElementById('wHome').textContent = '🏠 ' + State.settings.home.name;
+      State.save();
+      this.render();
     }, { allowHome: false });
   },
-  async finish() {
-    State.settings.name = document.getElementById('wName').value.trim();
+  async finish(next) {
+    this.keepName();
     State.save();
     localStorage.setItem('mp_onboarded', '1');
     await Alarm.requestPermission().catch(() => {});
-    App.navigate('home');
+    if (next === 'demo') return Demo.add();
+    App.navigate(next === 'register' ? 'register' : 'home');
+    if (next === 'register' && !State.settings.home) U.toast('출발지를 고르면 경로를 찾아 드려요');
   }
 };
 
