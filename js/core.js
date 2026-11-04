@@ -30,6 +30,81 @@ const U = {
     const t = setTimeout(() => ac.abort(), ms);
     return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(t));
   },
+  /**
+   * 밖에서 들어온 일정(공유 링크·가족 공유·서버)을 안전한 모양으로 정리.
+   * 날짜·시각 형식, 숫자, id 글자, 길이를 맞추고 모르는 값은 버림. 날짜가 없으면 null.
+   */
+  cleanSchedule(o, { keepId = true } = {}) {
+    if (!o || typeof o !== 'object') return null;
+    const str = (v, n) => (typeof v === 'string' || typeof v === 'number') ? String(v).slice(0, n) : '';
+    const num = (v, lo, hi, d) => { const x = Number(v); return isFinite(x) ? Math.max(lo, Math.min(hi, Math.round(x))) : d; };
+    const YMD = /^\d{4}-\d{2}-\d{2}$/, HM = /^\d{2}:\d{2}$/;
+    const ymd = v => (typeof v === 'string' && YMD.test(v) ? v : '');
+    const hm = v => (typeof v === 'string' && HM.test(v) && +v.slice(0, 2) < 24 && +v.slice(3) < 60 ? v : '');
+    const modes = typeof Planner !== 'undefined' ? Planner.MODES : { transit: 1, car: 1, taxi: 1, walk: 1, train: 1, flight: 1 };
+    const mode = (v, d) => (typeof v === 'string' && modes[v] ? v : d);
+    const word = v => str(v, 20).replace(/[^a-z_]/gi, '');
+    const place = p => {
+      if (!p || typeof p !== 'object') return null;
+      const lat = Number(p.lat), lng = Number(p.lng);
+      return { name: str(p.name, 80) || '장소', address: str(p.address, 160), lat: isFinite(lat) ? lat : null, lng: isFinite(lng) ? lng : null };
+    };
+    const step = st => (st && typeof st === 'object' ? {
+      type: word(st.type) || 'walk', label: str(st.label, 80), from: str(st.from, 80), to: str(st.to, 80),
+      min: num(st.min, 0, 1440, 0), ...(st.stops != null ? { stops: num(st.stops, 0, 200, 0) } : {}), ...(st.way ? { way: str(st.way, 40) } : {}),
+      ...(st.stationId != null ? { stationId: str(st.stationId, 20).replace(/[^0-9]/g, '') } : {}),
+      ...(Array.isArray(st.routeIds) ? { routeIds: st.routeIds.slice(0, 10).map(x => str(x, 20).replace(/[^0-9]/g, '')) } : {}),
+      ...(Array.isArray(st.routeNos) ? { routeNos: st.routeNos.slice(0, 10).map(x => str(x, 20)) } : {})
+    } : null);
+    const route = r => (r && typeof r === 'object' ? {
+      travelMin: num(r.travelMin, 0, 1440, 0), source: word(r.source) || 'estimate', summary: str(r.summary, 100),
+      steps: Array.isArray(r.steps) ? r.steps.slice(0, 30).map(step).filter(Boolean) : [],
+      ...(r.fare != null ? { fare: num(r.fare, 0, 1e6, 0) } : {}), ...(r.transfers != null ? { transfers: num(r.transfers, 0, 20, 0) } : {})
+    } : null);
+    const date = ymd(o.date);
+    if (!date) return null;
+    const t = o.trip && typeof o.trip === 'object' ? o.trip : {};
+    const r = o.repeat && typeof o.repeat === 'object' ? o.repeat : {};
+    const id = str(o.id, 120);
+    const out = {
+      ...(keepId && /^[\w\-:@.]{1,120}$/.test(id) ? { id } : {}),
+      title: str(o.title, 80) || '일정', date, arriveBy: hm(o.arriveBy), mode: mode(o.mode, 'transit'),
+      prepMin: num(o.prepMin, 0, 300, 60), bufferMin: num(o.bufferMin, 0, 120, 10),
+      origin: place(o.origin), dest: place(o.dest), route: route(o.route), accessRoute: route(o.accessRoute), egressRoute: route(o.egressRoute),
+      trip: { accessMode: mode(t.accessMode, 'transit'), egressMode: mode(t.egressMode, 'transit'), departTime: hm(t.departTime), arriveTime: hm(t.arriveTime),
+        number: str(t.number, 30), seat: str(t.seat, 30), from: str(t.from, 30), to: str(t.to, 30), international: !!t.international,
+        departStation: place(t.departStation), arriveStation: place(t.arriveStation), ...(t.marginMin != null ? { marginMin: num(t.marginMin, 0, 300, 15) } : {}) },
+      memo: str(o.memo, 1000),
+      repeat: { type: ['none', 'daily', 'weekdays', 'weekly'].includes(r.type) ? r.type : 'none',
+        days: Array.isArray(r.days) ? [...new Set(r.days.map(Number).filter(d => d >= 0 && d <= 6))] : [], until: ymd(r.until), skipHolidays: r.skipHolidays !== false },
+      skips: Array.isArray(o.skips) ? o.skips.map(ymd).filter(Boolean).slice(0, 400) : [],
+      overrides: {}
+    };
+    if (o.overrides && typeof o.overrides === 'object') Object.keys(o.overrides).slice(0, 400).forEach(k => {
+      const v = o.overrides[k];
+      if (!ymd(k) || !v || typeof v !== 'object') return;
+      const ov = {};
+      if (v.arriveBy != null) ov.arriveBy = hm(v.arriveBy);
+      if (v.endBy != null) ov.endBy = hm(v.endBy);
+      if (v.prepMin != null) ov.prepMin = num(v.prepMin, 0, 300, 60);
+      if (v.bufferMin != null) ov.bufferMin = num(v.bufferMin, 0, 120, 10);
+      if (v.alarmOff != null) ov.alarmOff = !!v.alarmOff;
+      if (v.trip && typeof v.trip === 'object') ov.trip = { ...out.trip, departTime: hm(v.trip.departTime) || out.trip.departTime };
+      if (v.origin) ov.origin = place(v.origin);
+      if (v.route) ov.route = route(v.route);
+      if (v.chained) ov.chained = { from: str(v.chained.from, 120) };
+      out.overrides[k] = ov;
+    });
+    if (hm(o.endBy)) out.endBy = hm(o.endBy);
+    if (o.alarm && typeof o.alarm === 'object') { out.alarm = {}; ['wake', 'preDepart', 'depart', 'nightBefore', 'goHome'].forEach(k => { if (k in o.alarm) out.alarm[k] = !!o.alarm[k]; }); }
+    if (o.alarmOff != null) out.alarmOff = !!o.alarmOff;
+    if (o.chained && typeof o.chained === 'object') out.chained = { from: str(o.chained.from, 120) };
+    if (o.goHome && typeof o.goHome === 'object') out.goHome = { on: !!o.goHome.on, mode: mode(o.goHome.mode, 'transit'), lastTime: hm(o.goHome.lastTime), route: route(o.goHome.route), to: place(o.goHome.to) };
+    if (o.pack && typeof o.pack === 'object') out.pack = { add: (o.pack.add || []).slice(0, 50).map(x => str(x, 30)).filter(Boolean), removed: (o.pack.removed || []).slice(0, 50).map(x => str(x, 30)).filter(Boolean) };
+    if (o.packDone && typeof o.packDone === 'object') { out.packDone = {}; Object.keys(o.packDone).slice(0, 30).forEach(k => { if (ymd(k) && Array.isArray(o.packDone[k])) out.packDone[k] = o.packDone[k].slice(0, 50).map(x => str(x, 30)); }); }
+    const ua = Number(o.updatedAt); if (isFinite(ua) && ua > 0) out.updatedAt = ua;
+    return out;
+  },
   uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
   toast(msg) {
     const el = document.getElementById('toast');
@@ -74,7 +149,7 @@ const State = {
   get(id) { return this.schedules.find(s => s.id === id); },
   /** 사용자가 바꾼 일정 저장 → 로그인 상태면 서버에도 올림 (공유받은 일정은 내 폰에만) */
   upsert(s) {
-    if (!s._shared) s.updatedAt = Date.now();
+    if (!s._shared) { const prev = this.get(s.id); s.updatedAt = Math.max(Date.now(), ((prev && prev.updatedAt) || 0) + 1); } // 같은 순간 두 번 고쳐도 순서가 구분되게
     this.putRaw(s);
     this.save();
     if (!s._shared && typeof Cloud !== 'undefined') Cloud.markDirty(s.id);

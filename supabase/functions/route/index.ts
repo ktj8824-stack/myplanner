@@ -72,18 +72,32 @@ export function normalizeBus(data: any) {
   return out.sort((x, y) => x.sec - y.sec);
 }
 
+const GLOBAL_PER_MIN = 1500;      // 이 서버 전체 1분 최대 (주소를 바꿔 가며 부르는 남용 대비)
+let allReq = { n: 0, t: 0 };
+
 function limited(ip: string, now: number) {
+  if (now - allReq.t > 60_000) allReq = { n: 0, t: now };
+  if (++allReq.n > GLOBAL_PER_MIN) return true;
+  if (rate.size > 5000) for (const [k, v] of rate) if (now - v.t > 60_000) rate.delete(k); // 오래된 기록 정리
   const r = rate.get(ip);
   if (!r || now - r.t > 60_000) { rate.set(ip, { n: 1, t: now }); return false; }
   r.n++;
   return r.n > RATE_PER_MIN;
 }
 
+/** 요청한 쪽 주소: 앞쪽 값은 요청자가 꾸밀 수 있어 플랫폼이 붙인 값(x-real-ip·cf-connecting-ip·마지막 값)을 씀 */
+export function clientIp(h: Headers): string {
+  const direct = h.get("cf-connecting-ip") || h.get("x-real-ip");
+  if (direct) return direct.trim();
+  const xff = (h.get("x-forwarded-for") || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return xff[xff.length - 1] || "unknown";
+}
+
 export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now = Date.now()): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   if (req.method !== "POST") return json({ error: "POST만 가능" }, 405);
 
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const ip = clientIp(req.headers);
   if (limited(ip, now)) return json({ error: "잠시 후 다시 시도해 주세요" }, 429);
 
   let p: Record<string, unknown>;

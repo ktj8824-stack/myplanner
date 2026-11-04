@@ -199,15 +199,25 @@ async function callClaude(env: Env, body: Json, f: Fetch) {
 }
 
 const HM = /^([01]\d|2[0-3]):[0-5]\d$/, YMD = /^20\d\d-\d\d-\d\d$/;
+/** 달력에 있는 날짜인지 (2026-11-31 같은 날 거르기) */
+function realDate(s: string): boolean {
+  if (!YMD.test(s || "")) return false;
+  const [y, m, d] = s.split("-").map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d;
+}
 
 /** AI가 만든 제안이 앱에서 쓸 수 있는 형태인지 확인 (이상하면 AI에게 다시 묻게 함) */
 export function checkAction(name: string, input: Json, ctx: Json): string | null {
   if (name === "propose_schedule") {
-    if (!input.title || !YMD.test(input.date || "") || !HM.test(input.time || "")) return "title, date(YYYY-MM-DD), time(HH:MM)이 필요합니다";
+    if (!input.title || !realDate(input.date || "") || !HM.test(input.time || "")) return "title, date(YYYY-MM-DD, 달력에 있는 날짜), time(HH:MM)이 필요합니다";
+    for (const k of ["prep_min", "buffer_min"]) if (input[k] != null && !(Number.isFinite(input[k]) && input[k] >= 0 && input[k] <= 300)) return `${k}는 0~300분`;
     if (input.kind === "event" && !input.place) return "event에는 place(목적지)가 필요합니다. 모르면 사용자에게 물어보세요";
     if ((input.kind === "train" || input.kind === "flight") && !input.from_station) return "출발역·공항(from_station)이 필요합니다. 모르면 물어보세요";
     if (input.arrive_time && !HM.test(input.arrive_time)) return "arrive_time은 HH:MM";
     if (YMD.test(ctx.today || "") && input.date < ctx.today) return `${input.date}는 이미 지난 날짜입니다. 날짜표에서 다시 고르세요`;
+    if ((!input.repeat || input.repeat === "none") && input.date === ctx.today && HM.test(ctx.now || "") && input.time <= ctx.now)
+      return `오늘 ${input.time}은 이미 지났습니다(지금 ${ctx.now}). 내일인지 사용자에게 확인하세요`;
     if (input.repeat === "weekly" && !(Array.isArray(input.repeat_days) && input.repeat_days.length && input.repeat_days.every((n: Json) => Number.isInteger(n) && n >= 0 && n <= 6)))
       return "weekly 반복에는 repeat_days(0=일~6=토)가 필요합니다";
     return null;
@@ -216,7 +226,8 @@ export function checkAction(name: string, input: Json, ctx: Json): string | null
     const n = Array.isArray(ctx.upcoming) ? ctx.upcoming.length : 0;
     if (!Number.isInteger(input.idx) || input.idx < 0 || input.idx >= n) return "목록에 있는 idx를 쓰세요";
     if (input.new_time && !HM.test(input.new_time)) return "new_time은 HH:MM";
-    if (input.new_date && !YMD.test(input.new_date)) return "new_date는 YYYY-MM-DD";
+    if (input.new_date && !realDate(input.new_date)) return "new_date는 YYYY-MM-DD (달력에 있는 날짜)";
+    for (const k of ["prep_min", "buffer_min"]) if (input[k] != null && !(Number.isFinite(input[k]) && input[k] >= 0 && input[k] <= 300)) return `${k}는 0~300분`;
     if (input.new_date && YMD.test(ctx.today || "") && input.new_date < ctx.today) return "이미 지난 날짜로는 옮길 수 없습니다";
     if (!input.new_time && !input.new_date && input.prep_min == null && input.buffer_min == null && !input.skip) return "무엇을 바꿀지 하나 이상 넣으세요";
     return null;
@@ -233,7 +244,11 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
   if (!user) return json(401, { error: "login_required", message: "AI 비서는 카카오로 로그인한 뒤 쓸 수 있어요." });
 
   let body: Json;
-  try { body = await req.json(); } catch { return json(400, { error: "bad_request" }); }
+  try {
+    const raw = await req.text();
+    if (raw.length > 32000) return json(413, { error: "too_large", message: "요청이 너무 커요." });
+    body = JSON.parse(raw);
+  } catch { return json(400, { error: "bad_request" }); }
   const text = String(body.message || "").trim().slice(0, 1000);
   if (!text) return json(400, { error: "empty_message" });
 
@@ -261,7 +276,15 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
   if (messages.length && messages[messages.length - 1].role === "user") messages.pop();
   messages.push({ role: "user", content: text });
 
-  const ctx = body.context || {};
+  // 프롬프트에 넣는 내 정보는 크기를 제한 (요금 남용 방지)
+  const c0 = body.context && typeof body.context === "object" ? body.context : {};
+  const ctx: Json = {
+    ...c0,
+    places: Array.isArray(c0.places) ? c0.places.slice(0, 30).map((x: Json) => String(x).slice(0, 30)) : [],
+    family: Array.isArray(c0.family) ? c0.family.slice(0, 20).map((x: Json) => String(x).slice(0, 20)) : [],
+    upcoming: Array.isArray(c0.upcoming) ? c0.upcoming.slice(0, 25) : [],
+    userName: String(c0.userName || "").slice(0, 30), home: String(c0.home || "").slice(0, 60),
+  };
   const actions: Json[] = [];
   let reply = "";
   try {

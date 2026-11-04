@@ -162,7 +162,7 @@ const Assistant = {
   /* ---------- 서버에 보낼 내 정보 ---------- */
   context() {
     const now = new Date();
-    const up = State.upcoming(14).slice(0, 25);
+    const up = State.upcoming(14).filter(x => !x.plan.invalid).slice(0, 25);
     this.idxMap = up.map(x => x.s.occId || x.s.id);
     const places = Object.keys(State.settings.places || {});
     const family = typeof Cloud !== 'undefined' && Cloud.isSignedIn() ? Cloud.familyPeople().map(p => p.display_name).filter(Boolean) : [];
@@ -170,9 +170,9 @@ const Assistant = {
       today: U.today(), weekday: U.DOW[now.getDay()] + '요일', now: U.hm(now),
       userName: State.settings.name || '', home: State.settings.home ? State.settings.home.name : '',
       defaultMode: Planner.MODES[State.settings.defaultMode || 'transit'].label, prepMin: State.settings.prepMin || 60,
-      places, family,
+      places: places.slice(0, 30).map(p => String(p).slice(0, 30)), family: family.slice(0, 20).map(f => String(f).slice(0, 20)),
       upcoming: up.map(({ s, plan }, idx) => ({
-        idx, title: s.title, date: s.date, weekday: U.DOW[Planner.at(s.date, '12:00').getDay()],
+        idx, title: String(s.title || '').slice(0, 60), date: s.date, weekday: U.DOW[Planner.at(s.date, '12:00').getDay()],
         kind: Planner.isTrip(s.mode) ? s.mode : 'event',
         time: Planner.isTrip(s.mode) ? s.trip.departTime + ' 출발' : s.arriveBy + ' 도착',
         wake: U.hm(plan.wakeAt), depart: U.hm(plan.departAt), mode: Planner.MODES[s.mode].label,
@@ -211,7 +211,11 @@ const Assistant = {
       this.msgs.splice(this.msgs.indexOf(typing), 1);
       if (res.remaining != null) this.quota = { remaining: res.remaining, pro: res.pro };
       const q = document.getElementById('aiQuota'); if (q) q.textContent = this.quotaLabel();
-      const cards = (res.actions || []).map(a => ({ kind: a.type, action: a, state: 'pending' }));
+      // 변경 제안은 지금 번호표로 바로 일정 id를 정해 둠 (나중에 목록이 바뀌어도 엉뚱한 일정을 바꾸지 않게)
+      const cards = (res.actions || []).map(a => {
+        if (a.type === 'update' && a.occId == null && a.idx != null) a.occId = this.idxMap[a.idx] || null;
+        return { kind: a.type, action: a, state: 'pending' };
+      });
       this.reply(res.reply, cards, false, true); // AI가 만든 답변 → 신고 가능
     } catch (e) {
       this.msgs.splice(this.msgs.indexOf(typing), 1);
@@ -322,6 +326,10 @@ const Assistant = {
 
   async prepareSchedule(c) {
     const a = c.action, st = State.settings;
+    // 이미 저장한 초안(수정 화면에서 저장 포함)은 다시 만들지 않음
+    if (c.draft && State.get(c.draft.id)) { c.savedId = c.savedId || c.draft.id; c.state = 'saved'; return; }
+    const bad = this.badAction(a);
+    if (bad) throw new Error(bad);
     const isTrip = a.kind === 'train' || a.kind === 'flight';
     const mode = isTrip ? a.kind : (a.mode || st.defaultMode || 'transit');
     const d = c.draft || {
@@ -360,6 +368,18 @@ const Assistant = {
     c.state = 'ready';
   },
 
+  /** AI가 준 날짜·시각이 말이 되는지 (서버에서도 막지만 한 번 더) */
+  badAction(a) {
+    const isTrip = a.kind === 'train' || a.kind === 'flight';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(a.date || '') || U.ymd(Planner.at(a.date, '12:00')) !== a.date) return '날짜를 알아듣지 못했어요. 다시 말씀해 주세요';
+    if (!/^\d{2}:\d{2}$/.test(a.time || '') || +a.time.slice(0, 2) > 23 || +a.time.slice(3) > 59) return '시간을 알아듣지 못했어요. 몇 시인지 다시 말씀해 주세요';
+    const repeating = a.repeat && a.repeat !== 'none';
+    if (!repeating && Planner.at(a.date, a.time).getTime() < Date.now()) return '이미 지난 시간이에요. 날짜나 시간을 다시 말씀해 주세요';
+    ['prep_min', 'buffer_min'].forEach(k => { if (a[k] != null) a[k] = Math.max(0, Math.min(300, Math.round(+a[k] || 0))); });
+    if (isTrip && a.arrive_time && !/^\d{2}:\d{2}$/.test(a.arrive_time)) a.arrive_time = '';
+    return '';
+  },
+
   planSummary(d) {
     const p = Planner.compute(d);
     return { wake: U.hmRel(p.wakeAt, d.date), depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(p.arriveAt),
@@ -382,8 +402,9 @@ const Assistant = {
   async save(i, j) {
     const c = this.card(i, j);
     if (!c || c.state !== 'ready') return;
-    c.state = 'saving'; this.paintCard(i, j);
     const d = c.draft;
+    if (State.get(d.id)) { c.savedId = d.id; c.state = 'saved'; this.paintCard(i, j); return U.toast('이미 저장한 일정이에요'); }
+    c.state = 'saving'; this.paintCard(i, j);
     State.upsert(d);
     try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
     await Alarm.rescheduleAll();
@@ -413,7 +434,7 @@ const Assistant = {
   /* ---------- 변경 제안 ---------- */
   prepareUpdate(c) {
     const a = c.action;
-    const occId = this.idxMap[a.idx];
+    const occId = a.occId || (a.idx != null ? this.idxMap[a.idx] : null);
     const cur = occId && Recur.resolve(occId);
     if (!cur) throw new Error('그 일정을 찾지 못했어요');
     if (cur._shared) throw new Error('가족이 공유한 일정은 보낸 사람만 바꿀 수 있어요');
@@ -423,6 +444,9 @@ const Assistant = {
     if (a.skip) { c.summary = { title: cur.title, date: cur.date, skip: true, rep }; c.occId = occId; c.state = 'ready'; return; }
     if (a.new_time) { if (Planner.isTrip(cur.mode)) next.trip.departTime = a.new_time; else next.arriveBy = a.new_time; }
     if (a.new_date && !rep) next.date = a.new_date;
+    if (a.new_time && !/^\d{2}:\d{2}$/.test(a.new_time)) throw new Error('바꿀 시간을 알아듣지 못했어요');
+    if (a.new_date && (!/^\d{4}-\d{2}-\d{2}$/.test(a.new_date) || a.new_date < U.today())) throw new Error('바꿀 날짜를 알아듣지 못했어요');
+    ['prep_min', 'buffer_min'].forEach(k => { if (a[k] != null) a[k] = Math.max(0, Math.min(300, Math.round(+a[k] || 0))); });
     if (a.prep_min != null) next.prepMin = a.prep_min;
     if (a.buffer_min != null) next.bufferMin = a.buffer_min;
     const after = Planner.compute(next);
@@ -529,7 +553,7 @@ const Briefing = {
 
   text(day) {
     const list = Recur.between(State.schedules, day, day).filter(s => !s.alarmOff || s._shared)
-      .map(s => ({ s, plan: Planner.compute(s) })).sort((a, b) => a.plan.departAt - b.plan.departAt);
+      .map(s => ({ s, plan: Planner.compute(s) })).filter(x => !x.plan.invalid).sort((a, b) => a.plan.departAt - b.plan.departAt);
     const isToday = day === U.today();
     const when = isToday ? '오늘' : '내일';
     if (!list.length) return `${when}은 예정된 일정이 없어요. 편안한 하루 보내세요.`;

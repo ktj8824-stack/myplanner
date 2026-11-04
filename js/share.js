@@ -41,8 +41,13 @@ const Share = {
     const m = String(text || '').match(/#mp=([A-Za-z0-9_-]{20,})/);
     if (!m) return null;
     try {
-      const o = JSON.parse(this.b64d(m[1]));
-      if (!o || o.v !== 1 || !o.title || !o.date || !o.mode || !Planner.MODES[o.mode]) return null;
+      const raw = JSON.parse(this.b64d(m[1]));
+      if (!raw || raw.v !== 1 || !raw.title || !raw.date || !raw.mode || !Planner.MODES[raw.mode]) return null;
+      // 링크에 넣는 값만, 안전한 모양으로 (실시간 교통·공유 표시 같은 값은 받지 않음)
+      const o = U.cleanSchedule(raw, { keepId: false });
+      if (!o) return null;
+      ['skips', 'overrides', 'alarm', 'alarmOff', 'chained', 'goHome', 'pack', 'packDone', 'updatedAt', 'endBy'].forEach(k => delete o[k]);
+      if (!raw.repeat || raw.repeat.type === 'none') delete o.repeat;
       return o;
     } catch (e) { return null; }
   },
@@ -58,7 +63,8 @@ const Share = {
     const text = `[마이플래너] ${s.title}\n${U.dateLabel(s.date).split(' · ')[0]} ${when}${s.dest ? ' · ' + s.dest.name : ''}\n`
       + `⏰ 기상 ${U.hm(plan.wakeAt)} · 🚪 출발 ${U.hm(plan.departAt)} (${m.label})\n`
       + `링크를 누르면 내 폰 알람에 추가돼요 👇`;
-    const url = this.link({ ...base, date: s.date });
+    // 이 날 바뀐 시간(이 날만 변경)이 링크에도 그대로 들어가도록 회차 값으로. 반복은 원본 규칙 유지
+    const url = this.link({ ...s, repeat: base.repeat, date: s.date });
     try {
       if (navigator.share) { await navigator.share({ title: s.title, text, url }); return; }
     } catch (e) { if (e && e.name === 'AbortError') return; }

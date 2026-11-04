@@ -9,7 +9,7 @@
 
 const Cloud = {
   SESSION_KEY: 'mp_cloud_session',
-  DIRTY_KEY: 'mp_sync_dirty',      // 아직 못 올린 내 일정 id
+  DIRTY_KEY: 'mp_sync_dirty',      // 아직 못 올린 내 변경 { id: { at, del } } (로그아웃 중에도 기록)
   LAST_KEY: 'mp_sync_last',
   status: 'off',                   // off | signed_out | syncing | synced | offline | error | no_server
   families: [],                    // [{ id, name, invite_code, members: [{ user_id, display_name, role }] }]
@@ -49,7 +49,9 @@ const Cloud = {
   _save(data, user) {
     if (!data || !data.access_token) throw new Error('세션 정보가 없어요');
     const prev = this.session() || {};
-    const u = data.user || user;
+    let u = data.user || user;
+    // 웹 카카오 로그인 직후처럼 사용자 정보가 아직 없으면 토큰 안의 사용자 id(sub)를 바로 씀
+    if (!u && !(prev.user && prev.user.id)) { const sub = this._jwtSub(data.access_token); if (sub) u = { id: sub }; }
     const s = {
       access_token: data.access_token,
       refresh_token: data.refresh_token || prev.refresh_token,
@@ -60,11 +62,18 @@ const Cloud = {
     return s;
   },
 
+  _jwtSub(t) {
+    try {
+      const p = String(t).split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(escape(atob(p + '==='.slice((p.length + 3) % 4))))).sub || null;
+    } catch (e) { return null; }
+  },
+
   async _auth(path, body) {
     const { url, key } = this.cfg();
     const res = await U.fetchT(`${url}/auth/v1/${path}`, { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.msg || data.error_description || data.message || `로그인 실패 (${res.status})`);
+    if (!res.ok) { const e = new Error(data.msg || data.error_description || data.message || `로그인 실패 (${res.status})`); e.status = res.status; throw e; }
     return data;
   },
 
@@ -115,7 +124,8 @@ const Cloud = {
     try {
       return this._save(await this._auth('token?grant_type=refresh_token', { refresh_token: s.refresh_token })).access_token;
     } catch (e) {
-      if (navigator.onLine !== false) { localStorage.removeItem(this.SESSION_KEY); this.status = 'signed_out'; }
+      // 서버가 '이 로그인은 더 못 씀'이라고 답한 경우만 로그아웃 (느린 인터넷·서버 오류로는 로그인 유지)
+      if (e.status === 400 || e.status === 401) { localStorage.removeItem(this.SESSION_KEY); this.status = 'signed_out'; }
       throw e;
     }
   },
@@ -143,7 +153,8 @@ const Cloud = {
   async signOut() {
     try { if (this.isSignedIn()) await this._api('auth/v1/logout', { method: 'POST' }); } catch (e) {}
     localStorage.removeItem(this.SESSION_KEY);
-    localStorage.removeItem(this.DIRTY_KEY);
+    // 다음에 로그인하면 '처음 로그인'처럼 기기 일정을 다시 맞춤. 못 올린 변경(지운 일정 포함)은 남겨 둠
+    localStorage.removeItem(this.LAST_KEY);
     // 공유받은 일정은 이 계정 것이라 지움 (내 일정은 기기에 남김)
     State.schedules = State.schedules.filter(s => !s._shared);
     State.save();
@@ -153,14 +164,25 @@ const Cloud = {
   },
 
   /* ---------- 동기화 ---------- */
+  /** 바뀐 일정 기록: 그 일정의 수정 시각(지웠으면 지운 시각)을 함께 저장 → 올리는 중에 또 고쳐도 놓치지 않음 */
   markDirty(id) {
-    if (!this.isSignedIn()) return;
     const d = this._dirty();
-    if (!d.includes(id)) { d.push(id); localStorage.setItem(this.DIRTY_KEY, JSON.stringify(d)); }
+    const s = State.get(id);
+    d[id] = s ? { at: s.updatedAt || Date.now() } : { at: Date.now(), del: true };
+    this._setDirty(d);
+    if (!this.isSignedIn()) return; // 로그아웃 중이면 기록만 → 다음 로그인 때 올림
     clearTimeout(this._t);
     this._t = setTimeout(() => this.push().catch(() => {}), 1500);
   },
-  _dirty() { try { return JSON.parse(localStorage.getItem(this.DIRTY_KEY) || '[]'); } catch (e) { return []; } },
+  /** { id: { at, del } } — 예전 형식(id 배열)도 읽음 */
+  _dirty() {
+    try {
+      const v = JSON.parse(localStorage.getItem(this.DIRTY_KEY) || '{}');
+      if (Array.isArray(v)) { const o = {}; v.forEach(id => { o[id] = { at: 0 }; }); return o; }
+      return v && typeof v === 'object' ? v : {};
+    } catch (e) { return {}; }
+  },
+  _setDirty(d) { localStorage.setItem(this.DIRTY_KEY, JSON.stringify(d)); },
 
   /** 서버로 보낼 일정 (기기 전용 값은 뺌: 실시간 교통·날씨) */
   _wire(s) {
@@ -199,36 +221,53 @@ const Cloud = {
     const rows = await this._api('rest/v1/mp_schedules?select=owner_id,id,data,deleted,updated_at') || [];
     const firstTime = !localStorage.getItem(this.LAST_KEY);
     let changed = false;
+    if (!me) throw new Error('로그인 정보를 다시 확인하는 중이에요');
     const mine = rows.filter(r => r.owner_id === me);
     const dirty = this._dirty();
+    let dirtyChanged = false;
     for (const r of mine) {
       const local = State.get(r.id);
+      if (local && local._shared) continue;
+      // 지운 줄은 지운 시각, 아니면 마지막 수정 시각 — '나중에 바꾼 쪽'이 이김
+      const remoteAt = r.deleted ? (Date.parse(r.updated_at) || 0) : ((r.data && r.data.updatedAt) || Date.parse(r.updated_at) || 0);
+      const q = dirty[r.id];
+      if (q) {
+        if (q.at && remoteAt <= q.at) continue;          // 아직 못 올린 내 변경이 더 최신
+        if (!q.at && (r.deleted || !local)) continue;     // 예전 형식 기록: 내 변경 우선
+        if (q.at) { delete dirty[r.id]; dirtyChanged = true; } // 다른 기기에서 더 나중에 바꿈 → 그쪽으로
+        else continue;
+      }
       if (r.deleted) {
-        if (local && !local._shared) { State.schedules = State.schedules.filter(s => s.id !== r.id); changed = true; }
+        if (local) { State.schedules = State.schedules.filter(s => s.id !== r.id); changed = true; }
         continue;
       }
-      const remoteAt = (r.data && r.data.updatedAt) || Date.parse(r.updated_at) || 0;
-      if (!local || (!dirty.includes(r.id) && remoteAt > (local.updatedAt || 0))) {
+      if (!local || remoteAt > (local.updatedAt || 0)) {
+        const data = U.cleanSchedule({ ...r.data, id: r.id });
+        if (!data || data.id !== r.id) continue; // 깨진 줄은 건너뜀
         const keep = local ? { live: local.live, weather: local.weather } : {};
-        State.putRaw({ ...r.data, ...keep, id: r.id });
+        State.putRaw({ ...data, ...keep, id: r.id });
         changed = true;
       }
     }
     // 처음 로그인: 기기에만 있던 일정을 모두 올림
     if (firstTime) {
-      const onServer = new Set(mine.map(r => r.id));
-      State.schedules.filter(s => !s._shared && !s.demo && !onServer.has(s.id)).forEach(s => dirty.push(s.id));
-      localStorage.setItem(this.DIRTY_KEY, JSON.stringify([...new Set(dirty)]));
+      const onServer = new Set(mine.filter(r => !r.deleted).map(r => r.id));
+      State.schedules.filter(s => !s._shared && !s.demo && !onServer.has(s.id) && !dirty[s.id])
+        .forEach(s => { dirty[s.id] = { at: s.updatedAt || Date.now() }; dirtyChanged = true; });
     }
+    if (dirtyChanged) this._setDirty(dirty);
     // 공유받은 일정: 서버에 있는 그대로 (내 폰의 알람 끄기·실시간 값은 유지)
     const sharedRows = rows.filter(r => r.owner_id !== me && !r.deleted);
     const prevShared = new Map(State.schedules.filter(s => s._shared).map(s => [s.id, s]));
     const names = await this._names(sharedRows.map(r => r.owner_id));
-    const nextShared = sharedRows.map(r => {
+    const SAFE = /^[\w\-.]{1,120}$/;
+    const nextShared = sharedRows.filter(r => SAFE.test(String(r.owner_id)) && SAFE.test(String(r.id))).map(r => {
       const p = prevShared.get(r.owner_id + ':' + r.id);
-      return { ...r.data, id: r.owner_id + ':' + r.id, alarmOff: p ? p.alarmOff : false, live: p && p.live, weather: p && p.weather,
-        _shared: { ownerId: r.owner_id, scheduleId: r.id, from: names[r.owner_id] || '가족' } };
-    });
+      const data = U.cleanSchedule(r.data, { keepId: false });
+      if (!data) return null;
+      return { ...data, id: r.owner_id + ':' + r.id, alarmOff: p ? p.alarmOff : false, live: p && p.live, weather: p && p.weather,
+        _shared: { ownerId: r.owner_id, scheduleId: r.id, from: String(names[r.owner_id] || '가족').slice(0, 20) } };
+    }).filter(Boolean);
     const sig = a => JSON.stringify(a.map(s => [s.id, s.updatedAt]).sort());
     if (sig([...prevShared.values()]) !== sig(nextShared)) changed = true;
     State.schedules = State.schedules.filter(s => !s._shared).concat(nextShared);
@@ -250,21 +289,27 @@ const Cloud = {
   /** 기기 → 서버: 바뀐 내 일정만 (지운 일정은 deleted 표시) */
   async push() {
     const dirty = this._dirty();
-    if (!dirty.length || !this.isSignedIn()) return;
+    const ids = Object.keys(dirty);
+    if (!ids.length || !this.isSignedIn()) return;
     const me = this.userId();
-    const rows = dirty.map(id => {
+    if (!me) return;
+    const rows = ids.map(id => {
       const s = State.get(id);
       if (s && (s._shared || s.demo)) return null; // 예시 일정은 서버에 올리지 않음
-      return s ? { owner_id: me, id, data: this._wire(s), deleted: false, updated_at: new Date().toISOString() }
-        : { owner_id: me, id, data: { id }, deleted: true, updated_at: new Date().toISOString() };
+      if (!s && String(id).includes(':')) return null; // 공유받은 일정 id
+      const at = dirty[id].at || Date.now();
+      return s ? { owner_id: me, id, data: this._wire(s), deleted: false, updated_at: new Date(s.updatedAt || at).toISOString() }
+        : { owner_id: me, id, data: { id, updatedAt: at }, deleted: true, updated_at: new Date(at).toISOString() };
     }).filter(Boolean);
     if (rows.length) {
       await this._api('rest/v1/mp_schedules?on_conflict=owner_id,id', {
         method: 'POST', body: rows, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }
       });
     }
-    const left = this._dirty().filter(id => !dirty.includes(id));
-    localStorage.setItem(this.DIRTY_KEY, JSON.stringify(left));
+    // 올린 그 버전 그대로인 것만 지움 (올리는 동안 또 고친 일정은 다음에 다시 올림)
+    const now = this._dirty();
+    ids.forEach(id => { if (now[id] && dirty[id] && now[id].at === dirty[id].at && !!now[id].del === !!dirty[id].del) delete now[id]; });
+    this._setDirty(now);
   },
 
   /* ---------- 가족 ---------- */

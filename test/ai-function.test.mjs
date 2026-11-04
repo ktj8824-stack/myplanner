@@ -95,4 +95,15 @@ assert.ok(checkAction('propose_schedule', { title: 'x', date: '2026-11-04', kind
 assert.strictEqual(checkAction('propose_schedule', { title: 'x', date: '2026-11-04', kind: 'event', time: '10:00', place: 'a', repeat: 'weekly', repeat_days: [2, 4] }, ctx), null);
 assert.ok(checkAction('propose_update', { idx: 0, new_date: '2026-10-30' }, ctx));
 console.log('✓ 지난 날짜·요일 없는 매주 반복 거절');
+{
+  const c2 = { today: '2026-11-04', now: '15:00', upcoming: [{}] };
+  const ev = o => checkAction('propose_schedule', { title: 'a', kind: 'event', place: 'x', ...o }, c2);
+  assert.ok(ev({ date: '2026-11-04', time: '08:00' }));                 // 오늘 이미 지난 시각
+  assert.strictEqual(ev({ date: '2026-11-04', time: '16:00' }), null);
+  assert.strictEqual(ev({ date: '2026-11-04', time: '08:00', repeat: 'daily' }), null); // 반복은 다음 회차부터
+  assert.ok(ev({ date: '2026-11-31', time: '08:00' }));                 // 없는 날짜
+  assert.ok(ev({ date: '2026-11-05', time: '08:00', prep_min: -500 })); // 이상한 준비 시간
+  assert.ok(checkAction('propose_update', { idx: 0, new_date: '2026-02-30' }, c2));
+  console.log('✓ 오늘 지난 시각·없는 날짜·이상한 분 거절');
+}
 console.log('\nAI 비서 서버 함수 확인 완료');
