@@ -9,6 +9,7 @@ const App = {
 
   async init() {
     State.load();
+    this.applyTextSize();
     Cloud.init();
     // 화면 글자 속 이모지를 같은 선 아이콘으로 (나중에 채워지는 부분까지)
     ['main', 'sheet', 'ringing'].forEach(id => Icons.watch(document.getElementById(id)));
@@ -49,6 +50,14 @@ const App = {
     const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['register', 'plus', '일정 추가'], ['market', 'bag', '마켓'], ['settings', 'settings', '설정']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
       `<button data-nav="${k}" class="${k === 'register' ? 'nav-add' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${Icons.svg(ic)}</span><span>${label}</span></button>`).join('');
+  },
+
+  /** 글자 크기: 보통 / 크게 / 아주 크게 (40~60대) — 화면 전체를 같은 비율로 키움 */
+  TEXT_SIZES: { normal: 1, large: 1.12, xlarge: 1.25 },
+  applyTextSize() {
+    const k = State.settings.textSize || 'normal';
+    document.documentElement.dataset.text = k;
+    document.documentElement.style.setProperty('--zoom', this.TEXT_SIZES[k] || 1);
   },
 
   setMain(html) {

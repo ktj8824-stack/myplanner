@@ -316,6 +316,15 @@ const Timeline = {
 };
 
 const Settings = {
+  setTextSize(k) {
+    State.settings.textSize = k;
+    State.save();
+    App.applyTextSize();
+    const y = window.scrollY;
+    this.render();
+    window.scrollTo(0, y);
+  },
+
   render() {
     const st = State.settings;
     const keys = [['ROUTE_PROXY_URL', '경로 서버 주소 (Supabase 함수 URL)'], ['SUPABASE_ANON_KEY', 'Supabase 공개 키 (anon)'], ['SUPABASE_URL', 'Supabase 주소 (비우면 경로 서버 주소에서 자동)'], ['ODSAY_API_KEY', 'ODsay 키 (버스·지하철)'], ['TMAP_APP_KEY', '티맵 앱키 (자가용·도보·장소)'], ['KAKAO_REST_KEY', '카카오 REST 키 (장소 검색)']];
@@ -345,6 +354,13 @@ const Settings = {
             <div class="row-main"><b>${U.esc(s.title)}</b><small>${U.esc(Recur.label(s))} · ${Planner.isTrip(s.mode) ? s.trip.departTime + ' 출발' : s.arriveBy + ' 도착'}</small></div>
             <div class="row-side">›</div></button>`).join('')}
         </div>` : ''}
+
+      <div class="card">
+        <label class="lbl">글자 크기</label>
+        <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>
+          `<button class="${(st.textSize || 'normal') === k ? 'on' : ''} ts-${k}" onclick="Settings.setTextSize('${k}')">${l}</button>`).join('')}</div>
+        <p class="muted small" style="margin:10px 0 0">글자와 버튼이 함께 커져요.</p>
+      </div>
 
       <div class="card">
         <label class="lbl">기본 이동수단</label>

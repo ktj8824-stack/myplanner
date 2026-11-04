@@ -524,3 +524,16 @@ html, body { overflow-x: hidden; }
 .report-reason { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 14px; border: 1.5px solid var(--line); font-weight: 600; }
 .report-reason input { width: 20px; height: 20px; accent-color: var(--ink); margin: 0; }
 .report-reason:has(input:checked) { border-color: var(--ink); }
+
+/* 글자 크기 (설정 > 글자 크기) — 화면 전체를 같은 비율로 */
+html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom); }
+.text-size button { flex: 1; justify-content: center; }
+.text-size .ts-large { font-size: 17px; }
+.text-size .ts-xlarge { font-size: 19px; }
+
+/* 안내판 시각: 칸 너비에 맞춰 줄어들게 (아주 크게 모드·좁은 폰) */
+.hero-times, .result-row, .ai-times { container-type: inline-size; }
+.hero-times b { font-size: min(34px, 10.6cqi); }
+.result-row b, .result.big .result-row b { font-size: min(34px, 10.6cqi); }
+.ai-times b { font-size: min(28px, 9.6cqi); }
+.repeat-bar > span:first-child { display: block; }
