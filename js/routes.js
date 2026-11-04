@@ -328,25 +328,59 @@ const Routes = {
   },
 
   /* ---------- 카카오맵·티맵 길안내 열기 ---------- */
-  openNav(app, mode, origin, dest) {
-    if (!dest && app !== 'kakaot') return;
-    const by = { transit: 'PUBLICTRANS', walk: 'FOOT' }[mode] || 'CAR';
-    let url;
+  /**
+   * 길안내 주소 만들기 (화면과 무관 — 테스트 가능)
+   * - 카카오맵 앱: kakaomap://route?sp=위도,경도&ep=위도,경도&by=publictransit|car|foot  (카카오맵 URL Scheme 문서)
+   * - 티맵 앱: tmap://route?startx·starty·startname · goalx·goaly·goalname  (x=경도, y=위도)
+   * - 웹(앱이 없을 때·PC): https://map.kakao.com/link/by/traffic|car|walk/이름,위도,경도/이름,위도,경도
+   */
+  navUrls(app, mode, origin, dest) {
+    const by = { transit: 'publictransit', walk: 'foot' }[mode] || 'car';
+    const webBy = { transit: 'traffic', walk: 'walk' }[mode] || 'car';
+    const ok = p => p && isFinite(p.lat) && isFinite(p.lng);
+    const nm = p => encodeURIComponent(String(p.name || '목적지').replace(/[,/]/g, ' ').trim() || '목적지');
+    const from = ok(origin) ? origin : null;
+    const web = from
+      ? `https://map.kakao.com/link/by/${webBy}/${nm(from)},${from.lat},${from.lng}/${nm(dest)},${dest.lat},${dest.lng}`
+      : `https://map.kakao.com/link/to/${nm(dest)},${dest.lat},${dest.lng}`;
+    let scheme;
     if (app === 'tmap') {
-      url = `tmap://route?goalname=${encodeURIComponent(dest.name)}&goalx=${dest.lng}&goaly=${dest.lat}`
-        + (origin ? `&startname=${encodeURIComponent(origin.name)}&startx=${origin.lng}&starty=${origin.lat}` : '');
-    } else if (app === 'kakaomap') {
-      url = `kakaomap://route?ep=${dest.lat},${dest.lng}&by=${by}` + (origin ? `&sp=${origin.lat},${origin.lng}` : '');
-    } else if (app === 'kakaot') {
-      url = 'kakaot://taxi';
-    }
-    const isNative = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
-    if (isNative) {
-      window.location.href = url;
-    } else if (app === 'kakaot') {
-      window.open('https://www.kakaomobility.com/service-ride', '_blank');
+      scheme = `tmap://route?goalname=${nm(dest)}&goalx=${dest.lng}&goaly=${dest.lat}`
+        + (from ? `&startname=${nm(from)}&startx=${from.lng}&starty=${from.lat}` : '');
     } else {
-      window.open(`https://map.kakao.com/link/to/${encodeURIComponent(dest.name)},${dest.lat},${dest.lng}`, '_blank');
+      scheme = `kakaomap://route?${from ? `sp=${from.lat},${from.lng}&` : ''}ep=${dest.lat},${dest.lng}&by=${by}`;
     }
+    return { scheme, web, by };
+  },
+
+  openNav(app, mode, origin, dest) {
+    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    const mobile = isNative || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    if (app === 'kakaot') {
+      return mobile ? this.tryApp('kakaot://taxi', 'https://www.kakaomobility.com/service-ride', '카카오T 앱이 없어 안내 페이지를 열어요')
+        : window.open('https://www.kakaomobility.com/service-ride', '_blank');
+    }
+    if (!dest || !isFinite(dest.lat)) return U.toast('목적지 위치가 없어요. 일정을 수정해 목적지를 다시 골라 주세요');
+    const u = this.navUrls(app, mode, origin, dest);
+    // PC에서는 카카오맵 웹 길찾기 (출발·도착이 채워진 상태)
+    if (!mobile) return window.open(u.web, '_blank');
+    // 휴대폰: 앱을 열고, 앱이 없으면 카카오맵 웹 길찾기로
+    this.tryApp(u.scheme, u.web, app === 'tmap' ? '티맵 앱이 없어 카카오맵 길찾기로 열어요' : '카카오맵 앱이 없어 웹 길찾기로 열어요');
+  },
+
+  /** 앱 주소를 열어 보고, 1.6초 안에 화면이 앱으로 넘어가지 않으면 대신 웹 주소로 */
+  tryApp(scheme, fallback, msg) {
+    let left = false;
+    const onHide = () => { if (document.hidden) left = true; };
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onHide);
+    window.location.href = scheme;
+    setTimeout(() => {
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onHide);
+      if (left || document.hidden || !fallback) return;
+      if (msg) U.toast(msg);
+      window.location.href = fallback;
+    }, 1600);
   }
 };

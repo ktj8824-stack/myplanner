@@ -67,8 +67,8 @@ const Timeline = {
       </div>
 
       <div class="nav-btns">
-        <button class="btn" onclick="Timeline.nav('kakaomap')">🗺️ 카카오맵</button>
-        ${navMode === 'taxi' ? `<button class="btn primary" onclick="Routes.openNav('kakaot')">카카오T 부르기</button>` : `<button class="btn primary" onclick="Timeline.nav('tmap')">길안내 시작</button>`}
+        <button class="btn" onclick="Timeline.nav('kakaomap')">🗺️ 카카오맵 경로</button>
+        ${navMode === 'taxi' ? `<button class="btn primary" onclick="Routes.openNav('kakaot')">카카오T 부르기</button>` : `<button class="btn primary" onclick="Timeline.nav('${['car'].includes(navMode) ? 'tmap' : 'kakaomap'}')">${navMode === 'car' ? '티맵 길안내' : '길안내 시작'}</button>`}
       </div>
 
       ${s.memo ? `<div class="card"><div class="q">메모</div><div style="color:var(--ink-2)">${U.esc(s.memo).replace(/\n/g, '<br>')}</div></div>` : ''}
