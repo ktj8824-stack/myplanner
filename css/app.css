@@ -515,3 +515,12 @@ html, body { overflow-x: hidden; }
 .tag.demo { background: #E7EBF5; color: var(--ink-2); }
 .hero.empty .btn.ghost { margin-top: 10px; }
 .warn-line .ic-wrap, .wx-line .ic-wrap, .live-line .ic-wrap { align-self: flex-start; margin-top: 1px; }
+
+/* AI 답변 신고 */
+.ai-report { align-self: flex-start; margin: 6px 0 0 6px; padding: 4px 6px; font-size: 13px; font-weight: 600; color: var(--faint); text-decoration: underline; text-underline-offset: 3px; }
+.ai-report.done { text-decoration: none; }
+.ai-report-quote { padding: 12px 14px; border-radius: 14px; background: var(--fill); color: var(--ink-2); font-size: 15px; line-height: 1.55; max-height: 140px; overflow: auto; }
+.report-reasons { display: grid; gap: 8px; }
+.report-reason { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border-radius: 14px; border: 1.5px solid var(--line); font-weight: 600; }
+.report-reason input { width: 20px; height: 20px; accent-color: var(--ink); margin: 0; }
+.report-reason:has(input:checked) { border-color: var(--ink); }

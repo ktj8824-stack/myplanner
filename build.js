@@ -4,7 +4,7 @@ const path = require('path');
 
 const src = __dirname;
 const dest = path.join(__dirname, 'www');
-const include = ['index.html', 'privacy.html', 'terms.html', 'manifest.json', 'sw.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'css', 'js'];
+const include = ['index.html', 'privacy.html', 'terms.html', 'manifest.json', 'sw.js', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'css', 'js'];
 const skip = ['config.example.js'];
 
 if (!fs.existsSync(path.join(src, 'js', 'config.js'))) {

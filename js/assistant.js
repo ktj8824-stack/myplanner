@@ -118,7 +118,45 @@ const Assistant = {
   bubble(m, i) {
     const cls = m.role === 'user' ? 'me' : 'bot';
     const cards = (m.cards || []).map((c, j) => `<div class="ai-card" id="aiCard_${i}_${j}">${this.cardHtml(c, i, j)}</div>`).join('');
-    return `<div class="ai-msg ${cls}"><div class="ai-bubble">${U.esc(m.content).replace(/\n/g, '<br>')}</div>${cards}</div>`;
+    // AI가 만든 답변에는 신고 버튼 (구글 플레이 생성형 AI 정책)
+    const report = m.role !== 'user' && m.ai ? (m.reported ? '<span class="ai-report done">신고했어요</span>' : `<button class="ai-report" onclick="Assistant.report(${i})">답변 신고</button>`) : '';
+    return `<div class="ai-msg ${cls}"><div class="ai-bubble">${U.esc(m.content).replace(/\n/g, '<br>')}</div>${cards}${report}</div>`;
+  },
+
+  /* ---------- 답변 신고 ---------- */
+  REPORT_REASONS: [['wrong', '틀린 정보예요'], ['inappropriate', '부적절하거나 불쾌해요'], ['unsafe', '위험한 내용이에요'], ['other', '기타']],
+
+  report(i) {
+    const m = this.msgs[i];
+    if (!m) return;
+    Sheet.open(`
+      <div class="sheet-head"><b>이 답변 신고하기</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="ai-report-quote">${U.esc(m.content).slice(0, 300)}</div>
+      <label class="lbl">어떤 문제가 있나요?</label>
+      <div class="report-reasons">${this.REPORT_REASONS.map(([k, l], n) => `
+        <label class="report-reason"><input type="radio" name="rpReason" value="${k}" ${n === 0 ? 'checked' : ''}><span>${l}</span></label>`).join('')}</div>
+      <label class="lbl">더 알려 주실 내용 <small class="muted">(선택)</small></label>
+      <textarea id="rpNote" class="input" rows="2" maxlength="300" placeholder="예: 날짜를 다르게 알아들었어요"></textarea>
+      <button class="btn primary big" style="margin-top:16px" onclick="Assistant.sendReport(${i})">신고 보내기</button>
+      <p class="muted small center">신고한 답변과 바로 앞의 질문이 운영자에게 전달돼 AI 비서를 고치는 데 쓰여요.</p>`);
+  },
+
+  async sendReport(i) {
+    const m = this.msgs[i];
+    const prev = this.msgs.slice(0, i).reverse().find(x => x.role === 'user');
+    const reason = (document.querySelector('input[name="rpReason"]:checked') || {}).value || 'other';
+    const note = (document.getElementById('rpNote').value || '').trim().slice(0, 300) || null;
+    try {
+      await Cloud._api('rest/v1/mp_ai_reports', { method: 'POST', headers: { Prefer: 'return=minimal' },
+        body: { question: prev ? String(prev.content).slice(0, 2000) : null, answer: String(m.content).slice(0, 4000), reason, note } });
+      m.reported = true;
+      this.persist();
+      this.redraw();
+      Sheet.close();
+      U.toast('신고했어요. 더 나은 답변을 하도록 고칠게요');
+    } catch (e) {
+      U.toast(Cloud.isSignedIn() ? '신고를 보내지 못했어요. 잠시 후 다시 해 주세요' : '로그인한 뒤 신고할 수 있어요');
+    }
   },
 
   scroll() { setTimeout(() => window.scrollTo(0, document.body.scrollHeight), 50); },
@@ -176,7 +214,7 @@ const Assistant = {
       if (res.remaining != null) this.quota = { remaining: res.remaining, pro: res.pro };
       const q = document.getElementById('aiQuota'); if (q) q.textContent = this.quotaLabel();
       const cards = (res.actions || []).map(a => ({ kind: a.type, action: a, state: 'pending' }));
-      this.reply(res.reply, cards);
+      this.reply(res.reply, cards, false, true); // AI가 만든 답변 → 신고 가능
     } catch (e) {
       this.msgs.splice(this.msgs.indexOf(typing), 1);
       const cards = e.code === 'daily_limit' && !e.pro ? [{ kind: 'pro', state: 'ready' }] : e.code === 'login_required' ? [{ kind: 'login', state: 'ready' }] : [];
@@ -203,8 +241,8 @@ const Assistant = {
     return m;
   },
 
-  reply(text, cards = [], local) {
-    const m = { role: 'assistant', content: text, cards, local };
+  reply(text, cards = [], local, ai) {
+    const m = { role: 'assistant', content: text, cards, local, ai: !!ai };
     this.msgs.push(m);
     this.persist();
     this.redraw();
