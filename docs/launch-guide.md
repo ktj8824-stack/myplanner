@@ -1,5 +1,34 @@
 # 마이플래너 출시 준비 가이드
 
+## 한눈에 보는 할 일 (2026-11-04 정리)
+
+**A. 폰으로 지금 할 수 있는 일**
+☐ 1. GitHub Pages 켜기 → 아이폰에서 앱 확인 (아래 1번)
+☐ 2. 카카오 디벨로퍼스에서 REST API 키 확인 → Supabase Secrets에 `MYPLANNER_KAKAO_REST_KEY` (장소 검색)
+☐ 3. 티맵 키 → `MYPLANNER_TMAP_APP_KEY` (자동차·도보 시간, 아침 실시간 재계산)
+☐ 4. ODsay 키(웹 URI `https://ktj8824-stack.github.io` 등록) → `MYPLANNER_ODSAY_API_KEY`, `MYPLANNER_ODSAY_REFERER` (버스·지하철)
+☐ 5. Supabase → Authentication → URL Configuration → Redirect URLs에 `https://ktj8824-stack.github.io/myplanner/`
+☐ 6. Claude에게 "가족 공유 테이블 적용해" → 승인 (로그인·가족 공유·AI 사용량 테이블)
+☐ 7. AI 비서: Claude API 키 → `MYPLANNER_ANTHROPIC_API_KEY` (+ 시험용 `MYPLANNER_AI_ALLOW_ALL`=`true`)
+☐ 8. privacy.html·terms.html의 [운영자명]·[문의 이메일] 정하기
+☐ 9. 로드 플래너(매니저 플래너)에 노출된 카카오·티맵 키 재발급
+
+**B. 노트북으로 할 일**
+☐ 1. 개발 도구 설치: Node.js, Android Studio, Git
+☐ 2. `git clone` → `npm install` → `npx cap add android` → `npm run android`
+☐ 3. 카카오 앱에 안드로이드 플랫폼(패키지 `kr.myplanner.app` + 키 해시) 추가, OpenID Connect 켜기
+☐ 4. 폰에 설치해 확인: 잠금 화면 알람 · 재부팅 후 알람 · 앱 끈 채 실시간 재계산 · 위젯 · 문자 공유
+☐ 5. 서명 키 만들기 → 출시용 AAB 빌드
+
+**C. 출시할 때**
+☐ 1. 구글 플레이 개발자 계정 (1회 25달러)
+☐ 2. 앱 콘텐츠 신고: 전체 화면 알람·정확한 알람·데이터 보안 (아래 3번)
+☐ 3. 스토어 등록정보·스크린샷 (아래 4번, 예시 일정으로 찍기)
+☐ 4. `MYPLANNER_AI_ALLOW_ALL` 삭제, AI 답변 신고 기능 추가(Claude에게 요청)
+☐ 5. 날씨: 상업용 출시 전 Open-Meteo 유료 또는 기상청 API로 교체(Claude에게 요청)
+
+---
+
 폰으로 할 수 있는 일부터 순서대로 정리했습니다. ☐ 칸은 직접 할 일입니다.
 
 ---
@@ -39,15 +68,9 @@ Supabase 무료 플랜의 프로젝트 2개가 이미 차 있어서, **버디플
 > 키는 대화창에 붙여 넣지 말고 Supabase 화면에 직접 넣으세요.
 > 버디플래너에 이미 `TMAP_APP_KEY`라는 비밀값이 있으면 함수가 그것을 대신 씁니다.
 
-### 바로 시험해 보기 (노트북 없이)
-웹 버전(1번) → 설정 → 개발자 설정
-- 경로 서버 주소: 위 주소
-- Supabase 공개 키: legacy anon 키
-
-→ 일정 추가에서 장소를 검색해 실제 결과가 나오면 성공. "예시 장소만 검색돼요"가 나오면 키가 아직 안 들어간 것입니다.
-
-### 앱에 넣기 (나중에 노트북에서)
-`js/config.js`의 `ROUTE_PROXY_URL`, `SUPABASE_ANON_KEY`에 위 두 값을 넣고 `TMAP_APP_KEY`, `ODSAY_API_KEY`는 **비워 둡니다** → APK에 키가 들어가지 않습니다.
+### 확인 방법
+서버 주소와 공개 키는 `js/defaults.js`에 이미 들어 있어 웹·앱 모두 따로 설정할 것이 없습니다.
+→ 일정 추가에서 장소를 검색해 실제 결과가 나오면 성공. "장소 검색 서버가 준비 중"이 나오면 키가 아직 안 들어간 것입니다.
 
 함수가 막아 주는 것: 한국 밖 좌표, 정해진 5가지 외의 요청, 사용자(IP)당 1분 60회 초과. 같은 요청은 1분간 재사용해 호출 비용을 줄입니다.
 
