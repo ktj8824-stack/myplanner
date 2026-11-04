@@ -18,7 +18,10 @@ const Live = {
     if (!b) return null;
     const date = ymd || b.date;
     b.live = b.live || {};
-    b.live[date] = { travelMin: data.travelMin, checkedAt: data.checkedAt || Date.now(), prevMin: data.prevMin };
+    const prev = b.live[date] || {};
+    b.live[date] = { ...prev };
+    if (data.travelMin) Object.assign(b.live[date], { travelMin: data.travelMin, checkedAt: data.checkedAt || Date.now(), prevMin: data.prevMin });
+    if (data.busLeaveAt) Object.assign(b.live[date], { busLeaveAt: data.busLeaveAt, busAt: data.busAt, busName: data.busName });
     // 지난 기록 정리
     const cut = Recur.shift(U.today(), -2);
     Object.keys(b.live).forEach(d => { if (d < cut) delete b.live[d]; });
@@ -33,7 +36,7 @@ const Live = {
       const r = await N.getLive();
       const map = (r && r.live) || {};
       let n = 0;
-      Object.entries(map).forEach(([occId, v]) => { if (v && v.travelMin && this.record(occId, v)) n++; });
+      Object.entries(map).forEach(([occId, v]) => { if (v && (v.travelMin || v.busLeaveAt) && this.record(occId, v)) n++; });
       if (n) State.save();
       return n;
     } catch (e) { return 0; }
@@ -59,7 +62,7 @@ const Live = {
         const r = await Routes.drive(leg.from, leg.to, leg.mode, null);
         if (!r || r.source !== 'tmap') continue;
         const before = plan.departAt;
-        const prev = (Planner.liveFor(s) || {}).travelMin || s[leg.key].travelMin;
+        const prev = (Planner.liveFor(s) || {}).travelMin || (s[leg.key] || {}).travelMin || null;
         this.record(s.occId || s.id, { travelMin: r.travelMin, prevMin: prev });
         const after = Planner.compute(Recur.resolve(s.occId || s.id)).departAt;
         const delta = Math.round((after - before) / 60000);

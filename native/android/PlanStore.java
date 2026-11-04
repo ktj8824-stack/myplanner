@@ -32,7 +32,7 @@ public final class PlanStore {
 
     public static JSONObject load(Context ctx) {
         synchronized (LOCK) {
-            File f = new File(ctx.getFilesDir(), FILE);
+            File f = new File(Storage.of(ctx).getFilesDir(), FILE);
             if (!f.exists()) return empty();
             try (FileInputStream in = new FileInputStream(f)) {
                 byte[] buf = new byte[(int) f.length()];
@@ -52,7 +52,7 @@ public final class PlanStore {
 
     public static void save(Context ctx, JSONObject plan) {
         synchronized (LOCK) {
-            File tmp = new File(ctx.getFilesDir(), FILE + ".tmp");
+            File tmp = new File(Storage.of(ctx).getFilesDir(), FILE + ".tmp");
             try (FileOutputStream out = new FileOutputStream(tmp)) {
                 out.write(plan.toString().getBytes(StandardCharsets.UTF_8));
             } catch (Exception e) {
@@ -61,7 +61,18 @@ public final class PlanStore {
             }
             // 쓰는 도중 꺼져도 이전 계획이 남도록 임시 파일 → 교체
             //noinspection ResultOfMethodCallIgnored
-            tmp.renameTo(new File(ctx.getFilesDir(), FILE));
+            tmp.renameTo(new File(Storage.of(ctx).getFilesDir(), FILE));
+        }
+    }
+
+    public interface Change { void apply(JSONObject plan) throws Exception; }
+
+    /** 읽기 → 고치기 → 저장을 한 묶음으로 (백그라운드 재확인과 앱이 서로의 변경을 덮어쓰지 않게) */
+    public static void update(Context ctx, Change change) throws Exception {
+        synchronized (LOCK) {
+            JSONObject plan = load(ctx);
+            change.apply(plan);
+            save(ctx, plan);
         }
     }
 

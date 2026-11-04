@@ -31,11 +31,11 @@ public final class BusCheck {
 
     private BusCheck() {}
 
-    static void run(Context ctx, JSONObject plan, JSONObject spec, String proxyUrl, String anon) throws Exception {
+    static void run(Context ctx, JSONObject spec, String proxyUrl, String anon) throws Exception {
         String stationId = spec.optString("stationId");
         String routeIds = spec.optString("routeIds");
         if (stationId.isEmpty()) return;
-        List<Integer> secs = fetch(proxyUrl, anon, stationId, routeIds);
+        List<Integer> secs = fetch(proxyUrl, anon, stationId, routeIds, spec.optString("routeNos"));
         if (secs == null) return;
 
         long now = System.currentTimeMillis();
@@ -48,16 +48,26 @@ public final class BusCheck {
                 title = r.urgent ? "🚨 지금 나가야 " + josa(bus, "을", "를") + " 탈 수 있어요" : "🚌 " + josa(bus, "이", "가") + " " + hm(r.busAt) + "에 와요";
                 body = r.urgent ? hm(r.busAt) + " 정류장 도착 · 걸어서 " + spec.optInt("walkMin") + "분"
                         : hm(r.leaveAt) + "에 나가세요 (예정보다 " + (-r.deltaMin) + "분 일찍). 출발 알람을 당겼어요.";
-                // 출발 알람 당기기 (출발 10분 전 알림은 이미 지났거나 곧이라 생략)
-                JSONArray alarms = plan.optJSONArray("alarms");
-                JSONObject dep = alarms == null ? null : PlanStore.findById(alarms, spec.optInt("departId"));
-                if (dep != null) {
-                    dep.put("at", r.leaveAt);
-                    dep.put("body", bus + " " + hm(r.busAt) + " 도착 · 지금 출발하세요");
-                }
-                JSONObject pre = alarms == null ? null : PlanStore.findById(alarms, spec.optInt("preId"));
-                if (pre != null && pre.optLong("at") > r.leaveAt - 60_000L) pre.put("at", 0);
-                PlanStore.save(ctx, plan);
+                // 출발 알람 당기기 (출발 10분 전 알림은 이미 지났거나 곧이라 생략) — 최신 계획 위에 한 번에
+                final long leaveAt = r.leaveAt, busAt = r.busAt;
+                PlanStore.update(ctx, plan -> {
+                    JSONArray alarms = plan.optJSONArray("alarms");
+                    JSONObject dep = alarms == null ? null : PlanStore.findById(alarms, spec.optInt("departId"));
+                    if (dep != null) {
+                        dep.put("at", leaveAt);
+                        dep.put("body", bus + " " + hm(busAt) + " 도착 · 지금 출발하세요");
+                    }
+                    JSONObject pre = alarms == null ? null : PlanStore.findById(alarms, spec.optInt("preId"));
+                    if (pre != null && pre.optLong("at") > leaveAt - 60_000L) pre.put("at", 0);
+                    // 앱이 열려 알람을 다시 맞춰도 버스에 맞춘 출발 시각이 유지되도록 기록
+                    JSONObject liveMap = plan.optJSONObject("live");
+                    if (liveMap == null) { liveMap = new JSONObject(); plan.put("live", liveMap); }
+                    JSONObject lv = liveMap.optJSONObject(occId);
+                    if (lv == null) { lv = new JSONObject(); liveMap.put(occId, lv); }
+                    lv.put("busLeaveAt", leaveAt);
+                    lv.put("busAt", busAt);
+                    lv.put("busName", bus);
+                });
                 break;
             }
             case OK:
@@ -76,7 +86,7 @@ public final class BusCheck {
     }
 
     /** 서버 함수 → 도착 예정 초 목록 (해당 노선만 이미 걸러서 요청). 실패 시 null */
-    static List<Integer> fetch(String url, String anon, String stationId, String routeIds) {
+    static List<Integer> fetch(String url, String anon, String stationId, String routeIds, String routeNos) {
         HttpURLConnection c = null;
         try {
             JSONObject req = new JSONObject();
@@ -102,13 +112,15 @@ public final class BusCheck {
             while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
             JSONArray arr = new JSONObject(out.toString("UTF-8")).optJSONArray("arrivals");
             if (arr == null) return null;
-            List<String> ids = new ArrayList<>();
+            List<String> ids = new ArrayList<>(), nos = new ArrayList<>();
             for (String s : routeIds.split(",")) if (!s.isEmpty()) ids.add(s);
+            if (routeNos != null) for (String s : routeNos.split(",")) if (!s.isEmpty()) nos.add(s.trim());
             List<Integer> secs = new ArrayList<>();
             for (int i = 0; i < arr.length(); i++) {
                 JSONObject a = arr.optJSONObject(i);
                 if (a == null) continue;
-                if (!ids.isEmpty() && !ids.contains(a.optString("routeId"))) continue;
+                // 앱과 같은 규칙: 노선 id 또는 노선 번호가 맞으면
+                if (!ids.isEmpty() && !ids.contains(a.optString("routeId")) && !nos.contains(a.optString("routeNm"))) continue;
                 secs.add(a.optInt("sec"));
             }
             return secs;

@@ -85,4 +85,32 @@ console.log('✓ 반복 일정 펼치기');
   assert.ok(at('wake') <= at('depart') && at('pre') <= at('depart'), t);
 });
 console.log('✓ 알람 순서');
+// 10) 실시간 교통: 이른 아침 한산한 값으로 늦게 깨우지 않음
+{
+  const car = base({ mode: 'car', dest: { name: '회사', lat: 37.49, lng: 127.02 }, arriveBy: '09:00', prepMin: 60, bufferMin: 10, route: { travelMin: 50, steps: [{ type: 'car', label: '자가용', min: 50 }] } });
+  const plain = Planner.compute(car);                                  // 출발 07:50(주차 10 포함), 기상 06:50
+  const at = (h, m) => Planner.at(D, `${h}:${m}`).getTime();
+  let p = Planner.compute({ ...car, live: { [D]: { travelMin: 22, checkedAt: at('05', '30') } } });
+  assert.strictEqual(U.hm(p.departAt), U.hm(plain.departAt));        // 05:30에 잰 한산한 값은 무시
+  p = Planner.compute({ ...car, live: { [D]: { travelMin: 30, checkedAt: at('07', '20') } } });
+  assert.strictEqual(U.hm(p.departAt), '08:10');                      // 출발 가까이 잰 값은 반영
+  assert.strictEqual(U.hm(p.wakeAt), U.hm(plain.wakeAt));            // 기상은 늦추지 않음
+  p = Planner.compute({ ...car, live: { [D]: { travelMin: 75, checkedAt: at('05', '30') } } });
+  assert.strictEqual(U.hm(p.departAt), '07:25');                      // 막히는 값은 언제 재든 반영 (일찍)
+  p = Planner.compute({ ...car, live: { [D]: { travelMin: 10, checkedAt: at('07', '40') } } });
+  assert.strictEqual(U.hm(p.departAt), U.hm(plain.departAt));        // 1/3도 안 되는 값은 무시
+  console.log('✓ 실시간 교통: 이른 한산 무시 · 기상은 늦추지 않음');
+}
+// 11) 버스 실시간으로 당긴 출발은 앱이 알람을 다시 맞춰도 유지
+{
+  const tr = base({ arriveBy: '09:00' });
+  const plain = Planner.compute(tr);
+  const leave = plain.departAt.getTime() - 6 * 60000;
+  const s2 = { ...tr, live: { [D]: { busLeaveAt: leave, busName: '7714번' } } };
+  const dep = get(Planner.alarms(s2, Planner.compute(s2)), 'depart');
+  assert.strictEqual(dep.at.getTime(), leave);
+  assert.ok(dep.body.includes('7714번'));
+  assert.strictEqual(U.hm(Planner.compute(s2).departAt), U.hm(plain.departAt)); // 버스 기록만으로 이동 시간이 바뀌지 않음
+  console.log('✓ 버스에 맞춘 출발 알람 유지');
+}
 console.log('까다로운 경우 테스트 완료');

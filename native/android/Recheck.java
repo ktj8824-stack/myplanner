@@ -42,16 +42,17 @@ public final class Recheck {
     }
 
     static void runNow(Context ctx, int recheckId) throws Exception {
-        JSONObject plan = PlanStore.load(ctx);
-        String key = plan.optString("tmapKey", "");
-        String proxyUrl = plan.optString("proxyUrl", "");
-        String proxyKey = plan.optString("proxyKey", "");
-        JSONArray rechecks = plan.optJSONArray("rechecks");
-        JSONObject spec = rechecks == null ? null : PlanStore.findById(rechecks, recheckId);
+        // 읽기만 (네트워크를 기다리는 동안 계획 파일을 붙잡지 않음)
+        JSONObject snap = PlanStore.load(ctx);
+        String key = snap.optString("tmapKey", "");
+        String proxyUrl = snap.optString("proxyUrl", "");
+        String proxyKey = snap.optString("proxyKey", "");
+        JSONArray snapRechecks = snap.optJSONArray("rechecks");
+        JSONObject spec = snapRechecks == null ? null : PlanStore.findById(snapRechecks, recheckId);
         if (spec == null || (key.isEmpty() && proxyUrl.isEmpty())) return;
         if ("bus".equals(spec.optString("type"))) {
             // 버스 실시간 도착은 서버 함수로만 조회 (ODsay 키를 앱에 넣지 않음)
-            if (!proxyUrl.isEmpty()) BusCheck.run(ctx, plan, spec, proxyUrl, proxyKey);
+            if (!proxyUrl.isEmpty()) BusCheck.run(ctx, spec, proxyUrl, proxyKey);
             return;
         }
 
@@ -65,7 +66,10 @@ public final class Recheck {
                 spec.optLong("plannedDepart"), spec.optLong("wake"));
         String occId = spec.optString("occId");
 
-        // 잰 값 기록 (앱이 열리면 가져가서 화면·계산에 반영)
+        // 잰 값 기록 + 알람 조정: 최신 계획을 다시 읽어 그 위에 한 번에 반영
+        PlanStore.update(ctx, plan -> {
+        JSONArray rechecks = plan.optJSONArray("rechecks");
+        if (rechecks == null || PlanStore.findById(rechecks, recheckId) == null) return; // 그새 일정이 바뀜
         JSONObject liveMap = plan.optJSONObject("live");
         if (liveMap == null) { liveMap = new JSONObject(); plan.put("live", liveMap); }
         JSONObject lv = new JSONObject();
@@ -138,7 +142,7 @@ public final class Recheck {
                 if (o != null && occId.equals(o.optString("occId"))) o.put("travelMin", live);
             }
         }
-        PlanStore.save(ctx, plan);
+        });
         Log.d(TAG, "재계산 " + occId + ": 실시간 " + live + "분, 변화 " + r.deltaMin + "분 (" + r.kind + ")");
     }
 

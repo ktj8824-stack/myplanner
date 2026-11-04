@@ -11,7 +11,7 @@ public class BootReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context ctx, Intent intent) {
         String a = intent == null ? null : intent.getAction();
-        if (Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)
+        if (Intent.ACTION_BOOT_COMPLETED.equals(a) || Intent.ACTION_LOCKED_BOOT_COMPLETED.equals(a) || Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)
                 || EXACT_CHANGED.equals(a) || "android.intent.action.QUICKBOOT_POWERON".equals(a)) {
             AlarmScheduler.syncWindow(ctx); // 계획에서 3일치 다시 예약 + 스누즈 복구
         }

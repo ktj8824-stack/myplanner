@@ -126,10 +126,10 @@ public final class AlarmStore {
     }
 
     private static SharedPreferences prefs(Context ctx) {
-        return ctx.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        return Storage.of(ctx).getSharedPreferences(PREFS, Context.MODE_PRIVATE);
     }
 
     private static SharedPreferences state(Context ctx) {
-        return ctx.getApplicationContext().getSharedPreferences(PREFS_STATE, Context.MODE_PRIVATE);
+        return Storage.of(ctx).getSharedPreferences(PREFS_STATE, Context.MODE_PRIVATE);
     }
 }

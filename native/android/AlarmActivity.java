@@ -38,8 +38,7 @@ public class AlarmActivity extends Activity {
 
     private static final long AUTO_STOP_MS = 3 * 60 * 1000L;
     /** 3분 동안 아무것도 누르지 않으면 5분 뒤 다시 울림 — 최대 이 횟수까지 */
-    private static final int MAX_AUTO_REPEAT = 2;
-    private static final int MISSED_NOTICE_OFFSET = 7;
+    private static final int MAX_AUTO_REPEAT = AlarmActionReceiver.MAX_AUTO_REPEAT;
 
     private int rep;
     private AudioManager audio;
@@ -96,8 +95,9 @@ public class AlarmActivity extends Activity {
             AlarmActionReceiver.snooze(this, alarmId, title, scheduleId, rep + 1,
                     "알람에 응답이 없어서 다시 깨워요 (" + (rep + 1) + "/" + MAX_AUTO_REPEAT + "). " + (body == null ? "" : body));
         } else if (rep < 99) {
+            AlarmActionReceiver.cancelBackup(this, alarmId); // 아래에서 바로 알리므로 예약된 안내는 지움
             String t = title == null ? "" : title.replace("⏰ 다시 알림 · ", "");
-            AlarmReceiver.postNote(this, alarmId + MISSED_NOTICE_OFFSET, "⚠️ 알람을 끄지 않으셨어요",
+            AlarmReceiver.postNote(this, AlarmActionReceiver.snoozeId(alarmId), "⚠️ 알람을 끄지 않으셨어요",
                     t + " — 일정 시간을 확인해 주세요.", scheduleId);
         }
         finishAndMoveBack();
@@ -135,7 +135,7 @@ public class AlarmActivity extends Activity {
         root.addView(tvTitle);
         root.addView(tvBody);
 
-        root.addView(button("알람 끄기", true, v -> { stopRinging(); finishAndMoveBack(); }));
+        root.addView(button("알람 끄기", true, v -> { stopRinging(); AlarmActionReceiver.cancelBackup(this, alarmId); finishAndMoveBack(); }));
         root.addView(button("5분 뒤 다시 알림", false, v -> {
             stopRinging();
             AlarmActionReceiver.snooze(this, alarmId, title, scheduleId);
@@ -143,6 +143,7 @@ public class AlarmActivity extends Activity {
         }));
         root.addView(button("일정 보기", false, v -> {
             stopRinging();
+            AlarmActionReceiver.cancelBackup(this, alarmId);
             AlarmStore.setPendingOpen(this, scheduleId);
             KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
             if (km != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

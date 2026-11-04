@@ -29,8 +29,11 @@ public class RecheckMathTest {
         eq(r.kind, RecheckMath.Kind.NONE, "작은 변화 무시");
         System.out.println("✓ 5분 미만 변화는 무시");
 
-        // 3) 한산 28분 → 출발만 12분 미룸, 기상은 그대로
+        // 3) 한산 28분: 출발 2시간 전에 잰 값으로는 늦추지 않음 (출근 시간대에 다시 막힐 수 있음)
         r = RecheckMath.decide(t0, anchor, fixed, 40, 28, planned, wake);
+        eq(r.kind, RecheckMath.Kind.NONE, "이른 한산은 무시");
+        // 출발 30분 전에 잰 한산 → 출발만 12분 미룸, 기상은 그대로
+        r = RecheckMath.decide(planned - 30 * M, anchor, fixed, 40, 28, planned, wake);
         eq(r.kind, RecheckMath.Kind.LATER, "한산 판정");
         eq((r.newDepart - planned) / M, 12, "출발 12분 미룸");
         eq(r.moveWake, false, "기상은 그대로");
@@ -56,6 +59,11 @@ public class RecheckMathTest {
         r = RecheckMath.decide(now, anchor, fixed, 40, 60, planned, wake);
         eq(r.newWake, now + RecheckMath.MIN_LEAD_MS, "기상 1분 뒤");
         System.out.println("✓ 당긴 기상이 지났으면 1분 뒤에 울림");
+
+        // 6-1) 평소의 1/3도 안 되는 값은 무시
+        r = RecheckMath.decide(planned - 30 * M, anchor, fixed, 40, 10, planned, wake);
+        eq(r.kind, RecheckMath.Kind.NONE, "너무 작은 값 무시");
+        System.out.println("✓ 이른 한산·너무 작은 값은 출발을 늦추지 않음");
 
         // 7) 비정상 값 무시
         eq(RecheckMath.decide(t0, anchor, fixed, 40, 900, planned, wake).kind, RecheckMath.Kind.NONE, "비정상");

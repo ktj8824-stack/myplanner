@@ -5,13 +5,14 @@ package kr.myplanner.app;
  *
  * 출발 = anchor − (fixedMin + 실시간 이동분)
  *  - 5분 이상 일찍 나가야 하면: 출발·출발 10분 전 알람을 당기고, 아직 안 울린 기상 알람도 같은 만큼 당김
- *  - 5분 이상 늦게 나가도 되면: 출발 알람만 미룸 (기상 알람은 안전하게 그대로)
+ *  - 5분 이상 늦게 나가도 되면: 출발 35분 전 이후 확인일 때만 출발 알람을 미룸 (기상 알람은 절대 늦추지 않음)
  *  - 티맵 값이 비정상(평소의 4배 초과, 10시간 초과)이면 무시
  */
 public final class RecheckMath {
 
     public static final int THRESHOLD_MIN = 5;
     public static final long MIN_LEAD_MS = 60_000L; // 지금 시각보다 최소 1분 뒤에 울림
+    public static final long LATER_WINDOW_MS = 35 * 60_000L; // 출발을 늦추는 건 출발 35분 전부터만
 
     public enum Kind { NONE, EARLIER, LATER }
 
@@ -32,6 +33,8 @@ public final class RecheckMath {
         r.newDepart = plannedDepart;
         r.newWake = wakeAt;
         if (liveTravelMin <= 0 || liveTravelMin > 600 || (baseTravelMin > 0 && liveTravelMin > baseTravelMin * 4 + 30)) return r;
+        // 평소의 1/3도 안 되는 값은 잘못 잰 것으로 봄
+        if (baseTravelMin > 0 && liveTravelMin * 3 < baseTravelMin) return r;
 
         long depart = anchor - (long) (fixedMin + liveTravelMin) * 60_000L;
         int delta = (int) Math.round((depart - plannedDepart) / 60_000.0);
@@ -50,6 +53,8 @@ public final class RecheckMath {
                 r.newWake = Math.max(wakeAt + (long) delta * 60_000L, now + MIN_LEAD_MS);
             }
         } else {
+            // 이른 아침의 한산한 길은 출근 시간대에 다시 막힐 수 있음 → 출발이 가까울 때(35분 안)만 늦춤
+            if (plannedDepart - now > LATER_WINDOW_MS) { r.deltaMin = 0; return r; }
             r.kind = Kind.LATER;
             r.newDepart = depart;
         }

@@ -66,8 +66,12 @@ public class MyAlarmPlugin extends Plugin {
     @PluginMethod
     public void setPlan(PluginCall call) {
         try {
-            JSONObject old = PlanStore.load(getContext());
-            JSONObject plan = new JSONObject();
+          PlanStore.update(getContext(), plan -> {
+            JSONObject old = new JSONObject(plan.toString());
+            java.util.Iterator<String> ks = old.keys();
+            java.util.List<String> drop = new java.util.ArrayList<>();
+            while (ks.hasNext()) drop.add(ks.next());
+            for (String k : drop) plan.remove(k);
             JSONArray alarms = call.getArray("alarms");
             JSONArray rechecks = call.getArray("rechecks");
             plan.put("alarms", alarms == null ? new JSONArray() : alarms);
@@ -81,7 +85,7 @@ public class MyAlarmPlugin extends Plugin {
             // 앱이 아직 가져가지 않은 실시간 값은 유지
             JSONObject live = old.optJSONObject("live");
             plan.put("live", live == null ? new JSONObject() : live);
-            PlanStore.save(getContext(), plan);
+          });
         } catch (Exception e) {
             call.reject("계획 저장 실패", e);
             return;
@@ -94,13 +98,15 @@ public class MyAlarmPlugin extends Plugin {
 
     @PluginMethod
     public void getLive(PluginCall call) {
-        JSONObject plan = PlanStore.load(getContext());
-        JSONObject live = plan.optJSONObject("live");
         JSObject r = new JSObject();
+        final JSONObject[] taken = {null};
         try {
-            r.put("live", live == null ? new JSObject() : JSObject.fromJSONObject(live));
-            plan.put("live", new JSONObject());
-            PlanStore.save(getContext(), plan);
+            // 가져가면서 비우기를 한 번에 (그 사이 백그라운드가 쓴 값을 잃지 않게)
+            PlanStore.update(getContext(), plan -> {
+                taken[0] = plan.optJSONObject("live");
+                plan.put("live", new JSONObject());
+            });
+            r.put("live", taken[0] == null ? new JSObject() : JSObject.fromJSONObject(taken[0]));
         } catch (Exception e) {
             r.put("live", new JSObject());
         }
@@ -109,10 +115,12 @@ public class MyAlarmPlugin extends Plugin {
 
     @PluginMethod
     public void snooze(PluginCall call) {
-        Double at = call.getDouble("at");
+        // 밀리초 시각은 JSON에서 Long으로 들어옴 (getDouble은 null이 될 수 있음)
+        Long at = call.getLong("at");
+        if (at == null) { Double d = call.getDouble("at"); if (d != null) at = d.longValue(); }
         Integer id = call.getInt("id");
         if (at == null || id == null) { call.reject("id, at 필요"); return; }
-        AlarmStore.Item item = new AlarmStore.Item(id, at.longValue(),
+        AlarmStore.Item item = new AlarmStore.Item(id, at,
                 call.getString("title", ""), call.getString("body", ""), call.getString("scheduleId", ""));
         item.snooze = true;
         boolean ok = AlarmScheduler.schedule(getContext(), item);

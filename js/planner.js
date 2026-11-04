@@ -80,7 +80,11 @@ const Planner = {
      (버스·지하철은 시간표 기반이라 실시간 재계산 대상이 아님) */
   LIVE_MODES: ['car', 'taxi'],
 
-  liveFor(s) { return (s.live && s.live[s.date]) || null; },
+  liveFor(s) { const v = s.live && s.live[s.date]; return v && v.travelMin ? v : null; },
+  /** 폰이 버스 실시간 도착을 보고 당긴 출발 시각 (그날만) */
+  busLeaveFor(s) { const v = s.live && s.live[s.date]; return v && v.busLeaveAt ? new Date(v.busLeaveAt) : null; },
+  /** 실시간 값을 써도 되는지: 평소보다 빠른 값은 출발 1시간 안에 잰 것만 (이른 아침 한산한 길로 늦게 깨우지 않게) */
+  LIVE_EARLY_MIN: 60,
 
   /** 이 일정에서 실시간으로 다시 잴 구간 { key: 'route'|'accessRoute', mode, from, to } — 없으면 null */
   liveLeg(s) {
@@ -97,6 +101,13 @@ const Planner = {
     const live = this.liveFor(s);
     const leg = this.liveLeg(s);
     if (!route || !live || !leg || leg.key !== key || !this.LIVE_MODES.includes(mode)) return route;
+    const baseDrive = (route.steps || []).filter(st => st.type === 'car' || st.type === 'taxi').reduce((a, st) => a + (st.min || 0), 0) || route.travelMin;
+    if (live.travelMin * 3 < baseDrive) return route; // 평소의 1/3도 안 되면 잘못 잰 값
+    if (live.travelMin < baseDrive) {
+      const anchor = this.isTrip(s.mode) ? this.at(s.date, (s.trip && s.trip.departTime) || '00:00') : this.at(s.date, s.arriveBy || '00:00');
+      const baseDepart = anchor.getTime() - (route.travelMin + Number(s.bufferMin ?? 10) + 30) * 60000;
+      if (live.checkedAt < baseDepart - this.LIVE_EARLY_MIN * 60000) return route; // 너무 일찍 잰 한산한 값은 무시
+    }
     const steps = (route.steps || []).map(st => (st.type === 'car' || st.type === 'taxi') ? { ...st, min: live.travelMin } : st);
     const others = steps.filter(st => st.type !== 'car' && st.type !== 'taxi').reduce((a, st) => a + (st.min || 0), 0);
     return { ...route, steps, travelMin: live.travelMin + others, source: 'live', summary: `실시간 ${live.travelMin}분` };
@@ -218,7 +229,12 @@ const Planner = {
     }
 
     // 앞 일정 장소에서 바로 이어서 가는 일정(s.chained)은 기상·준비 없이 출발부터
-    const wakeAt = s.chained ? departAt : this.addMin(departAt, -prep);
+    let wakeAt = s.chained ? departAt : this.addMin(departAt, -prep);
+    // 실시간 교통이 평소보다 빨라도 기상은 늦추지 않음 (출발만 늦춤)
+    if (!s.chained && this.liveFor(s) && s._noLive !== true) {
+      const base = this.compute({ ...s, live: null, _noLive: true });
+      if (base.wakeAt < wakeAt) wakeAt = base.wakeAt;
+    }
     const departRow = { at: departAt, kind: 'depart', icon: '🏠', title: `${(s.origin && s.origin.name) || '집'}에서 출발`, detail: this.isTrip(s.mode) ? `${this.MODES[(s.trip && s.trip.accessMode) || 'transit'].label}로 ${(s.trip && s.trip.departStation && s.trip.departStation.name) || '역'}까지` : this.MODES[s.mode].label };
     if (s.chained) items.unshift({ ...departRow, title: `${(s.origin && s.origin.name) || '앞 일정 장소'}에서 이어서 출발` });
     else items.unshift({ at: wakeAt, kind: 'wake', icon: '⏰', title: '기상 · 준비 시작', detail: `준비 시간 ${prep}분` }, departRow);
@@ -301,8 +317,10 @@ const Planner = {
       body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}${packTxt}` });
     if (opt.preDepart) out.push({ key: 'pre', at: this.addMin(plan.departAt, -10), title: '출발 10분 전',
       body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
-    if (opt.depart) out.push({ key: 'depart', at: plan.departAt, alarm: true, title: `🚪 지금 출발하세요 — ${s.title}`,
-      body: firstLabel || `${dest}로 출발` });
+    const bus = this.busLeaveFor(s);
+    const busOk = bus && bus < plan.departAt && bus.getTime() > plan.departAt.getTime() - 60 * 60000;
+    if (opt.depart) out.push({ key: 'depart', at: busOk ? bus : plan.departAt, alarm: true, title: `🚪 지금 출발하세요 — ${s.title}`,
+      body: busOk ? `${s.live[s.date].busName || '버스'} 시간에 맞춰 지금 나가세요` : (firstLabel || `${dest}로 출발`) });
     if (plan.homeDepartAt && opt.goHome !== false) {
       const gh = s.goHome || {};
       out.push({ key: 'home', at: plan.homeDepartAt, title: `🏠 집에 갈 시간이에요 — ${s.title}`,

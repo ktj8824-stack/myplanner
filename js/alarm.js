@@ -147,7 +147,7 @@ const Alarm = {
         const at = a.plan.departAt.getTime() - this.BUS_CHECK_BEFORE * 60000;
         if (at > now) out.push({
           id: this.numId(a.sid + 'bus'), at, type: 'bus', occId: a.sid, title: a.s.title,
-          stationId: String(bl.step.stationId), routeIds: (bl.step.routeIds || []).join(','), busName: Bus.busName(bl.step),
+          stationId: String(bl.step.stationId), routeIds: (bl.step.routeIds || []).join(','), routeNos: (bl.step.routeNos || []).join(','), busName: Bus.busName(bl.step),
           walkMin: bl.walkMin, preStopMin: bl.preStopMin, plannedDepart: a.plan.departAt.getTime(),
           preId: this.numId(a.sid + 'pre'), departId: this.numId(a.sid + 'depart')
         });

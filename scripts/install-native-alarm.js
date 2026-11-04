@@ -99,11 +99,13 @@ const components = `
             android:launchMode="singleTask"
             android:taskAffinity=""
             android:excludeFromRecents="true"
+            android:directBootAware="true"
             android:exported="false" />
-        <receiver android:name=".AlarmReceiver" android:exported="false" />
-        <receiver android:name=".AlarmActionReceiver" android:exported="false" />
-        <receiver android:name=".BootReceiver" android:exported="true">
+        <receiver android:name=".AlarmReceiver" android:exported="false" android:directBootAware="true" />
+        <receiver android:name=".AlarmActionReceiver" android:exported="false" android:directBootAware="true" />
+        <receiver android:name=".BootReceiver" android:exported="true" android:directBootAware="true">
             <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
@@ -112,6 +114,13 @@ const components = `
         </receiver>
 `;
 if (!man.includes('.AlarmActivity')) man = man.replace('</application>', `${components}    </application>`);
+// 예전에 설치한 프로젝트: 재부팅 후 잠금 해제 전에도 알람이 울리도록(Direct Boot) 고침
+if (!man.includes('LOCKED_BOOT_COMPLETED')) {
+  man = man.replace('<action android:name="android.intent.action.BOOT_COMPLETED" />',
+    '<action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />\n                <action android:name="android.intent.action.BOOT_COMPLETED" />');
+  man = man.replace(/(<receiver android:name="\.(AlarmReceiver|AlarmActionReceiver|BootReceiver)"(?![^>]*directBootAware))/g, '$1 android:directBootAware="true"');
+  man = man.replace(/(android:name="\.AlarmActivity"(?![^>]*directBootAware))/, '$1\n            android:directBootAware="true"');
+}
 
 // 홈 화면 위젯
 if (!man.includes('.NextWidget')) {

@@ -29,6 +29,8 @@ public final class AlarmScheduler {
     private static final String TAG = "MyPlannerAlarm";
     public static final long WINDOW_MS = 3L * 24 * 60 * 60 * 1000;
     public static final int REFILL_ID = 1_999_999_001;
+    /** 정해진 시각이 지났어도 이 시간 안이면 '배달 중'으로 보고 지우지 않음 */
+    public static final long LATE_GRACE_MS = 60L * 60 * 1000;
 
     private AlarmScheduler() {}
 
@@ -103,25 +105,22 @@ public final class AlarmScheduler {
             want.put(it.id, it);
         }
 
-        // 정리: 스누즈·보충 알람은 유지, 나머지는 계획과 다르면 취소
-        Map<Integer, AlarmStore.Item> have = new HashMap<>();
+        // 정리: 스누즈·보충 알람은 유지, 나머지는 계획에서 빠졌으면 취소
         for (AlarmStore.Item old : AlarmStore.all(ctx)) {
             if (old.snooze) {
-                if (old.at <= now) AlarmStore.remove(ctx, old.id);
+                if (old.at <= now - LATE_GRACE_MS) AlarmStore.remove(ctx, old.id);
                 else schedule(ctx, old); // 재부팅 후에도 스누즈 복구
                 continue;
             }
             if (AlarmStore.KIND_REFILL.equals(old.kind)) continue;
-            AlarmStore.Item w = want.get(old.id);
-            if (w == null || w.at != old.at || !w.kind.equals(old.kind) || !w.body.equals(old.body) || !w.title.equals(old.title)) {
-                cancel(ctx, old.id);
-            } else {
-                have.put(old.id, old);
-            }
+            // 시각이 막 지났는데 아직 안 울린 알람(절전으로 몇 분 늦게 배달되는 중)은 지우지 않음
+            if (old.at <= now && old.at > now - LATE_GRACE_MS) continue;
+            if (!want.containsKey(old.id)) cancel(ctx, old.id);
         }
+        // 창 안의 알람은 매번 다시 건다: 재부팅·강제 종료·권한 변경으로 시스템 알람이 사라져도
+        // 기록만 남아 '이미 걸려 있다'고 착각하지 않도록 (같은 PendingIntent면 덮어쓰기라 안전)
         int ok = 0;
         for (AlarmStore.Item it : want.values()) {
-            if (have.containsKey(it.id)) { ok++; continue; }
             if (schedule(ctx, it)) ok++;
         }
         scheduleRefill(ctx);

@@ -150,5 +150,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         } catch (SecurityException e) {
             Log.e(TAG, "알림 권한 없음", e);
         }
+        // 알림만 뜨고 알람 화면이 안 열려도(폰 사용 중·권한 없음) 반응이 없으면 다시 울리도록
+        AlarmActionReceiver.armBackup(ctx, id, title, body, scheduleId, rep);
     }
 }
