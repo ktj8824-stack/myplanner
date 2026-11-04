@@ -1,6 +1,6 @@
 // AI 비서 서버 함수 확인 (가짜 Claude·Supabase): node --no-warnings test/ai-function.test.mjs
 import assert from 'node:assert';
-import { handle, checkAction } from '../supabase/functions/ai/index.ts';
+import { handle, checkAction, calendarTable, systemPrompt } from '../supabase/functions/ai/index.ts';
 
 const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk' };
 const ctx = { today: '2026-11-03', weekday: '화', upcoming: [{ idx: 0, title: '판교 출근', date: '2026-11-04' }] };
@@ -73,4 +73,26 @@ assert.strictEqual((await handle(req({ message: 'x' }), env, fake({ noUser: true
 assert.strictEqual((await handle(req({ message: 'x' }), env, fake({ noTable: true }))).status, 503);
 assert.strictEqual((await handle(req({ message: '  ' }), env, fake())).status, 400);
 console.log('✓ 로그인 필요 · 서버 준비 전 안내 · 빈 말 거절');
+
+// 7) 날짜표: 요일·이번 주/다음 주를 서버가 계산 (2026-11-03은 화요일)
+const cal = calendarTable('2026-11-03').split('\n');
+assert.strictEqual(cal.length, 21);
+assert.ok(cal[0].startsWith('2026-11-03(화) 오늘'));
+assert.ok(cal[1].includes('내일') && cal[1].includes('이번 주 수요일'));
+assert.ok(cal[2].includes('모레'));
+assert.ok(cal.find(l => l.startsWith('2026-11-07')).includes('이번 주 토요일') && cal.find(l => l.startsWith('2026-11-07')).includes('이번 주말'));
+assert.ok(cal.find(l => l.startsWith('2026-11-09')).includes('다음 주 월요일'));
+assert.ok(cal.find(l => l.startsWith('2026-11-11')).includes('다음 주 수요일'));
+assert.ok(cal.find(l => l.startsWith('2026-11-16')).includes('다다음 주 월요일'));
+assert.ok(calendarTable('2026-11-08')[0] && calendarTable('2026-11-08').split('\n')[1].includes('다음 주 월요일')); // 일요일 다음 날은 다음 주
+assert.strictEqual(calendarTable('어제'), '');
+assert.ok(systemPrompt(ctx).includes('[날짜표]') && systemPrompt(ctx).includes('2026-11-11(수)'));
+console.log('✓ 날짜표 (오늘·내일·모레·이번 주·다음 주·주말)');
+
+// 8) 지난 날짜·잘못된 매주 반복 거절
+assert.ok(checkAction('propose_schedule', { title: 'x', date: '2026-11-01', kind: 'event', time: '10:00', place: 'a' }, ctx));
+assert.ok(checkAction('propose_schedule', { title: 'x', date: '2026-11-04', kind: 'event', time: '10:00', place: 'a', repeat: 'weekly' }, ctx));
+assert.strictEqual(checkAction('propose_schedule', { title: 'x', date: '2026-11-04', kind: 'event', time: '10:00', place: 'a', repeat: 'weekly', repeat_days: [2, 4] }, ctx), null);
+assert.ok(checkAction('propose_update', { idx: 0, new_date: '2026-10-30' }, ctx));
+console.log('✓ 지난 날짜·요일 없는 매주 반복 거절');
 console.log('\nAI 비서 서버 함수 확인 완료');

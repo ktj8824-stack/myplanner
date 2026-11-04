@@ -18,7 +18,7 @@ type Json = any;
 type Env = Record<string, string | undefined>;
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
-const MODEL = "claude-haiku-5-5";   // 빠르고 저렴 (대화·일정 이해에 충분)
+export const MODEL = "claude-haiku-5-5";   // 빠르고 저렴 (대화·일정 이해에 충분)
 const MAX_ROUNDS = 3;
 
 const CORS = {
@@ -76,6 +76,32 @@ export const TOOLS = [
   },
 ];
 
+const DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+/**
+ * 오늘부터 3주 날짜표 — AI가 요일·날짜 계산을 틀리지 않도록 서버가 미리 계산해 줌
+ * 주는 월요일~일요일. "이번 주 X요일" = 오늘이 속한 주, "다음 주 X요일" = 그다음 주.
+ */
+export function calendarTable(today: string): string {
+  if (!/^20\d\d-\d\d-\d\d$/.test(today || "")) return "";
+  const [y, m, d] = today.split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  const mondayOffset = (base.getUTCDay() + 6) % 7; // 이번 주 월요일까지 며칠 전
+  const rel: Record<number, string> = { 0: "오늘", 1: "내일", 2: "모레", 3: "글피" };
+  const lines: string[] = [];
+  for (let i = 0; i < 21; i++) {
+    const t = new Date(base.getTime() + i * 86400000);
+    const ymd = t.toISOString().slice(0, 10);
+    const w = DOW[t.getUTCDay()];
+    const week = Math.floor((i + mondayOffset) / 7); // 0=이번 주, 1=다음 주, 2=다다음 주
+    const tags = [rel[i], ["이번 주", "다음 주", "다다음 주"][week] + " " + w + "요일"].filter(Boolean);
+    if (week === 0 && (w === "토" || w === "일")) tags.push("이번 주말");
+    if (week === 1 && (w === "토" || w === "일")) tags.push("다음 주말");
+    lines.push(`${ymd}(${w}) ${tags.join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
 export function systemPrompt(ctx: Json): string {
   return `당신은 일정·이동 알람 앱 '마이플래너'의 AI 비서입니다. 사용자는 40~60대가 많습니다.
 
@@ -85,7 +111,7 @@ export function systemPrompt(ctx: Json): string {
 - 마크다운은 쓰지 말고 줄바꿈만 씁니다.
 
 [할 일]
-- 일정 등록: "내일 10시 아산병원 가야 돼" 같은 말을 propose_schedule로 제안합니다. 날짜는 오늘(${ctx.today || ""}) 기준으로 계산합니다.
+- 일정 등록: "내일 10시 아산병원 가야 돼" 같은 말을 propose_schedule로 제안합니다. 날짜는 직접 계산하지 말고 아래 [날짜표]에서 그대로 찾아 씁니다.
   출근·등교처럼 매일 하는 일은 반복(weekdays)을 제안합니다. 기차·비행기는 kind를 train/flight로, time에는 출발 시각을 넣습니다.
 - 꼭 필요한 정보(날짜, 시간, 어디로)가 없으면 추측하지 말고 짧게 하나만 물어봅니다. 이동수단·준비 시간은 말하지 않으면 묻지 말고 생략합니다(기본값 사용).
 - 일정 질문("내일 몇 시에 나가?", "이번 주 일정")은 아래 일정 목록의 계산된 시각으로 답합니다. 목록에 없는 시각을 지어내지 않습니다.
@@ -98,12 +124,36 @@ export function systemPrompt(ctx: Json): string {
 - 일정·이동·하루 계획과 무관한 요청(투자, 정치, 숙제, 코딩 등)은 "저는 일정과 이동을 돕는 비서라서요"처럼 정중히 짧게 돌려 말합니다. 가벼운 인사는 받아 줍니다.
 - 건강·의료 판단은 하지 않습니다.
 
+[시각 알아듣기]
+- time은 24시간 HH:MM. "반"은 30분, "정오"는 12:00, "아침 8시"는 08:00, "저녁 7시"는 19:00, "밤 11시"는 23:00, "새벽 5시"는 05:00.
+- 오전/오후를 말하지 않으면: 7~11시는 오전, 12시는 낮 12시, 1~6시는 오후로 봅니다. 단 출근·등교·기차·비행기·새벽 일정은 1~6시도 맥락에 맞게(예: "5시 KTX"는 문맥상 애매하면 물어봄).
+- "10시까지 오래", "10시 전까지"는 time=10:00. "15분 일찍 가야 돼"는 buffer_min=15.
+- "1시간 전에 깨워 줘", "준비 30분이면 돼"는 prep_min.
+- 날짜를 말하지 않고 시각만 말하면: 그 시각이 아직 안 지났으면 오늘, 지났으면 내일로 봅니다.
+- "매주 화목"은 repeat=weekly, repeat_days=[2,4]. "평일마다"·"매일 출근"은 weekdays. "매일"은 daily.
+
+[이름 짓기]
+- title은 짧게: 장소나 목적 + 일(예: "아산병원 진료", "강남 미팅", "부산 출장", "손주 어린이집"). "엄마 모시고 병원"처럼 사람이 있으면 "엄마 병원 동행"처럼 넣습니다.
+
+[예시] (실제로는 아래 날짜표의 날짜를 씁니다)
+- "모레 엄마 모시고 아산병원 10시" → propose_schedule {title:"엄마 아산병원 진료", kind:"event", date:모레, time:"10:00", place:"서울아산병원"}
+- "다음 주 수요일 부산 내려가, KTX 8시 서울역" → propose_schedule {title:"부산 KTX", kind:"train", date:다음 주 수요일, time:"08:00", from_station:"서울역", to_station:"부산역"}
+- "평일마다 9시까지 회사" → propose_schedule {title:"출근", kind:"event", date:가장 가까운 평일, time:"09:00", place:"회사", repeat:"weekdays"}
+- "토요일 12시 반 강남 결혼식, 차 가지고 가" → propose_schedule {title:"강남 결혼식", kind:"event", date:이번 주 토요일(지났으면 다음 주), time:"12:30", place:"강남", mode:"car"}
+- "내일 출근 안 해" → 목록의 내일 출근 idx로 propose_update {skip:true}
+- "병원 11시로 미뤄 줘" → 목록의 병원 idx로 propose_update {new_time:"11:00"}
+- "내일 몇 시에 일어나?" → 목록의 내일 일정 기상 시각으로 답 (도구 없음)
+- "3시에 약속 있어" → 어디인지 모르므로 "어디로 가시나요?"라고 한 가지만 물음
+
 [사용자 정보]
 - 지금: ${ctx.today || ""} (${ctx.weekday || ""}) ${ctx.now || ""}
 - 이름: ${ctx.userName || ""} / 집: ${ctx.home || "미등록"} / 기본 이동수단: ${ctx.defaultMode || ""} / 기본 준비 시간: ${ctx.prepMin || 60}분
 - 자주 가는 곳: ${JSON.stringify(ctx.places || [])}
 - 가족: ${JSON.stringify(ctx.family || [])}
-- 앞으로 2주 일정(계산된 기상·출발 포함): ${JSON.stringify(ctx.upcoming || [])}`;
+- 앞으로 2주 일정(계산된 기상·출발 포함): ${JSON.stringify(ctx.upcoming || [])}
+
+[날짜표] (오늘부터 3주, 주는 월~일)
+${calendarTable(ctx.today)}`;
 }
 
 async function getUser(env: Env, auth: string, f: Fetch) {
@@ -140,7 +190,7 @@ async function tryUse(env: Env, userId: string, limit: number, f: Fetch): Promis
 async function callClaude(env: Env, body: Json, f: Fetch) {
   const res = await f("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "x-api-key": env.MYPLANNER_ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || "", "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    headers: { "x-api-key": (env.MYPLANNER_ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || "").trim(), "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
@@ -157,6 +207,9 @@ export function checkAction(name: string, input: Json, ctx: Json): string | null
     if (input.kind === "event" && !input.place) return "event에는 place(목적지)가 필요합니다. 모르면 사용자에게 물어보세요";
     if ((input.kind === "train" || input.kind === "flight") && !input.from_station) return "출발역·공항(from_station)이 필요합니다. 모르면 물어보세요";
     if (input.arrive_time && !HM.test(input.arrive_time)) return "arrive_time은 HH:MM";
+    if (YMD.test(ctx.today || "") && input.date < ctx.today) return `${input.date}는 이미 지난 날짜입니다. 날짜표에서 다시 고르세요`;
+    if (input.repeat === "weekly" && !(Array.isArray(input.repeat_days) && input.repeat_days.length && input.repeat_days.every((n: Json) => Number.isInteger(n) && n >= 0 && n <= 6)))
+      return "weekly 반복에는 repeat_days(0=일~6=토)가 필요합니다";
     return null;
   }
   if (name === "propose_update") {
@@ -164,6 +217,7 @@ export function checkAction(name: string, input: Json, ctx: Json): string | null
     if (!Number.isInteger(input.idx) || input.idx < 0 || input.idx >= n) return "목록에 있는 idx를 쓰세요";
     if (input.new_time && !HM.test(input.new_time)) return "new_time은 HH:MM";
     if (input.new_date && !YMD.test(input.new_date)) return "new_date는 YYYY-MM-DD";
+    if (input.new_date && YMD.test(ctx.today || "") && input.new_date < ctx.today) return "이미 지난 날짜로는 옮길 수 없습니다";
     if (!input.new_time && !input.new_date && input.prep_min == null && input.buffer_min == null && !input.skip) return "무엇을 바꿀지 하나 이상 넣으세요";
     return null;
   }

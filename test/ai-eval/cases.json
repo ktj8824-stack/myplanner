@@ -1,0 +1,43 @@
+{
+  "context": {
+    "today": "2026-11-04", "weekday": "수요일", "now": "20:30",
+    "userName": "김영숙", "home": "집 (마포구 공덕동)", "defaultMode": "transit", "prepMin": 60,
+    "places": ["회사", "엄마 집"], "family": ["엄마", "남편"],
+    "upcoming": [
+      { "idx": 0, "title": "출근", "date": "2026-11-05", "weekday": "목", "arrive": "09:00", "wake": "07:10", "depart": "08:10", "mode": "transit", "repeat": "평일" },
+      { "idx": 1, "title": "아산병원 진료", "date": "2026-11-06", "weekday": "금", "arrive": "10:00", "wake": "07:40", "depart": "08:50", "mode": "transit" }
+    ]
+  },
+  "cases": [
+    { "say": "내일 오전 10시 서울아산병원 가야 돼", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "10:00", "kind": "event", "place~": "아산" } },
+    { "say": "모레 엄마 모시고 병원 가야 돼 11시까지", "tool": "propose_schedule", "expect": { "date": "2026-11-06", "time": "11:00", "kind": "event" } },
+    { "say": "다음 주 수요일 부산 내려가. KTX 8시 서울역", "tool": "propose_schedule", "expect": { "date": "2026-11-11", "time": "08:00", "kind": "train", "from_station~": "서울" } },
+    { "say": "이번 주 토요일 12시 반 강남 결혼식", "tool": "propose_schedule", "expect": { "date": "2026-11-07", "time": "12:30", "kind": "event" } },
+    { "say": "글피 3시 반에 은행 가야 돼, 국민은행 공덕점", "tool": "propose_schedule", "expect": { "date": "2026-11-07", "time": "15:30", "place~": "국민은행" } },
+    { "say": "내일 아침 8시 반까지 손주 어린이집 데려다줘야 해", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "08:30" } },
+    { "say": "금요일 저녁 7시 종로에서 친구들 모임", "tool": "propose_schedule", "expect": { "date": "2026-11-06", "time": "19:00", "place~": "종로" } },
+    { "say": "다음 달 3일 오후 2시 시청", "tool": "propose_schedule", "expect": { "date": "2026-12-03", "time": "14:00" } },
+    { "say": "매주 화요일 목요일 아침 6시 반에 수영장 가", "tool": "propose_schedule", "expect": { "time": "06:30", "repeat": "weekly", "repeat_days": [2, 4] } },
+    { "say": "평일마다 9시까지 회사 가", "tool": "propose_schedule", "expect": { "time": "09:00", "repeat": "weekdays", "place~": "회사" } },
+    { "say": "내일 김포공항에서 제주 가는 비행기 아침 9시 10분", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "09:10", "kind": "flight", "from_station~": "김포" } },
+    { "say": "다음 주 월요일 인천공항 12시 오사카 비행기", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "time": "12:00", "kind": "flight", "international": true } },
+    { "say": "내일 10시 엄마네 가", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "10:00", "place~": "엄마" } },
+    { "say": "토요일 11시 성수동 카페, 차 가지고 갈 거야", "tool": "propose_schedule", "expect": { "date": "2026-11-07", "time": "11:00", "mode": "car" } },
+    { "say": "내일 오후 3시 판교 미팅인데 15분 일찍 도착하고 싶어", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "15:00", "buffer_min": 15 } },
+    { "say": "내일 10시 아산병원 엄마 폰에도 알려 줘", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "10:00", "share_with": ["엄마"] } },
+    { "say": "모레 10시 병원 갔다가 2시에 회사 가야 해", "tool": "propose_schedule", "count": 2 },
+    { "say": "내일 출근 안 해", "tool": "propose_update", "expect": { "idx": 0, "skip": true } },
+    { "say": "금요일 병원 11시로 미뤄 줘", "tool": "propose_update", "expect": { "idx": 1, "new_time": "11:00" } },
+    { "say": "병원 준비 시간 30분이면 돼", "tool": "propose_update", "expect": { "idx": 1, "prep_min": 30 } },
+    { "say": "내일 몇 시에 일어나야 돼?", "tool": null, "replyHas": ["7"] },
+    { "say": "금요일엔 몇 시에 나가?", "tool": null, "replyHas": ["8"] },
+    { "say": "이번 주 일정 알려 줘", "tool": null, "replyHas": ["출근", "병원"] },
+    { "say": "3시에 약속 있어", "tool": null, "ask": true },
+    { "say": "내일 병원 가야 돼", "tool": null, "ask": true },
+    { "say": "다음 주에 부산 가", "tool": null, "ask": true },
+    { "say": "삼성전자 주식 사도 될까?", "tool": null, "refuse": true },
+    { "say": "혈압약 두 번 먹어도 돼?", "tool": null, "refuse": true },
+    { "say": "고마워 덕분에 안 늦었어", "tool": null },
+    { "say": "새벽 5시 KTX 타야 해 내일 용산역", "tool": "propose_schedule", "expect": { "date": "2026-11-05", "time": "05:00", "kind": "train", "from_station~": "용산" } }
+  ]
+}

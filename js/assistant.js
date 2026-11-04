@@ -59,7 +59,7 @@ const Assistant = {
     try { this.speakOn = localStorage.getItem('mp_ai_speak') !== 'off'; } catch (e) {}
   },
   persist() {
-    try { localStorage.setItem(this.KEY, JSON.stringify(this.msgs.slice(-40).map(m => ({ role: m.role, content: m.content, cards: m.cards })))); } catch (e) {}
+    try { localStorage.setItem(this.KEY, JSON.stringify(this.msgs.slice(-40).map(m => ({ role: m.role, content: m.content, cards: m.cards, ai: m.ai, reported: m.reported })))); } catch (e) {}
   },
 
   render() {
@@ -266,8 +266,26 @@ const Assistant = {
   },
 
   /* ---------- 장소 찾기: "집" · 기억한 이름 · 전에 간 곳 · 검색 ---------- */
+  /** 말로 한 장소 이름 다듬기: "엄마네로" → "엄마 집", "우리 회사에" → "회사" */
+  normalizePlace(q) {
+    const orig = String(q || '').trim().replace(/\s+/g, ' ');
+    // 조사 떼기 — '로'는 '종로'·'을지로' 같은 지명이 있어 '집·회사' 같은 말에서만 뗌
+    q = orig.replace(/(으로|에서|에|까지)$/, '').trim();
+    const noRo = q.replace(/로$/, '');
+    if (/(네|댁|집|회사|직장|사무실|학교|본가|시댁|처가|친정)$/.test(noRo)) q = noRo;
+    q = q.replace(/^(우리|저희)\s*/, '').trim() || q;
+    const who = '(엄마|어머니|어머님|아빠|아버지|아버님|부모님|할머니|할아버지|이모|고모|삼촌|언니|누나|형|오빠|동생|딸|아들)';
+    const m = q.match(new RegExp('^' + who + '\\s*(네|댁|집|네 집)$'));
+    if (m) {
+      const n = { 어머니: '엄마', 어머님: '엄마', 아버지: '아빠', 아버님: '아빠' }[m[1]] || m[1];
+      return n + ' 집';
+    }
+    if (/^(직장|사무실|회사)$/.test(q)) return '회사';
+    return q;
+  },
+
   async resolvePlace(q) {
-    q = String(q || '').trim();
+    q = this.normalizePlace(q);
     if (!q) return null;
     const st = State.settings;
     if (/^(home|집|우리\s*집|자택)$/i.test(q)) return st.home ? { ...st.home } : null;
@@ -276,7 +294,7 @@ const Assistant = {
     if (key) return { ...saved[key] };
     const prev = State.schedules.map(s => s.dest).filter(Boolean).find(d => d.name === q || (q.length >= 3 && d.name.includes(q)));
     if (prev) return { ...prev };
-    if (this.ALIASES.some(a => q === a)) return null; // "회사" 같은 말은 검색하면 엉뚱한 곳이 나와서 직접 고르게 함
+    if (this.ALIASES.some(a => q === a) || / 집$/.test(q)) return null; // "회사" 같은 말은 검색하면 엉뚱한 곳이 나와서 직접 고르게 함
     const list = await Routes.searchPlace(q);
     return list && list[0] ? list[0] : null;
   },
@@ -317,7 +335,7 @@ const Assistant = {
     c.draft = d;
     if (!d.origin) {
       const o = await this.resolvePlace(a.origin || 'home');
-      if (!o) { c.state = 'need'; c.need = { field: 'origin', q: a.origin && a.origin !== 'home' ? a.origin : '' , label: a.origin && a.origin !== 'home' ? `'${a.origin}'` : '출발지(집)' }; return; }
+      if (!o) { c.state = 'need'; c.need = { field: 'origin', q: a.origin && a.origin !== 'home' ? this.normalizePlace(a.origin) : '' , label: a.origin && a.origin !== 'home' ? `'${a.origin}'` : '출발지(집)' }; return; }
       d.origin = o;
     }
     if (isTrip) {
@@ -331,7 +349,7 @@ const Assistant = {
     } else {
       if (!d.dest) {
         const p = await this.resolvePlace(a.place);
-        if (!p) { c.state = 'need'; c.need = { field: 'dest', q: a.place, label: `'${a.place}'` }; return; }
+        if (!p) { c.state = 'need'; c.need = { field: 'dest', q: this.normalizePlace(a.place), label: `'${a.place}'` }; return; }
         d.dest = p;
       }
       if (!d.route) d.route = (await Routes.options(d.origin, d.dest, d.mode, Planner.at(d.date, d.arriveBy)))[0] || null;
@@ -355,9 +373,9 @@ const Assistant = {
     PlacePicker.open(`${need.label} 고르기`, p => {
       const d = c.draft;
       if (need.field === 'departStation') d.trip.departStation = p; else d[need.field] = p;
-      if (need.q && this.ALIASES.includes(need.q)) { this.rememberPlace(need.q, p); U.toast(`다음부터 '${need.q}'라고만 말씀하셔도 돼요`); }
+      if (need.q && (this.ALIASES.includes(need.q) || / 집$/.test(need.q))) { this.rememberPlace(need.q, p); U.toast(`다음부터 '${need.q}'라고만 말씀하셔도 돼요`); }
       this.prepare(i, j);
-    }, { query: need.q && !this.ALIASES.includes(need.q) ? need.q : '', allowHome: need.field === 'origin' });
+    }, { query: need.q && !this.ALIASES.includes(need.q) && !/ 집$/.test(need.q) ? need.q : '', allowHome: need.field === 'origin' });
   },
 
   async save(i, j) {

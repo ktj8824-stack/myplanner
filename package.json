@@ -9,7 +9,8 @@
     "android": "npm run cap-sync && npx cap open android",
     "test": "node test/planner.test.js && node test/recur.test.js && node test/live.test.js && node test/parse.test.js && node test/weather.test.js && node test/bus.test.js && node --no-warnings test/route-function.test.mjs && node --no-warnings test/ai-function.test.mjs",
     "native-alarm": "node scripts/install-native-alarm.js",
-    "test:native": "javac -d test/.out native/android/RecheckMath.java native/android/BusMath.java test/java/RecheckMathTest.java test/java/BusMathTest.java && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.RecheckMathTest && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.BusMathTest"
+    "test:native": "javac -d test/.out native/android/RecheckMath.java native/android/BusMath.java test/java/RecheckMathTest.java test/java/BusMathTest.java && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.RecheckMathTest && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.BusMathTest",
+    "eval:ai": "node --no-warnings test/ai-eval/run.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
