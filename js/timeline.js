@@ -20,9 +20,13 @@ const Timeline = {
     const rep = Recur.isRepeating(s);
     const hol = Recur.holiday(s.date);
 
+    const routeLeg = Planner.isTrip(s.mode) ? s.accessRoute : s.route;
+    const info = [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
+    if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(routeLeg.summary) : ''}`);
+    if (Planner.isTrip(s.mode) && s.trip.number) info.push(`${U.modeIcon(s.mode)} ${U.esc(s.trip.number)}${s.trip.seat ? ' · ' + U.esc(s.trip.seat) : ''}`);
     App.setMain(`
-      <header class="subhead"><button class="back" onclick="App.navigate('home')" aria-label="뒤로"></button><h1>${U.esc(s.title)}</h1><span></span></header>
-      <div class="muted center" style="margin:-4px 0 12px;font-weight:700">${U.dateLabel(s.date)}${hol ? ` · <span class="holiday">${hol}</span>` : ''}</div>
+      <header class="subhead"><button class="back" onclick="App.navigate('home')" aria-label="뒤로"></button><h1>일정</h1>
+        ${s._shared ? '<span></span>' : `<button class="round-btn side" onclick="App.navigate('register',{id:'${s.baseId || s.id}'})" aria-label="수정">✏️</button>`}</header>
 
       ${s._shared ? `<div class="shared-bar">👨‍👩‍👧 <b>${U.esc(s._shared.from)}</b>님이 공유한 일정 · 내 폰에서도 알람이 울려요</div>` : ''}
       ${rep ? `
@@ -34,47 +38,49 @@ const Timeline = {
           </span>
         </div>` : ''}
 
-      <div class="card result big">
-        <div class="result-row">
-          <div><small>기상</small><b>${U.hmRel(plan.wakeAt, s.date)}</b></div>
+      <div class="card next">
+        <div class="lb"><span>${U.dateLabel(s.date)}${hol ? ` · ${hol}` : ''}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
+        <div class="tt">${U.esc(s.title)}</div>
+        <div class="tri">
+          <div class="on"><small>기상${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
         </div>
-        <div class="result-meta">${m.emoji} ${m.label} · 준비 ${s.prepMin}분 · 여유 ${s.bufferMin}분</div>
-        ${plan.weather ? `<div class="wx-line">${U.esc(Weather.label(plan))}</div>` : ''}
-        ${plan.live ? `<div class="live-line">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="live-line dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
-        ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
+        <div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>
       </div>
 
+      ${plan.weather ? `<div class="note">${U.esc(Weather.label(plan))}</div>` : ''}
+      ${plan.live ? `<div class="note live">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="note dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
+      ${plan.warnings.map(w => `<div class="note">⚠️ ${U.esc(w)}</div>`).join('')}
       <div id="busCard"></div>
-      <div class="nav-btns">
-        ${navMode === 'taxi' ? `<button class="btn" onclick="Routes.openNav('kakaot')">🚕 카카오T</button>` : ''}
-        <button class="btn" onclick="Timeline.nav('kakaomap')">🗺️ 카카오맵</button>
-        <button class="btn" onclick="Timeline.nav('tmap')">🧭 티맵</button>
-      </div>
 
-      <div class="card">
+      <div class="card" style="padding:12px 18px">
         <div class="tl">
           ${plan.items.map(it => `
             <div class="tl-item ${it.kind} ${it.at.getTime() < now ? 'past' : ''}">
-              <div class="tl-time">${U.hmRel(it.at, s.date)}</div>
-              <div class="tl-dot">${it.icon}</div>
+              <div class="tl-time">${U.hm(it.at)}</div>
+              <div class="tl-dot"></div>
               <div class="tl-body"><b>${U.esc(it.title)}</b>${it.detail ? `<small>${U.esc(it.detail)}</small>` : ''}
                 ${it.step && it.step.way ? `<small>${U.esc(it.step.way)} 방면</small>` : ''}</div>
             </div>`).join('')}
         </div>
       </div>
 
-      ${s.memo ? `<div class="card"><label class="lbl">메모</label><div>${U.esc(s.memo).replace(/\n/g, '<br>')}</div></div>` : ''}
+      <div class="nav-btns">
+        <button class="btn" onclick="Timeline.nav('kakaomap')">🗺️ 카카오맵</button>
+        ${navMode === 'taxi' ? `<button class="btn primary" onclick="Routes.openNav('kakaot')">카카오T 부르기</button>` : `<button class="btn primary" onclick="Timeline.nav('tmap')">길안내 시작</button>`}
+      </div>
+
+      ${s.memo ? `<div class="card"><div class="q">메모</div><div style="color:var(--ink-2)">${U.esc(s.memo).replace(/\n/g, '<br>')}</div></div>` : ''}
 
       <div class="card">
-        <label class="toggle-row"><span>🔔 ${rep ? '이 반복 일정 알람 켜기' : '이 일정 알람 켜기'}</span><input type="checkbox" ${s.alarmOff ? '' : 'checked'} onchange="Timeline.toggleAlarm(this.checked)"></label>
-        <div id="alarmList" class="muted small"></div>
+        <label class="toggle-row" style="padding-top:0"><span>🔔 ${rep ? '이 반복 일정 알람' : '이 일정 알람'}</span><input type="checkbox" ${s.alarmOff ? '' : 'checked'} onchange="Timeline.toggleAlarm(this.checked)"></label>
+        <div id="alarmList"></div>
       </div>
 
       ${rep && !s._shared ? `
         <div class="card">
-          <label class="lbl">이 날만</label>
+          <div class="q">이 날만</div>
           <div class="grid2 gap">
             <button class="btn ghost" onclick="Timeline.changeDay()">⏱ 시간 바꾸기</button>
             <button class="btn ghost" onclick="Timeline.skipDay()">⏭ 건너뛰기</button>
@@ -84,7 +90,7 @@ const Timeline = {
         </div>` : ''}
 
       <div class="actions">
-        <button class="btn ghost" onclick="Timeline.refresh()">↻ 실시간 경로로 다시 계산</button>
+        <button class="btn ghost" onclick="Timeline.refresh()">↻ 실시간으로 다시 계산</button>
       </div>
       <div class="actions">
         <button class="btn ghost" onclick="Share.send('${U.esc(s.occId || s.id)}')">📤 카톡으로 보내기</button>
@@ -96,7 +102,7 @@ const Timeline = {
       </div>` : `
       <div class="actions">
         <button class="btn ghost danger" onclick="Timeline.remove()">삭제</button>
-        <button class="btn primary" onclick="App.navigate('register',{id:'${s.baseId || s.id}'})">${rep ? '반복 전체 수정' : '수정'}</button>
+        <button class="btn ghost" onclick="App.navigate('register',{id:'${s.baseId || s.id}'})">${rep ? '반복 전체 수정' : '수정'}</button>
       </div>`}
     `);
     this.showAlarms(s, plan);
@@ -116,8 +122,8 @@ const Timeline = {
     if (!el || s.alarmOff) return;
     const list = Planner.alarms(s, plan);
     el.innerHTML = list.length
-      ? list.map(a => `<div class="al-row"><span class="al-day">${U.dateLabel(U.ymd(a.at)).split(' · ')[0]}</span><b class="num">${U.hm(a.at)}</b>
-          <span class="grow">${U.esc(a.title.replace(/ — .*/, '').replace(/^[^\w가-힣]+/u, ''))}${a.alarm ? '<span class="tag">전체 화면</span>' : ''}</span></div>`).join('')
+      ? list.map(a => `<div class="al-row"><span class="al-day">${a.at.getMonth() + 1}/${a.at.getDate()} ${U.hm(a.at)}</span>
+          <span class="grow">${U.esc(a.title.replace(/ — .*/, '').replace(/^[^\w가-힣]+/u, ''))}${a.alarm ? ' · 전체 화면' : ''}</span></div>`).join('')
       : '남은 알람이 없어요.';
   },
 
@@ -329,22 +335,22 @@ const Settings = {
     const reps = State.repeating();
     App.setMain(`
       <div class="profile-head">
-        <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2, -1) : st.name[0]) : '🙂'}</div>
-        <div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div>
+        <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2) : st.name) : '🙂'}</div>
+        <div><small>마이</small><div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div></div>
       </div>
       <div class="pro-card"><div><small>마이플래너 PRO</small><b>AI 비서로 말 한마디에 일정 등록</b></div><button onclick="App.navigate('assistant')">써 보기</button></div>
 
       <div class="card">
-        <label class="lbl">🙂 이름</label>
+        <label class="lbl q-lbl">이름</label>
         <input class="input" value="${U.esc(st.name)}" onchange="State.settings.name=this.value.trim();State.save()">
-        <label class="lbl">🏠 집 <small>기본 출발지</small></label>
-        <button class="input place-btn" onclick="Settings.pickHome()">${st.home ? '🏠 ' + U.esc(st.home.name) : '집 주소 검색'}</button>
+        <label class="lbl q-lbl">집 <small>기본 출발지</small></label>
+        <button class="input place-btn ${st.home ? '' : 'empty'}" onclick="Settings.pickHome()">${U.icon('home')} ${st.home ? U.esc(st.home.name) : '집 주소 검색'}</button>
       </div>
 
       <div class="card" id="cloudCard"></div>
 
       <div class="card" id="alarmCheck">
-        <label class="lbl">⏰ 알람 점검</label>
+        <label class="lbl q-lbl">알람 점검</label>
         <div class="muted small">확인 중…</div>
       </div>
 
@@ -358,15 +364,15 @@ const Settings = {
         </div>` : ''}
 
       <div class="card">
-        <label class="lbl">🔠 글자 크기</label>
+        <label class="lbl q-lbl">글자 크기</label>
         <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>
           `<button class="${(st.textSize || 'normal') === k ? 'on' : ''} ts-${k}" onclick="Settings.setTextSize('${k}')">${l}</button>`).join('')}</div>
         <p class="muted small" style="margin:10px 0 0">글자와 버튼이 함께 커져요.</p>
       </div>
 
       <div class="card">
-        <label class="lbl">🚗 기본 이동수단</label>
-        <div class="seg wrap">${['transit', 'car', 'taxi', 'walk'].map(k => `<button class="${st.defaultMode === k ? 'on' : ''}" onclick="Settings.set('defaultMode','${k}')">${Planner.MODES[k].emoji} ${Planner.MODES[k].label}</button>`).join('')}</div>
+        <label class="lbl q-lbl">기본 이동수단</label>
+        <div class="seg wrap">${['transit', 'car', 'taxi', 'walk'].map(k => `<button class="${st.defaultMode === k ? 'on' : ''}" onclick="Settings.set('defaultMode','${k}')">${U.modeIcon(k)} ${Planner.MODES[k].label}</button>`).join('')}</div>
         <label class="lbl">기본 준비 시간</label>
         <div class="seg">${[20, 30, 45, 60, 90, 120].map(v => `<button class="${+st.prepMin === v ? 'on' : ''}" onclick="Settings.set('prepMin',${v})">${U.durLabel(v)}</button>`).join('')}</div>
         <label class="lbl">기본 여유 시간</label>
@@ -374,7 +380,7 @@ const Settings = {
       </div>
 
       <div class="card">
-        <label class="lbl">🔔 새 일정의 기본 알림</label>
+        <label class="lbl q-lbl">새 일정의 기본 알림</label>
         ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람 (전체 화면)'], ['preDepart', '출발 10분 전'], ['depart', '출발 알람 (전체 화면)']].map(([k, l]) => `
           <label class="toggle-row"><span>${l}</span><input type="checkbox" ${st.alarm[k] ? 'checked' : ''} onchange="State.settings.alarm['${k}']=this.checked;State.save()"></label>`).join('')}
         <button class="btn ghost" onclick="Settings.test()">🔊 알람 미리 듣기</button>

@@ -51,67 +51,64 @@ const Register = {
 
   draw() {
     const d = this.d, isTrip = Planner.isTrip(d.mode);
+    const placeBtn = (field, title, emptyText, icon) => {
+      const p = d[field];
+      return `<button class="input place-btn ${p ? '' : 'empty'}" onclick="Register.pick('${field}','${title}')">${U.icon(icon)} ${p ? U.esc(p.name) : emptyText}</button>`;
+    };
     App.setMain(`
-      <header class="subhead"><button class="back" onclick="${this.editing ? `App.navigate('timeline',{id:'${d.id}'})` : `App.navigate('home')`}" aria-label="뒤로"></button><h1>${this.editing ? '일정 수정' : '새 일정 등록'}</h1><span></span></header>
+      <header class="subhead"><button class="back" onclick="${this.editing ? `App.navigate('timeline',{id:'${d.id}'})` : `App.navigate('home')`}" aria-label="뒤로"></button><h1>${this.editing ? '일정 수정' : '새 일정'}</h1><span></span></header>
       ${this.editing ? '' : `<button class="paste-cta" onclick="PasteImport.open()">
-        <span class="paste-ic"><img src="img/icons/message.png" alt=""></span><span><b>받은 문자로 채우기</b><small>KTX·SRT·항공권·병원 예약·약속 문자를 붙여넣으세요</small></span><span class="chev">›</span>
+        <span class="paste-ic"><img src="img/icons/message.png" alt=""></span><span><b>받은 문자로 채우기</b><small>KTX·항공권·병원 예약 문자 붙여넣기</small></span><span class="chev">›</span>
       </button>`}
 
       <div class="card">
-        <label class="lbl">📝 무슨 일정인가요? <span class="req">*</span></label>
+        <div class="q">${isTrip ? '언제 어디로 가세요?' : '어디에 몇 시까지 가세요?'}</div>
+        ${isTrip ? '' : placeBtn('dest', '목적지', '병원, 회사, 역 이름으로 검색', 'pin')}
+        <div class="grid2 mt">
+          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
+          <div><label class="lbl">${isTrip ? '목적지 도착 희망 (선택)' : '도착 시간'}</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
+        </div>
+        <label class="lbl">일정 이름</label>
         <input class="input" id="rTitle" placeholder="예: 강남 거래처 미팅" value="${U.esc(d.title)}" oninput="Register.d.title=this.value">
         <div class="chips">${this.QUICK.map(q => `<button class="chip" onclick="Register.quick('${q}')">${q}</button>`).join('')}</div>
+        <label class="lbl">출발할 곳</label>
+        ${placeBtn('origin', '출발지', '출발지 검색', 'home')}
+        ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label>${placeBtn('dest', '목적지', '목적지 검색', 'pin')}` : ''}
       </div>
 
       <div class="card">
-        <div class="grid2">
-          <div><label class="lbl">📅 ${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
-          <div><label class="lbl">⏰ ${isTrip ? '도착 희망' : '도착 시간'}</label>
-            <input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
-        </div>
-        ${this.repeatForm()}
-        <label class="lbl">🏠 출발지 <span class="req">*</span></label>
-        <button class="input place-btn ${d.origin ? '' : 'empty'}" onclick="Register.pick('origin','출발지')">${d.origin ? '📍 ' + U.esc(d.origin.name) : '🔍 출발지 검색'}</button>
-        <label class="lbl">🎯 목적지${isTrip ? ' <small>(선택 · 내린 뒤 갈 곳)</small>' : ' <span class="req">*</span>'}</label>
-        <button class="input place-btn ${d.dest ? '' : 'empty'}" onclick="Register.pick('dest','목적지')">${d.dest ? '🎯 ' + U.esc(d.dest.name) : '🔍 병원, 회사, 역 이름으로 검색'}</button>
-      </div>
-
-      <div class="card">
-        <label class="lbl">🚗 어떻게 가세요?</label>
+        <div class="q">어떻게 가세요?</div>
         <div class="modes">${Object.entries(Planner.MODES).map(([k, m]) =>
-          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')"><span>${m.emoji}</span>${m.label}</button>`).join('')}</div>
+          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k)}${m.label}</button>`).join('')}</div>
         ${isTrip ? this.tripForm() : ''}
         <div id="routeBox">${this.routeBox()}</div>
+        <div id="preview">${this.preview()}</div>
       </div>
 
       <div class="card">
-        <label class="lbl">⏱️ 준비 시간 <small>일어나서 나가기까지</small></label>
+        <div class="q">준비는 얼마나 걸려요?</div>
         <div class="seg">${[20, 30, 45, 60, 90, 120].map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${U.durLabel(v)}</button>`).join('')}</div>
-        <label class="lbl">☕ 여유 시간 <small>약속보다 일찍 도착</small></label>
+        <label class="lbl">약속보다 일찍 도착 (여유)</label>
         <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
+        ${this.repeatForm()}
       </div>
 
-      <div id="preview">${this.preview()}</div>
-
       <div class="card">
-        <label class="lbl">🔔 알림</label>
+        <div class="q">알림</div>
         ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람'], ['preDepart', '출발 10분 전 알림'], ['depart', '출발 알람']].map(([k, label]) => `
           <label class="toggle-row"><span>${label}</span><input type="checkbox" ${d.alarm[k] ? 'checked' : ''} onchange="Register.d.alarm['${k}']=this.checked"></label>`).join('')}
-        <label class="lbl">🗒️ 메모</label>
+        <label class="lbl">메모</label>
         <textarea class="input" rows="2" placeholder="챙길 것, 참고할 내용" oninput="Register.d.memo=this.value">${U.esc(d.memo || '')}</textarea>
       </div>
 
-      <div class="actions">
-        <button class="btn ghost" onclick="${this.editing ? `App.navigate('timeline',{id:'${d.id}'})` : `App.navigate('home')`}">취소</button>
-        <button class="btn primary big" onclick="Register.save()">⏰ 저장하고 알람 켜기</button>
-      </div>
+      <div class="cta-bar"><button class="btn primary big" onclick="Register.save()">⏰ 저장하고 알람 켜기</button></div>
     `);
   },
 
   repeatForm() {
     const r = this.d.repeat;
     return `
-      <label class="lbl">🔁 반복</label>
+      <label class="lbl">반복</label>
       <div class="seg wrap">${Object.entries(Recur.TYPES).map(([k, l]) => `<button class="${r.type === k ? 'on' : ''}" onclick="Register.setRepeat('type','${k}')">${l}</button>`).join('')}</div>
       ${r.type === 'weekly' ? `<div class="dow-pick">${U.DOW.map((n, i) => `<button class="${(r.days || []).includes(i) ? 'on' : ''} ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}" onclick="Register.toggleDay(${i})">${n}</button>`).join('')}</div>` : ''}
       ${r.type !== 'none' ? `
@@ -151,7 +148,7 @@ const Register = {
         </div>
         ${isFlight ? `<label class="toggle-row"><span>국제선 (수속 ${Planner.MODES.flight.intlMarginMin}분 전 도착)</span><input type="checkbox" ${t.international ? 'checked' : ''} onchange="Register.setTrip('international',this.checked)"></label>` : ''}
         <label class="lbl">${word}까지 어떻게 가세요?</label>
-        <div class="seg">${Planner.ACCESS_MODES.map(k => `<button class="${t.accessMode === k ? 'on' : ''}" onclick="Register.setTrip('accessMode','${k}')">${Planner.MODES[k].emoji} ${Planner.MODES[k].label}</button>`).join('')}</div>
+        <div class="seg">${Planner.ACCESS_MODES.map(k => `<button class="${t.accessMode === k ? 'on' : ''}" onclick="Register.setTrip('accessMode','${k}')">${U.modeIcon(k)} ${Planner.MODES[k].label}</button>`).join('')}</div>
         <p class="muted small">${isFlight ? '항공' : '열차'} 시간표는 코레일·SRT·항공사 앱에서 예매한 시각을 그대로 넣어 주세요.</p>
       </div>`;
   },
@@ -159,18 +156,18 @@ const Register = {
   routeBox() {
     const d = this.d, isTrip = Planner.isTrip(d.mode);
     const from = d.origin, to = isTrip ? d.trip.departStation : d.dest;
-    if (!from || !to) return `<p class="muted small">출발지와 ${isTrip ? '출발 역·공항' : '목적지'}을 고르면 경로를 찾아 드려요.</p>`;
+    if (!from || !to) return `<p class="muted small" style="margin:12px 2px 0">출발지와 ${isTrip ? '출발 역·공항' : '목적지'}을 고르면 경로와 시각을 계산해 드려요.</p>`;
     if (this.loading) return '<div class="muted pad">🔎 경로를 찾는 중…</div>';
     const list = isTrip ? this.accessOpts : this.opts;
     const chosen = isTrip ? d.accessRoute : d.route;
-    if (!list.length && !chosen) return `<button class="btn ghost" onclick="Register.fetchRoutes()">경로 찾기</button>`;
+    if (!list.length && !chosen) return `<button class="btn ghost" onclick="Register.fetchRoutes()">🔎 경로 찾기</button>`;
     const shown = list.length ? list : [chosen];
     return `
-      <label class="lbl">${isTrip ? (d.mode === 'flight' ? '공항' : '역') + '까지 ' : ''}경로 ${shown.length > 1 ? '<small class="muted">하나를 고르세요</small>' : ''}</label>
+      <label class="lbl" style="margin-top:16px">${isTrip ? (d.mode === 'flight' ? '공항' : '역') + '까지 ' : ''}경로 ${shown.length > 1 ? '· 하나를 고르세요' : ''}</label>
       ${shown.map((r, i) => `
         <button class="route-opt ${chosen && JSON.stringify(chosen.steps) === JSON.stringify(r.steps) ? 'on' : ''}" onclick="Register.chooseRoute(${i})">
           <div class="route-top"><b>${U.durLabel(r.travelMin)}</b><small>${U.esc(r.summary || '')}</small>${r.source === 'estimate' ? '<span class="badge warn">추정</span>' : ''}</div>
-          <div class="route-steps">${r.steps.filter(s => s.type !== 'walk' || s.min >= 3).map(s => `<span class="step ${s.type}">${Planner.stepIcon(s.type)} ${U.esc(s.type === 'walk' ? s.min + '분' : s.label.replace(/ \(또는.*\)/, ''))}</span>`).join('<i>›</i>')}</div>
+          <div class="route-steps">${r.steps.filter(s => s.type !== 'walk' || s.min >= 3).map(s => `<span class="step ${s.type}">${U.modeIcon(s.type)} ${U.esc(s.type === 'walk' ? s.min + '분' : s.label.replace(/ \(또는.*\)/, ''))}</span>`).join('<i>›</i>')}</div>
         </button>`).join('')}
       <button class="link" onclick="Register.fetchRoutes()">↻ 다시 찾기</button>`;
   },
@@ -181,11 +178,11 @@ const Register = {
     let plan;
     try { plan = Planner.compute(d); } catch (e) { return ''; }
     return `
-      <div class="card result">
-        <div class="result-row">
-          <div><small>기상</small><b>${U.hmRel(plan.wakeAt, d.date)}</b></div>
+      <div class="result">
+        <div class="tri">
+          <div class="on"><small>기상${U.hmRel(plan.wakeAt, d.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
+          <div><small>${Planner.isTrip(d.mode) ? '탑승' : '도착'}</small><b>${Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(plan.arriveAt)}</b></div>
         </div>
         ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
       </div>`;

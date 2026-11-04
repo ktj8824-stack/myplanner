@@ -38,11 +38,9 @@ const App = {
     const view = this.screens[name]();
     document.getElementById('nav').style.display = name === 'welcome' ? 'none' : '';
     document.querySelectorAll('#nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
-    // 버디플래너처럼: 큰 화면은 남색 상단 바, 상세 화면은 흰 머리 + 뒤로
     const b = document.body.classList;
-    b.toggle('has-topbar', ['home', 'calendar', 'market', 'settings'].includes(name));
-    b.toggle('has-hero', name === 'home');
     b.toggle('no-nav', name === 'welcome' || name === 'assistant');
+    document.getElementById('nav').style.display = ['welcome', 'register'].includes(name) ? 'none' : '';
     const main = document.getElementById('main');
     main.scrollTop = 0;
     window.scrollTo(0, 0);
@@ -55,9 +53,9 @@ const App = {
         <button class="brand" onclick="App.navigate('home')"><img src="icon-192.png" alt="">마이플래너</button>
         <button class="top-btn" onclick="App.openMenu()" aria-label="전체 메뉴"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3.5 7h17M3.5 12h17M3.5 17h17"/></svg></button>
       </div>`;
-    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', 'sparkles', 'AI 비서'], ['market', 'bag', '마켓'], ['settings', 'user', '마이']];
+    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', null, 'AI 비서'], ['market', 'bag', '마켓'], ['settings', 'user', '마이']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
-      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${Icons.svg(ic)}</span><span>${label}</span></button>`).join('');
+      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${ic ? Icons.svg(ic) : '<img src="img/icons/community.png" alt="">'}</span><span>${label}</span></button>`).join('');
   },
 
   /** 전체 메뉴 (상단 ≡) */
@@ -113,8 +111,8 @@ const PlacePicker = {
         <button class="btn primary" onclick="PlacePicker.search()">검색</button>
       </div>
       <div class="quick-row">
-        ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">🏠 집 · ${U.esc(home.name)}</button>` : ''}
-        <button class="chip" onclick="PlacePicker.pickCurrent()">📍 현재 위치</button>
+        ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">${U.icon('home')} 집 · ${U.esc(home.name)}</button>` : ''}
+        <button class="chip" onclick="PlacePicker.pickCurrent()">${U.icon('pin')} 현재 위치</button>
       </div>
       <div id="ppResults" class="pp-results"><div class="muted pad">가는 곳 이름을 적어 주세요.</div></div>`);
     if (opts.query) {
@@ -142,7 +140,7 @@ const PlacePicker = {
     }
     box.innerHTML = this.results.map((p, i) => `
       <button class="pp-item" onclick="PlacePicker.pick(${i})">
-        <span class="pp-pin">📍</span>
+        <span class="pp-pin"><img src="img/icons/pin.png" alt=""></span>
         <span><b>${U.esc(p.name)}</b>${p.address ? `<small>${U.esc(p.address)}</small>` : ''}</span>
       </button>`).join('') + sampleNote;
   },
@@ -181,7 +179,7 @@ const Welcome = {
           <label class="lbl">이름 <small class="muted">(선택)</small></label>
           <input id="wName" class="input" placeholder="예: 김민지" value="${U.esc(st.name)}" autocomplete="name">
           <label class="lbl">집 <small class="muted">출발지로 써요</small></label>
-          <button id="wHome" class="input place-btn" onclick="Welcome.pickHome()">${st.home ? '🏠 ' + U.esc(st.home.name) : '🔎 집 주소 검색'}</button>
+          <button id="wHome" class="input place-btn ${st.home ? '' : 'empty'}" onclick="Welcome.pickHome()">${U.icon('home')} ${st.home ? U.esc(st.home.name) : '집 주소 검색'}</button>
           <label class="lbl">글자 크기</label>
           <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>
             `<button class="${(st.textSize || 'normal') === k ? 'on' : ''} ts-${k}" onclick="Welcome.setText('${k}')">${l}</button>`).join('')}</div>
