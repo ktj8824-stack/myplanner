@@ -8,6 +8,7 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.media.AudioAttributes;
+import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -36,6 +37,14 @@ import java.util.Locale;
 public class AlarmActivity extends Activity {
 
     private static final long AUTO_STOP_MS = 3 * 60 * 1000L;
+    /** 3분 동안 아무것도 누르지 않으면 5분 뒤 다시 울림 — 최대 이 횟수까지 */
+    private static final int MAX_AUTO_REPEAT = 2;
+    private static final int MISSED_NOTICE_OFFSET = 7;
+
+    private int rep;
+    private AudioManager audio;
+    private int savedVolume = -1;    // 알람 소리가 0이라 잠시 올렸으면 원래 값
+    private final Runnable noResponse = this::onNoResponse;
 
     private MediaPlayer player;
     private Vibrator vibrator;
@@ -67,7 +76,7 @@ public class AlarmActivity extends Activity {
         readIntent(getIntent());
         startRinging();
         handler.post(clock);
-        handler.postDelayed(this::stopRinging, AUTO_STOP_MS);
+        handler.postDelayed(noResponse, AUTO_STOP_MS);
     }
 
     @Override
@@ -76,6 +85,22 @@ public class AlarmActivity extends Activity {
         setIntent(intent);
         readIntent(intent);
         startRinging();
+        handler.removeCallbacks(noResponse);
+        handler.postDelayed(noResponse, AUTO_STOP_MS);
+    }
+
+    /** 끄지도 미루지도 않았을 때: 자는 중일 수 있으니 5분 뒤 다시 깨우고, 그래도 없으면 놓친 알람 알림을 남김 */
+    private void onNoResponse() {
+        stopRinging();
+        if (rep < MAX_AUTO_REPEAT) {
+            AlarmActionReceiver.snooze(this, alarmId, title, scheduleId, rep + 1,
+                    "알람에 응답이 없어서 다시 깨워요 (" + (rep + 1) + "/" + MAX_AUTO_REPEAT + "). " + (body == null ? "" : body));
+        } else if (rep < 99) {
+            String t = title == null ? "" : title.replace("⏰ 다시 알림 · ", "");
+            AlarmReceiver.postNote(this, alarmId + MISSED_NOTICE_OFFSET, "⚠️ 알람을 끄지 않으셨어요",
+                    t + " — 일정 시간을 확인해 주세요.", scheduleId);
+        }
+        finishAndMoveBack();
     }
 
     private void readIntent(Intent i) {
@@ -83,6 +108,7 @@ public class AlarmActivity extends Activity {
         title = i.getStringExtra("title");
         body = i.getStringExtra("body");
         scheduleId = i.getStringExtra("scheduleId");
+        rep = i.getIntExtra("rep", 0);
         tvTitle.setText(title == null || title.isEmpty() ? "마이플래너 알람" : title);
         tvBody.setText(body == null ? "" : body);
         // 알림의 반복 소리는 끄고, 이 화면이 직접 소리를 냄 (소리 두 번 겹침 방지)
@@ -162,20 +188,27 @@ public class AlarmActivity extends Activity {
 
     private void startRinging() {
         stopRinging();
-        try {
-            Uri uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
-            if (uri == null) uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-            player = new MediaPlayer();
-            player.setDataSource(this, uri);
-            player.setAudioAttributes(new AudioAttributes.Builder()
-                    .setUsage(AudioAttributes.USAGE_ALARM)
-                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build());
-            player.setLooping(true); // 끌 때까지 반복 (최대 3분)
-            player.prepare();
-            player.start();
-        } catch (Exception e) {
-            e.printStackTrace();
+        ensureAudible();
+        // 기본 알람음 → 벨소리 → 알림음 순서로, 소리가 나는 것을 찾을 때까지
+        int[] types = {RingtoneManager.TYPE_ALARM, RingtoneManager.TYPE_RINGTONE, RingtoneManager.TYPE_NOTIFICATION};
+        for (int type : types) {
+            Uri uri = RingtoneManager.getDefaultUri(type);
+            if (uri == null) continue;
+            MediaPlayer mp = new MediaPlayer();
+            try {
+                mp.setDataSource(this, uri);
+                mp.setAudioAttributes(new AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build());
+                mp.setLooping(true); // 끌 때까지 반복 (최대 3분)
+                mp.prepare();
+                mp.start();
+                player = mp;
+                break;
+            } catch (Exception e) {
+                mp.release();
+            }
         }
         vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
         if (vibrator != null) {
@@ -185,6 +218,27 @@ public class AlarmActivity extends Activity {
         }
     }
 
+    /** 알람 소리 크기가 0이면 알람이 무음이 되므로, 울리는 동안만 중간 크기로 올림 (끄면 되돌림) */
+    private void ensureAudible() {
+        try {
+            if (audio == null) audio = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+            if (audio == null) return;
+            int v = audio.getStreamVolume(AudioManager.STREAM_ALARM);
+            if (v > 0) return;
+            int max = audio.getStreamMaxVolume(AudioManager.STREAM_ALARM);
+            if (savedVolume < 0) savedVolume = v;
+            audio.setStreamVolume(AudioManager.STREAM_ALARM, Math.max(1, Math.round(max * 0.6f)), 0);
+        } catch (Exception ignored) {
+            // 방해 금지 등으로 바꿀 수 없으면 그대로 (진동은 울림)
+        }
+    }
+
+    private void restoreVolume() {
+        if (savedVolume < 0 || audio == null) return;
+        try { audio.setStreamVolume(AudioManager.STREAM_ALARM, savedVolume, 0); } catch (Exception ignored) {}
+        savedVolume = -1;
+    }
+
     private void stopRinging() {
         if (player != null) {
             try { if (player.isPlaying()) player.stop(); } catch (Exception ignored) {}
@@ -192,6 +246,7 @@ public class AlarmActivity extends Activity {
             player = null;
         }
         if (vibrator != null) { vibrator.cancel(); vibrator = null; }
+        restoreVolume();
     }
 
     private void finishAndMoveBack() {

@@ -81,6 +81,27 @@ const Alarm = {
     if (!N) return null;
     try { return await N.status(); } catch (e) { return null; }
   },
+  /** 실제 전체 화면 알람을 sec초 뒤에 울려 봄 (앱에서만) */
+  async testNative(sec = 60) {
+    const N = this.native();
+    if (!N || !N.testAlarm) return false;
+    try { await N.testAlarm({ seconds: sec }); return true; } catch (e) { return false; }
+  },
+  /** 점검 결과 → 문제 목록 (화면과 무관, test/alarmcheck.test.js) */
+  problems(perm, ns) {
+    const out = [];
+    if (perm !== 'granted' && perm !== 'unsupported') out.push('notifications');
+    if (!ns) return out;
+    if (ns.alarmChannel === false) out.push('alarmChannel');
+    if (!ns.exact) out.push('exact');
+    if (!ns.fullScreen) out.push('fullscreen');
+    if (ns.battery === false) out.push('battery');
+    if (ns.alarmVolume === 0) out.push('volume');
+    return out;
+  },
+  /** 홈 경고로 띄울 만큼 중요한 문제 (배터리·소리 크기는 설정 화면에서만 안내) */
+  CRITICAL: ['notifications', 'alarmChannel', 'exact', 'fullscreen'],
+
   async openSettings(which) {
     const N = this.native();
     if (N) { try { await N.openSettings({ which }); } catch (e) { U.toast('설정을 열 수 없어요.'); } }

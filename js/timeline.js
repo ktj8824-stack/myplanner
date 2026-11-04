@@ -553,8 +553,13 @@ const Settings = {
     let html = '<label class="lbl">알람 점검</label>';
     html += row(perm === 'granted', '알림 허용', '꺼져 있으면 아무 알림도 오지 않아요', ns ? "Alarm.openSettings('notifications')" : "Settings.perm()");
     if (ns) {
+      if (ns.alarmChannel === false) html += row(false, '기상·출발 알람 알림', '이 알림 종류가 꺼져 있으면 알람이 울리지 않아요', "Alarm.openSettings('alarmChannel')");
       html += row(ns.exact, '알람 및 리마인더', '정확한 시각에 울리려면 필요해요', "Alarm.openSettings('exact')");
       html += row(ns.fullScreen, '전체 화면 알람', '잠금 화면 위로 알람 화면을 띄워요 (안드로이드 14+)', "Alarm.openSettings('fullscreen')");
+      if (ns.battery !== undefined) html += row(ns.battery, '배터리 사용 제한 없음', "절전 때문에 알람이 늦거나 빠지지 않게 해요. 목록에서 마이플래너를 '제한 없음'(최적화 안 함)으로 바꿔 주세요", "Alarm.openSettings('battery')");
+      if (ns.alarmVolume === 0) html += `<div class="check-row bad"><span class="check-ic">🔈</span><div class="grow"><b>알람 소리가 0이에요</b><small>울릴 때는 잠시 중간 크기로 올려서 깨워 드려요. 평소에도 들리게 하려면 폰의 알람 음량을 올려 주세요.</small></div></div>`;
+      html += `<button class="btn primary" style="width:100%;margin:10px 0 4px" onclick="Settings.testReal()">⏰ 1분 뒤 진짜 알람 울려 보기</button>
+        <p class="muted small" style="margin-top:4px">누른 뒤 화면을 끄고 기다려 보세요. 잠금 화면 위로 알람이 뜨고 소리가 나면 준비 완료예요.</p>`;
       html += `<p class="muted small">앞으로 ${Alarm.NATIVE_DAYS}일 알림 ${ns.planned ?? 0}개를 폰에 맡겨 두었어요 (지금 예약 ${ns.scheduled}개, 매일 새벽 자동 보충). 앱을 오래 열지 않아도 이어서 울려요. 삼성 휴대폰은 '배터리 > 백그라운드 사용 제한'에서 마이플래너를 제외하면 더 안정적이에요.</p>`;
     } else if (perm !== 'unsupported') {
       html += `<p class="muted small">웹에서는 이 화면을 열어 둔 동안만 알람이 울려요. 앱을 설치하면 잠금 화면에서도 깨워 드려요.</p>`;
@@ -568,6 +573,10 @@ const Settings = {
     PlacePicker.open('집 주소', p => { State.settings.home = { ...p, name: p.name === '현재 위치' ? '집' : p.name }; State.save(); this.render(); }, { allowHome: false });
   },
   async perm() { const ok = await Alarm.requestPermission(); U.toast(ok ? '알림이 허용되어 있어요.' : '휴대폰 설정에서 알림을 허용해 주세요.'); this.alarmCheck(); },
+  async testReal() {
+    const ok = await Alarm.testNative(60);
+    U.toast(ok ? '1분 뒤에 알람이 울려요. 지금 화면을 꺼 보세요' : '테스트 알람을 맞추지 못했어요. 위 항목을 먼저 확인해 주세요');
+  },
   test() { Alarm.showRinging('⏰ 알람 미리 듣기', '이런 소리로 깨워 드려요.', ''); },
   async reset() {
     if (!confirm('모든 일정을 지울까요? 되돌릴 수 없어요.')) return;

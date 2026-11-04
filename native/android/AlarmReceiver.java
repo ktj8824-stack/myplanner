@@ -35,6 +35,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         String scheduleId = intent.getStringExtra("scheduleId");
         String kind = intent.getStringExtra("kind");
         if (kind == null) kind = AlarmStore.KIND_FULL;
+        int rep = intent.getIntExtra("rep", 0);
         AlarmStore.remove(ctx, id);
         Log.d(TAG, "알람 실행 " + kind + " " + id + " " + title);
 
@@ -49,7 +50,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             case AlarmStore.KIND_REFILL:
                 break; // 아래 syncWindow가 다음 3일치를 보충
             default:
-                ring(ctx, id, title, body, scheduleId);
+                ring(ctx, id, title, body, scheduleId, rep);
         }
         AlarmScheduler.syncWindow(ctx);
     }
@@ -108,6 +109,10 @@ public class AlarmReceiver extends BroadcastReceiver {
     }
 
     public static void ring(Context ctx, int id, String title, String body, String scheduleId) {
+        ring(ctx, id, title, body, scheduleId, 0);
+    }
+
+    public static void ring(Context ctx, int id, String title, String body, String scheduleId, int rep) {
         ensureChannel(ctx);
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
@@ -118,6 +123,7 @@ public class AlarmReceiver extends BroadcastReceiver {
         full.putExtra("title", title);
         full.putExtra("body", body);
         full.putExtra("scheduleId", scheduleId);
+        full.putExtra("rep", rep);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         PendingIntent fullPi = PendingIntent.getActivity(ctx, id, full, flags);
 

@@ -40,13 +40,19 @@ public class AlarmActionReceiver extends BroadcastReceiver {
     }
 
     static void snooze(Context ctx, int id, String title, String scheduleId) {
+        snooze(ctx, id, title, scheduleId, 0, SNOOZE_MIN + "분이 지났어요.");
+    }
+
+    /** rep: 응답이 없어 자동으로 다시 울리는 횟수 (사용자가 누른 5분 뒤는 0부터 다시) */
+    static void snooze(Context ctx, int id, String title, String scheduleId, int rep, String body) {
         String t = title == null ? "" : title;
         if (!t.startsWith("⏰ 다시 알림")) t = "⏰ 다시 알림 · " + t;
         long at = System.currentTimeMillis() + SNOOZE_MIN * 60 * 1000L;
         // 원래 알람과 겹치지 않는 id
         int snoozeId = (int) ((id * 31L + 7) % 2000000000L);
-        AlarmStore.Item item = new AlarmStore.Item(snoozeId, at, t, SNOOZE_MIN + "분이 지났어요.", scheduleId);
+        AlarmStore.Item item = new AlarmStore.Item(snoozeId, at, t, body, scheduleId);
         item.snooze = true;
+        item.rep = rep;
         AlarmScheduler.schedule(ctx, item);
     }
 }

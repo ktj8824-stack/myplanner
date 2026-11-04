@@ -125,9 +125,28 @@ public final class AlarmScheduler {
             if (schedule(ctx, it)) ok++;
         }
         scheduleRefill(ctx);
+        checkStale(ctx, plan, now);
         NextWidget.updateAll(ctx); // 홈 화면 위젯도 새로 그림
         Log.d(TAG, "3일 창 동기화: " + ok + "개 예약");
         return ok;
+    }
+
+    /**
+     * 앱이 넘긴 계획은 45일치. 앱을 한 달 넘게 열지 않으면 반복 일정(출근 등) 알람이 곧 끊기므로
+     * 계획 저장 후 STALE_DAYS가 지나면 '앱을 한 번 열어 주세요' 알림을 한 번 보냄.
+     */
+    public static final long STALE_MS = 35L * 24 * 60 * 60 * 1000;
+    public static final int STALE_NOTICE_ID = 1_999_999_002;
+
+    private static void checkStale(Context ctx, JSONObject plan, long now) {
+        long savedAt = plan.optLong("savedAt", 0);
+        if (savedAt <= 0 || now - savedAt < STALE_MS) return;
+        JSONArray alarms = plan.optJSONArray("alarms");
+        if (alarms == null || alarms.length() == 0) return;
+        if (AlarmStore.staleNoticeSent(ctx, savedAt)) return;
+        AlarmStore.markStaleNotice(ctx, savedAt);
+        AlarmReceiver.postNote(ctx, STALE_NOTICE_ID, "마이플래너를 한 번 열어 주세요",
+                "알람을 계속 맞춰 두려면 가끔 앱을 열어야 해요. 한 번만 열면 앞으로 45일치 알람이 다시 준비돼요.", "");
     }
 
     /** 매일 새벽 3시 17분쯤 계획에서 다음 알람을 보충 */
@@ -150,6 +169,7 @@ public final class AlarmScheduler {
         i.putExtra("body", item.body);
         i.putExtra("scheduleId", item.scheduleId);
         i.putExtra("kind", item.kind);
+        i.putExtra("rep", item.rep);
         return PendingIntent.getBroadcast(ctx, item.id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }

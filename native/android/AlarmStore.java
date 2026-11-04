@@ -35,6 +35,8 @@ public final class AlarmStore {
         public boolean snooze; // '5분 뒤' 알람 — 앱이 알람을 다시 맞출 때 지우지 않음
         /** full: 전체 화면 알람 · note: 일반 알림 · recheck: 실시간 재계산 · refill: 매일 알람 보충 */
         public String kind = KIND_FULL;
+        /** 응답이 없어 자동으로 다시 울린 횟수 (0 = 처음) */
+        public int rep;
 
         public Item(int id, long at, String title, String body, String scheduleId) {
             this.id = id;
@@ -54,6 +56,7 @@ public final class AlarmStore {
                 o.put("scheduleId", scheduleId);
                 o.put("snooze", snooze);
                 o.put("kind", kind);
+                o.put("rep", rep);
                 return o.toString();
             } catch (Exception e) {
                 return "{}";
@@ -66,6 +69,7 @@ public final class AlarmStore {
                 Item it = new Item(o.getInt("id"), o.getLong("at"), o.optString("title"), o.optString("body"), o.optString("scheduleId"));
                 it.snooze = o.optBoolean("snooze", false);
                 it.kind = o.optString("kind", KIND_FULL);
+                it.rep = o.optInt("rep", 0);
                 return it;
             } catch (Exception e) {
                 return null;
@@ -104,6 +108,15 @@ public final class AlarmStore {
         String v = state(ctx).getString("pendingShare", "");
         state(ctx).edit().remove("pendingShare").apply();
         return v;
+    }
+
+    /** 계획이 오래돼 '앱을 열어 주세요' 안내를 이미 보냈는지 (계획 저장 시각 기준) */
+    public static boolean staleNoticeSent(Context ctx, long savedAt) {
+        return state(ctx).getLong("staleNotice", 0) == savedAt;
+    }
+
+    public static void markStaleNotice(Context ctx, long savedAt) {
+        state(ctx).edit().putLong("staleNotice", savedAt).apply();
     }
 
     public static String consumePendingOpen(Context ctx) {

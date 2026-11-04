@@ -138,7 +138,7 @@ const Home = {
       return;
     }
     const ns = await Alarm.nativeStatus();
-    if (ns && (!ns.exact || !ns.fullScreen)) {
+    if (ns && Alarm.problems(st, ns).some(k => Alarm.CRITICAL.includes(k))) {
       el.innerHTML = `<button class="notice warn" onclick="App.navigate('settings')">⏰ 알람이 정확히 울리려면 권한 설정이 필요해요</button>`;
     }
   }
