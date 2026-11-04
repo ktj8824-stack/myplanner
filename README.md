@@ -49,7 +49,6 @@ js/alarm.js         기상·출발 알람 (Capacitor 로컬 알림 / 웹 알림)
 js/core.js          공통 도구(U) · 저장소(State)
 js/icons.js         선 아이콘 (화면 속 이모지를 자동으로 같은 아이콘으로)
 js/defaults.js      공개 기본값 (서버 함수 주소·anon 키)
-fonts/              시각 숫자 글꼴 (TeX Gyre Heros Cn 숫자만, GUST 라이선스)
 js/home.js          홈 · 캘린더
 js/register.js      일정 등록·수정
 js/timeline.js      타임라인 · 설정

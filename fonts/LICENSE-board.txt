@@ -1,4 +1,0 @@
-board-bold.woff / board-regular.woff
-Digit-only subsets of "TeX Gyre Heros Cn" (Bold / Regular) by GUST e-foundry.
-Licensed under the GUST Font License (https://www.gust.org.pl/projects/e-foundry/licenses).
-Used for the large departure-board times in MyPlanner.

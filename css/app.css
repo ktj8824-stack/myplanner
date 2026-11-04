@@ -1,11 +1,9 @@
 /* =========================================
    MyPlanner — 스타일 v1.0 "새벽 출발 안내판"
    - 바탕: 맑은 도자기 회색, 글자: 깊은 남색, 포인트: 새벽 호박색(기상·출발 순간에만)
-   - 시각 숫자는 역 전광판처럼 좁고 굵은 글꼴 하나로 — 화면에서 가장 눈에 띄는 것
+   - 글꼴은 프리텐다드 하나로 통일. 시각 숫자는 굵게·크게·자릿수 폭 고정(tabular) — 화면에서 가장 눈에 띄는 것
    - 40~60대도 읽기 쉽게 본문 16px 이상, 누르는 곳 48px 이상
    ========================================= */
-@font-face { font-family: 'Board'; src: url('../fonts/board-bold.woff') format('woff'); font-weight: 700; font-display: swap; }
-@font-face { font-family: 'Board'; src: url('../fonts/board-regular.woff') format('woff'); font-weight: 400; font-display: swap; }
 
 :root {
   --bg: #EEF1F5;
@@ -48,7 +46,7 @@
   --shadow: 0 1px 2px rgba(18, 32, 74, .05);
   --lift: 0 10px 30px -12px rgba(18, 32, 74, .35);
   --font: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
-  --num: 'Board', 'Pretendard Variable', Pretendard, sans-serif;
+  --num: var(--font);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -66,7 +64,7 @@ a { color: var(--ink); }
 .ic-wrap:only-child { margin: 0; }
 
 /* 숫자 */
-.num, .tl-time, .row-time b, .result-row b, .hero-times b, .ai-times b, .ring-time { font-family: var(--num); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.005em; }
+.num, .tl-time, .row-time b, .result-row b, .hero-times b, .ai-times b, .ring-time { font-family: var(--num); font-weight: 800; font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; letter-spacing: -.035em; }
 
 /* 상단 */
 .top { padding: 14px 2px 18px; }
@@ -147,7 +145,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .route-opt { display: block; width: 100%; text-align: left; padding: 14px 15px; border-radius: 16px; border: 1.5px solid var(--line); margin-bottom: 8px; background: #fff; }
 .route-opt.on { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(18, 32, 74, .07); }
 .route-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.route-top b { font-size: 20px; font-family: var(--num); }
+.route-top b { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .route-top small { color: var(--muted); }
 .route-steps { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 8px; font-size: 13px; }
 .route-steps i { color: var(--faint); font-style: normal; }
@@ -169,9 +167,9 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .result-row > div { padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, .12); }
 .result-row > div:first-child { padding-left: 0; border-left: 0; }
 .result-row small { display: block; color: var(--on-board-2); font-size: 13px; font-weight: 600; }
-.result-row b { display: block; font-size: 38px; line-height: 1.1; margin-top: 2px; }
+.result-row b { display: block; font-size: 32px; line-height: 1.1; margin-top: 2px; }
 .result-row > div:first-child b { color: var(--dawn); }
-.result.big .result-row b { font-size: 44px; }
+.result.big .result-row b { font-size: 34px; }
 .result-meta { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, .12); color: var(--on-board-2); font-size: 14px; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
 .warn-line, .wx-line, .live-line { display: flex; align-items: center; margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, .08); font-size: 14px; text-align: left; }
 .warn-line { background: rgba(242, 169, 59, .16); color: #FFD9A0; }
@@ -194,7 +192,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .hero-times > div { padding-left: 12px; border-left: 1px solid rgba(255, 255, 255, .12); }
 .hero-times > div:first-child { padding-left: 0; border-left: 0; }
 .hero-times small { display: block; color: var(--on-board-2); font-size: 13px; font-weight: 600; }
-.hero-times b { display: block; font-size: 42px; line-height: 1.05; margin-top: 2px; }
+.hero-times b { display: block; font-size: 34px; line-height: 1.05; margin-top: 2px; }
 .hero-times .now b { color: var(--dawn); }
 .hero-times .dim b { color: rgba(255, 255, 255, .38); }
 .hero-times .pre { font-family: var(--font); font-size: 12px; font-weight: 700; color: var(--on-board-2); display: block; margin-top: 2px; }
@@ -232,7 +230,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .row { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; background: var(--surface); border-radius: 16px; padding: 15px 16px; margin-bottom: 8px; box-shadow: var(--shadow); }
 .row:active { background: var(--fill); }
 .row-time { flex: none; width: 58px; }
-.row-time b { display: block; font-size: 26px; line-height: 1; color: var(--ink); }
+.row-time b { display: block; font-size: 22px; line-height: 1; color: var(--ink); }
 .row-time small { display: block; font-size: 12px; color: var(--muted); font-weight: 600; margin-top: 4px; }
 .row-ic { width: 42px; height: 42px; border-radius: 13px; background: var(--fill); display: grid; place-items: center; flex: none; color: var(--ink-2); font-size: 0; }
 .row-ic .ic-wrap { margin: 0; }
@@ -262,7 +260,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
 .cal-grid.dow div { text-align: center; font-size: 13px; color: var(--muted); padding: 4px 0 6px; font-weight: 600; }
 .cal-day { position: relative; aspect-ratio: 1; border-radius: 14px; font-weight: 600; font-size: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.cal-day span { font-family: var(--num); font-size: 19px; font-weight: 400; }
+.cal-day span { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .cal-day.sun { color: var(--stop); }
 .cal-day.sat { color: #3C64C8; }
 .cal-day.today span { font-weight: 700; }
@@ -279,7 +277,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .tl-item { display: grid; grid-template-columns: 62px 36px 1fr; align-items: start; gap: 10px; padding: 8px 0; position: relative; }
 .tl-item::before { content: ''; position: absolute; left: 89px; top: 46px; bottom: -8px; width: 2px; background: var(--line); }
 .tl-item:last-child::before { display: none; }
-.tl-time { font-size: 22px; padding-top: 6px; color: var(--ink); line-height: 1.1; }
+.tl-time { font-size: 18px; padding-top: 6px; color: var(--ink); line-height: 1.1; }
 .tl-dot { width: 36px; height: 36px; border-radius: 50%; background: var(--fill); color: var(--ink-2); display: grid; place-items: center; position: relative; z-index: 1; font-size: 0; }
 .tl-dot .ic-wrap { margin: 0; }
 .tl-dot .ic { width: 19px; height: 19px; }
@@ -341,7 +339,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 #ringing { display: none; position: fixed; inset: 0; z-index: 50; background: radial-gradient(90% 60% at 50% 100%, rgba(242, 169, 59, .45), rgba(242, 169, 59, 0) 70%), linear-gradient(180deg, #0B1533, #13224D 70%); color: #fff; }
 #ringing.show { display: grid; place-items: center; }
 .ring-box { width: min(420px, 88vw); text-align: center; }
-.ring-time { font-size: 104px; line-height: 1; animation: pulse 1.6s ease-in-out infinite; }
+.ring-time { font-size: 88px; line-height: 1; animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: .55; } }
 .ring-title { font-size: 24px; font-weight: 800; margin: 14px 0 8px; }
 .ring-body { color: rgba(255, 255, 255, .75); margin-bottom: 32px; }
@@ -473,7 +471,7 @@ input[type=date].input, input[type=time].input { font-family: var(--font); font-
 .ai-times { display: grid; grid-template-columns: repeat(3, 1fr); margin: 14px 0 4px; padding: 14px 16px; border-radius: 18px; background: linear-gradient(180deg, var(--board), var(--board-2)); color: #fff; }
 .ai-times > div + div { padding-left: 10px; border-left: 1px solid rgba(255, 255, 255, .12); }
 .ai-times small { display: block; font-size: 13px; color: var(--on-board-2); font-weight: 600; }
-.ai-times b { font-size: 32px; line-height: 1.1; }
+.ai-times b { font-size: 28px; line-height: 1.1; }
 .ai-times > div:first-child b { color: var(--dawn); }
 .ai-diff { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; font-size: 19px; }
 .ai-diff span { width: 44px; color: var(--muted); font-size: 14px; }
@@ -504,7 +502,7 @@ html, body { overflow-x: hidden; }
 /* 남은 알람 목록 */
 .al-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; color: var(--ink-2); font-size: 15px; }
 .al-row + .al-row { border-top: 1px solid var(--line); }
-.al-row .num { font-size: 21px; color: var(--ink); width: 54px; flex: none; }
+.al-row .num { font-size: 18px; color: var(--ink); width: 54px; flex: none; }
 .al-row .al-day { font-size: 13px; color: var(--muted); width: 72px; flex: none; }
 .al-row .grow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .check-ic .ic-alert, .ai-c-note .ic-alert { color: var(--dawn-ink); }
@@ -516,3 +514,4 @@ html, body { overflow-x: hidden; }
 .demo-bar button { flex: none; padding: 8px 14px; border-radius: 10px; background: #fff; color: var(--dawn-ink); font-weight: 700; font-size: 14px; }
 .tag.demo { background: #E7EBF5; color: var(--ink-2); }
 .hero.empty .btn.ghost { margin-top: 10px; }
+.warn-line .ic-wrap, .wx-line .ic-wrap, .live-line .ic-wrap { align-self: flex-start; margin-top: 1px; }
