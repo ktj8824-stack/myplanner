@@ -36,7 +36,7 @@ const Weather = {
     const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat.toFixed(3) + '&longitude=' + lng.toFixed(3)
       + '&hourly=temperature_2m,precipitation_probability,precipitation,snowfall,weather_code'
       + '&timezone=Asia%2FSeoul&forecast_days=' + (this.DAYS + 1);
-    const res = await fetch(url);
+    const res = await U.fetchT(url);
     if (!res.ok) throw new Error('날씨 응답 실패 ' + res.status);
     const h = (await res.json()).hourly || {};
     const map = {};

@@ -62,7 +62,7 @@ const Cloud = {
 
   async _auth(path, body) {
     const { url, key } = this.cfg();
-    const res = await fetch(`${url}/auth/v1/${path}`, { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const res = await U.fetchT(`${url}/auth/v1/${path}`, { method: 'POST', headers: { apikey: key, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.msg || data.error_description || data.message || `로그인 실패 (${res.status})`);
     return data;
@@ -125,7 +125,7 @@ const Cloud = {
     const headers = Object.assign({ apikey: key, Authorization: `Bearer ${await this._token()}` }, opts.headers || {});
     let body = opts.body;
     if (body !== undefined && typeof body !== 'string') { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
-    const res = await fetch(`${url}/${path}`, { method: opts.method || 'GET', headers, body });
+    const res = await U.fetchT(`${url}/${path}`, { method: opts.method || 'GET', headers, body });
     const text = await res.text();
     if (!res.ok) {
       let msg = text;

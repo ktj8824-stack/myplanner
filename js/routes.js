@@ -37,7 +37,7 @@ const Routes = {
     const px = this.proxy();
     try {
       if (px) {
-        const res = await fetch(px.url, {
+        const res = await U.fetchT(px.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(px.anon ? { Authorization: 'Bearer ' + px.anon, apikey: px.anon } : {}) },
           body: JSON.stringify({ service, ...p })
@@ -51,21 +51,21 @@ const Routes = {
       switch (service) {
         case 'tmap_pois':
           if (!tmap) return null;
-          res = await fetch(`https://apis.openapi.sk.com/tmap/pois?version=1&count=15&${geo}&searchKeyword=${encodeURIComponent(p.keyword)}&appKey=${tmap}`);
+          res = await U.fetchT(`https://apis.openapi.sk.com/tmap/pois?version=1&count=15&${geo}&searchKeyword=${encodeURIComponent(p.keyword)}&appKey=${tmap}`);
           break;
         case 'tmap_route':
           if (!tmap) return null;
-          res = await fetch(`https://apis.openapi.sk.com/tmap/routes?version=1&startX=${p.sx}&startY=${p.sy}&endX=${p.ex}&endY=${p.ey}&${geo}&searchOption=0&trafficInfo=Y&appKey=${tmap}`);
+          res = await U.fetchT(`https://apis.openapi.sk.com/tmap/routes?version=1&startX=${p.sx}&startY=${p.sy}&endX=${p.ex}&endY=${p.ey}&${geo}&searchOption=0&trafficInfo=Y&appKey=${tmap}`);
           break;
         case 'tmap_predict':
           if (!tmap) return null;
-          res = await fetch(`https://apis.openapi.sk.com/tmap/routes/prediction?version=1&${geo}&sort=index`, {
+          res = await U.fetchT(`https://apis.openapi.sk.com/tmap/routes/prediction?version=1&${geo}&sort=index`, {
             method: 'POST', headers: { 'Content-Type': 'application/json', appKey: tmap }, body: JSON.stringify(this.predictBody(p))
           });
           break;
         case 'tmap_walk':
           if (!tmap) return null;
-          res = await fetch('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1', {
+          res = await U.fetchT('https://apis.openapi.sk.com/tmap/routes/pedestrian?version=1', {
             method: 'POST', headers: { 'Content-Type': 'application/json', appKey: tmap },
             body: JSON.stringify({ startX: p.sx, startY: p.sy, endX: p.ex, endY: p.ey, startName: p.sname || '출발', endName: p.ename || '도착', reqCoordType: 'WGS84GEO', resCoordType: 'WGS84GEO' })
           });
@@ -73,14 +73,14 @@ const Routes = {
         case 'bus_arrival': {
           const k = this.key('ODSAY_API_KEY');
           if (!k) return null;
-          res = await fetch(`https://api.odsay.com/v1/api/realtimeStation?lang=0&stationBase=0&stationID=${encodeURIComponent(p.stationID)}${p.routeIDs ? '&routeIDs=' + encodeURIComponent(p.routeIDs) : ''}&apiKey=${encodeURIComponent(k)}`);
+          res = await U.fetchT(`https://api.odsay.com/v1/api/realtimeStation?lang=0&stationBase=0&stationID=${encodeURIComponent(p.stationID)}${p.routeIDs ? '&routeIDs=' + encodeURIComponent(p.routeIDs) : ''}&apiKey=${encodeURIComponent(k)}`);
           if (!res.ok) return null;
           return { arrivals: this.normalizeBus(await res.json()), source: 'odsay' };
         }
         case 'odsay_transit': {
           const k = this.key('ODSAY_API_KEY');
           if (!k) return null;
-          res = await fetch(`https://api.odsay.com/v1/api/searchPubTransPathT?lang=0&SX=${p.sx}&SY=${p.sy}&EX=${p.ex}&EY=${p.ey}&apiKey=${encodeURIComponent(k)}`);
+          res = await U.fetchT(`https://api.odsay.com/v1/api/searchPubTransPathT?lang=0&SX=${p.sx}&SY=${p.sy}&EX=${p.ex}&EY=${p.ey}&apiKey=${encodeURIComponent(k)}`);
           break;
         }
         default: return null;
@@ -134,7 +134,7 @@ const Routes = {
     const kakao = this.key('KAKAO_REST_KEY');
     if (!docs && kakao) {
       try {
-        const res = await fetch('https://dapi.kakao.com/v2/local/search/keyword.json?size=15&query=' + encodeURIComponent(keyword),
+        const res = await U.fetchT('https://dapi.kakao.com/v2/local/search/keyword.json?size=15&query=' + encodeURIComponent(keyword),
           { headers: { Authorization: 'KakaoAK ' + kakao } });
         if (res.ok) docs = (await res.json()).documents || [];
       } catch (e) { console.warn('카카오 장소 검색 실패', e); }
@@ -179,7 +179,7 @@ const Routes = {
       min = Math.max(1, Math.round(km / 4.5 * 60));
       steps = [{ type: 'walk', label: '도보', to: dest.name, min }];
     } else if (mode === 'transit') {
-      const ride = Math.max(5, Math.round(km / 22 * 60));
+      const ride = Math.max(5, Math.round(km / 18 * 60)); // 어림값은 늦지 않게 넉넉히
       steps = [
         { type: 'walk', label: '도보', to: '가까운 정류장', min: 6 },
         { type: km > 8 ? 'subway' : 'bus', label: km > 8 ? '지하철 (추정)' : '버스 (추정)', from: origin.name, to: dest.name, min: ride },
@@ -187,7 +187,7 @@ const Routes = {
       ];
       min = ride + 11;
     } else {
-      min = Math.max(3, Math.round(km / 32 * 60) + 3);
+      min = Math.max(5, Math.round(km / 25 * 60) + 5);
       steps = [{ type: mode === 'taxi' ? 'taxi' : 'car', label: mode === 'taxi' ? '택시' : '자가용', from: origin.name, to: dest.name, min }];
     }
     return { travelMin: min, steps, source: 'estimate', summary: `약 ${km.toFixed(1)}km` };
@@ -277,6 +277,43 @@ const Routes = {
     if (!data || !Array.isArray(data.arrivals)) return null;
     const ids = (step.routeIds || []).map(String), nos = (step.routeNos || []).map(String);
     return data.arrivals.filter(a => !ids.length || ids.includes(a.routeId) || nos.includes(a.routeNm));
+  },
+
+  /**
+   * 인터넷이 안 될 때 저장해서 '어림값'으로 남은 경로를, 앱을 열었을 때 조용히 실제 경로로 바꿈.
+   * 앞으로 14일 안 일정만, 한 번에 최대 5개. 바뀐 게 있으면 true.
+   */
+  async healEstimates() {
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
+    const limit = Recur.shift(U.today(), 14);
+    const list = State.schedules.filter(s => !s.demo && !s._shared && (Recur.isRepeating(s) || (s.date >= U.today() && s.date <= limit)))
+      .filter(s => (s.route && s.route.source === 'estimate') || (s.accessRoute && s.accessRoute.source === 'estimate')
+        || (s.goHome && s.goHome.on && s.goHome.route && s.goHome.route.source === 'estimate'))
+      .slice(0, 5);
+    let changed = false;
+    for (const s of list) {
+      let mine = false;
+      try {
+        const isTrip = Planner.isTrip(s.mode);
+        if (isTrip && s.accessRoute && s.accessRoute.source === 'estimate' && s.trip && s.trip.departStation) {
+          const dep = s.trip.departTime ? Planner.at(s.date, s.trip.departTime) : null;
+          const r = (await this.options(s.origin, s.trip.departStation, s.trip.accessMode || 'transit', dep))[0];
+          if (r && r.source !== 'estimate') { s.accessRoute = r; mine = true; }
+        } else if (!isTrip && s.route && s.route.source === 'estimate' && s.dest) {
+          const due = s.arriveBy ? Planner.at(s.date, s.arriveBy) : null;
+          const r = (await this.options(s.origin, s.dest, s.mode, due))[0];
+          if (r && r.source !== 'estimate') { s.route = r; mine = true; }
+        }
+        const gh = s.goHome;
+        if (gh && gh.on && gh.route && gh.route.source === 'estimate' && s.dest && gh.to) {
+          const r = (await this.options(s.dest, gh.to, gh.mode || 'transit', null))[0];
+          if (r && r.source !== 'estimate') { gh.route = r; mine = true; }
+        }
+      } catch (e) { /* 다음에 다시 */ }
+      if (mine) { State.upsert(s); changed = true; } // 서버에도 올림
+    }
+    if (changed) { try { await Alarm.rescheduleAll(); } catch (e) {} }
+    return changed;
   },
 
   /* ---------- 자가용·택시 (티맵, 도착 시각 기준 예측 / 없으면 실시간) ---------- */

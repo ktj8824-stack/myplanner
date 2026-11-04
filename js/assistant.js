@@ -216,18 +216,21 @@ const Assistant = {
     } catch (e) {
       this.msgs.splice(this.msgs.indexOf(typing), 1);
       const cards = e.code === 'daily_limit' && !e.pro ? [{ kind: 'pro', state: 'ready' }] : e.code === 'login_required' ? [{ kind: 'login', state: 'ready' }] : [];
-      this.reply(e.message || '잠시 연결이 안 돼요. 조금 뒤에 다시 말씀해 주세요.', cards, true);
+      const msg = e.name === 'AbortError' ? '답이 너무 늦어지고 있어요. 조금 뒤에 다시 말씀해 주세요.'
+        : e instanceof TypeError ? '인터넷 연결을 확인한 뒤 다시 말씀해 주세요.'
+        : (e.message || '잠시 연결이 안 돼요. 조금 뒤에 다시 말씀해 주세요.');
+      this.reply(msg, cards, true);
     }
     this.busy = false;
   },
 
   async call(body) {
     const { url, key } = Cloud.cfg();
-    const res = await fetch(`${url}/functions/v1/myplanner-ai`, {
+    const res = await U.fetchT(`${url}/functions/v1/myplanner-ai`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${await Cloud._token()}` },
       body: JSON.stringify(body)
-    });
+    }, 30000);
     const data = await res.json().catch(() => ({}));
     if (!res.ok) { const e = new Error(data.message || `연결 오류 (${res.status})`); e.code = data.error; e.pro = data.pro; throw e; }
     return data;

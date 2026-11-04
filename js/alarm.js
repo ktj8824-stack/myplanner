@@ -34,6 +34,8 @@ const Alarm = {
     // 앱을 열 때마다: 백그라운드 실시간 값 가져오기 → 출발 임박 일정 재계산 → 알람 다시 맞춤
     await Live.onOpen();
     this.consumeOpen();
+    // 어림값으로 저장된 경로가 있으면 실제 경로로 (기다리지 않음)
+    setTimeout(() => Routes.healEstimates().then(ch => { if (ch && App.current === 'home') Home.render(); }).catch(() => {}), 3000);
     // 앱이 켜져 있는 중에 문자 앱에서 공유로 들어온 경우
     const N0 = this.native();
     if (N0 && N0.addListener) { try { N0.addListener('shared', () => this.consumeOpen()); } catch (e) {} }

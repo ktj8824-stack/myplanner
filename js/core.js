@@ -23,6 +23,13 @@ const U = {
   esc(s) {
     return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   },
+  /** fetch + 시간 제한 (네트워크가 멈춰도 화면이 계속 기다리지 않게). 시간이 지나면 예외 */
+  fetchT(url, opts = {}, ms = 12000) {
+    if (typeof AbortController === 'undefined') return fetch(url, opts);
+    const ac = new AbortController();
+    const t = setTimeout(() => ac.abort(), ms);
+    return fetch(url, { ...opts, signal: ac.signal }).finally(() => clearTimeout(t));
+  },
   uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); },
   toast(msg) {
     const el = document.getElementById('toast');

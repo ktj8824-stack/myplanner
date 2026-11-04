@@ -38,7 +38,7 @@ const Recur = {
     if (!this.isRepeating(s)) return '';
     const r = s.repeat;
     let t = r.type === 'weekly'
-      ? '매주 ' + (r.days || []).slice().sort().map(d => U.DOW[d]).join('·')
+      ? '매주 ' + (r.days || []).map(Number).sort((a, b) => a - b).map(d => U.DOW[d]).join('·')
       : this.TYPES[r.type];
     if (r.skipHolidays) t += ' · 공휴일 제외';
     return t;
@@ -53,7 +53,7 @@ const Recur = {
     if (!includeSkipped && (s.skips || []).includes(ymd)) return false;
     const dow = Planner.at(ymd, '12:00').getDay();
     if (r.type === 'weekdays' && (dow === 0 || dow === 6)) return false;
-    if (r.type === 'weekly' && !(r.days || []).includes(dow)) return false;
+    if (r.type === 'weekly' && !(r.days || []).map(Number).includes(dow)) return false;
     if (r.skipHolidays && this.holiday(ymd)) return false;
     return true;
   },

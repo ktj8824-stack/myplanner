@@ -255,21 +255,31 @@ const Planner = {
     }
     items = items.map((it, i) => ({ ...it, _i: i })).sort((a, b) => (a.at - b.at) || (a._i - b._i));
 
-    if (!s.chained && (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString())) {
+    const HM0 = /^\d{1,2}:\d{2}$/;
+    const hasTime = this.isTrip(s.mode) ? !!(s.trip && HM0.test(s.trip.departTime || '')) : HM0.test(s.arriveBy || '');
+    if (hasTime && !s.chained && (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString())) {
       warnings.push('기상 시간이 새벽이거나 전날이에요. 준비 시간·여유 시간을 확인해 주세요.');
     }
     if (s.route && s.route.source === 'estimate' || s.accessRoute && s.accessRoute.source === 'estimate') {
-      warnings.push('실제 경로 대신 거리로 추정한 시간이에요. API 키를 넣으면 정확해져요.');
+      warnings.push('경로를 찾지 못해 거리로 어림한 시간이에요 (넉넉하게 잡았어요). 인터넷이 될 때 일정 수정에서 [다시 찾기]를 눌러 주세요.');
     }
+    // 시각이 없으면 계산이 의미 없음 → 알람을 만들지 않음 (AI·문자 등록에서 빠질 수 있음)
+    const HM = /^\d{1,2}:\d{2}$/;
+    const invalid = this.isTrip(s.mode) ? !(s.trip && HM.test(s.trip.departTime || '')) : !HM.test(s.arriveBy || '');
+    if (invalid) warnings.unshift(this.isTrip(s.mode) ? '출발 시각이 없어 알람을 맞출 수 없어요. 일정을 수정해 시각을 넣어 주세요.' : '도착 시간이 없어 알람을 맞출 수 없어요. 일정을 수정해 시간을 넣어 주세요.');
+    const noRoute = this.isTrip(s.mode) ? !s.accessRoute : !s.route;
+    if (!invalid && noRoute && s.mode !== 'walk') warnings.push('경로 정보가 없어 이동 시간이 빠진 채로 계산됐어요. 일정을 수정해 경로를 찾아 주세요.');
     const w = this.weatherFor(s);
     const weather = w && this.WEATHER[w.kind] ? { ...w, ...this.WEATHER[w.kind], extraMin: wx } : null;
-    return { wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt };
+    return { invalid, wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
   alarms(s, plan) {
     const out = [];
+    if (plan.invalid) return out;
     const opt = Object.assign({ wake: true, preDepart: true, depart: true, nightBefore: true }, s.alarm || {});
+    if (s.chained) opt.wake = false; // 앞 일정에서 바로 이어서 가는 일정은 깨울 필요 없음 (출발 알람만)
     const firstMove = plan.items.find(i => i.kind === 'move' || i.kind === 'board');
     const firstLabel = firstMove ? `${firstMove.title}${firstMove.detail ? ' (' + firstMove.detail + ')' : ''}` : '';
     const hm = d => U.hm(d);
@@ -277,9 +287,14 @@ const Planner = {
     const wxTxt = plan.weather ? ` ${plan.weather.icon} ${plan.weather.label}(${plan.weather.prob}%) — ${plan.weather.tip}.` : '';
     const packTxt = typeof Pack !== 'undefined' ? Pack.line(s, plan) : '';
     if (opt.nightBefore) {
-      const night = this.at(s.date, '21:00');
+      // 전날 밤 9시. 기상이 그보다 이르거나 너무 가까우면(전날 밤 출발 등) 기상 2시간 전으로
+      let night = this.at(s.date, '21:00');
       night.setDate(night.getDate() - 1);
-      out.push({ key: 'night', at: night, title: `내일 ${hm(plan.wakeAt)} 기상 예정`,
+      if (night.getTime() > plan.wakeAt.getTime() - 60 * 60000) night = this.addMin(plan.wakeAt, -120);
+      const sameDay = night.toDateString() === plan.wakeAt.toDateString();
+      const what = s.chained ? '출발' : '기상';
+      const t = s.chained ? plan.departAt : plan.wakeAt;
+      out.push({ key: 'night', at: night, title: `${sameDay ? '오늘' : '내일'} ${hm(t)} ${what} 예정`,
         body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}${packTxt}` });
     }
     if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
