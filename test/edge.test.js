@@ -113,4 +113,20 @@ console.log('✓ 알람 순서');
   assert.strictEqual(U.hm(Planner.compute(s2).departAt), U.hm(plain.departAt)); // 버스 기록만으로 이동 시간이 바뀌지 않음
   console.log('✓ 버스에 맞춘 출발 알람 유지');
 }
+// 12) 실제 사례 (공덕동 → 강남, 740번): ODsay 시간표 버스 35분·걷기 3+2분은 카카오맵(43분·5+2분)보다 짧음
+{
+  const r740 = { travelMin: 40, source: 'odsay', steps: [
+    { type: 'walk', label: '도보', to: '공덕역1번출구', min: 3 },
+    { type: 'bus', label: '740번 버스', from: '공덕역1번출구', to: '강남역1번출구', stops: 18, min: 35 },
+    { type: 'walk', label: '도보', to: '사무실', min: 2 }] };
+  const s740 = base({ date: '2030-12-09', arriveBy: '09:00', route: r740 }); // 월요일 출근길
+  const p = Planner.compute(s740);
+  assert.strictEqual(U.hm(p.departAt), '07:52');              // 예전 08:05 → 13분 일찍 (버스 46분, 걷기 4·3분)
+  assert.ok(p.items.some(i => /출퇴근길 막힘 반영, 시간표 35분/.test(i.detail || '')));
+  const weekend = Planner.compute({ ...s740, date: '2030-12-08' }); // 일요일: 덜 막힘
+  assert.strictEqual(U.hm(weekend.departAt), '07:57');
+  const subway = Planner.compute(base({ date: '2030-12-09', arriveBy: '09:00', route: { travelMin: 20, source: 'odsay', steps: [{ type: 'subway', label: '2호선', min: 20 }] } }));
+  assert.strictEqual(U.hm(subway.departAt), '08:25');          // 지하철만이면 보정 없음
+  console.log('✓ 버스·걷기 시간 넉넉히 (출근길 더)');
+}
 console.log('까다로운 경우 테스트 완료');

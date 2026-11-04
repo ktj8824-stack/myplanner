@@ -34,7 +34,7 @@ assert.strictEqual(Planner.compute({ ...car, weather: wx('clear') }).weather, nu
 console.log('✓ 자가용: 비 +6분, 눈 +16분, 맑음 그대로');
 
 // 3) 버스·지하철: 비 +5분, 다른 날짜 날씨는 무시
-const tr = { ...car, mode: 'transit', route: { travelMin: 50, steps: [{ type: 'bus', label: '버스', min: 50 }] } };
+const tr = { ...car, mode: 'transit', route: { travelMin: 50, steps: [{ type: 'subway', label: '지하철', min: 50 }] } }; // 지하철은 출근길 보정 없음 → 날씨만 확인
 assert.strictEqual(hm(Planner.compute({ ...tr, weather: wx('rain') }).departAt), '07:50'); // 09:00−10−5(대기)−50−5
 assert.strictEqual(hm(Planner.compute({ ...tr, weather: { '2030-03-05': { kind: 'snow' } } }).departAt), '07:55');
 console.log('✓ 버스·지하철 비 +5분, 다른 날 날씨 무시');

@@ -70,7 +70,7 @@ const Planner = {
     if (st.from && st.to) parts.push(`${st.from} → ${st.to}`);
     else if (st.to) parts.push(`${st.to}까지`);
     if (st.stops) parts.push(`${st.stops}개 정류장`);
-    if (st.min) parts.push(`${st.min}분`);
+    if (st.min) parts.push(st.baseMin != null && st.type === 'bus' ? `${st.min}분 (${st.rush ? '출퇴근길 막힘' : '도로 사정'} 반영, 시간표 ${st.baseMin}분)` : `${st.min}분`);
     return parts.join(' · ');
   },
 
@@ -138,6 +138,35 @@ const Planner = {
       wakeMs: plan.wakeAt.getTime(), from: leg.from, to: leg.to, mode: leg.mode };
   },
 
+  /* ---------- 버스·걷기 시간 보정 ----------
+     ODsay 버스 시간은 시간표 기준이라 실제 도로 사정(특히 출퇴근길)보다 짧고,
+     걷는 시간도 빠른 걸음 기준이라 실제(카카오맵 등)보다 짧게 나옴 → 늦지 않게 넉넉히.
+     지하철은 시간표대로 다니므로 그대로. */
+  RUSH: { bus: 1.3, busNormal: 1.15, walk: 1.3 },
+  isRush(at) {
+    const d = at.getDay(), m = at.getHours() * 60 + at.getMinutes();
+    if (d === 0 || d === 6) return false;
+    return (m >= 6 * 60 + 30 && m <= 10 * 60) || (m >= 17 * 60 && m <= 20 * 60);
+  },
+  /** at: 도착(또는 역 도착) 기준 시각 → 그 시간대에 맞게 버스·걷기 분 늘림 */
+  transitAdjust(route, at) {
+    if (!route || !route.steps || !route.steps.length || route.adjusted || !at || isNaN(at)) return route;
+    const rush = this.isRush(at);
+    let changed = false;
+    const steps = route.steps.map(st => {
+      const min = st.min || 0;
+      let n = min;
+      if (st.type === 'bus') n = Math.ceil(min * (rush ? this.RUSH.bus : this.RUSH.busNormal));
+      else if (st.type === 'walk' && route.steps.length > 1) n = Math.max(min + 1, Math.ceil(min * this.RUSH.walk));
+      if (n === min) return st;
+      changed = true;
+      return { ...st, min: n, baseMin: min, rush: st.type === 'bus' && rush };
+    });
+    if (!changed) return route;
+    const add = steps.reduce((a, st) => a + (st.min - (st.baseMin ?? st.min)), 0);
+    return { ...route, steps, travelMin: route.travelMin + add, adjusted: true, rush };
+  },
+
   /* ---------- 날씨 반영 ----------
      s.weather = { 'YYYY-MM-DD': { kind: 'rain'|'heavy'|'snow', prob, mm, temp, checkedAt } }
      그날 출발 시각 예보에 따라 이동 시간에 여유를 더합니다 (이동수단별 비율·최소값). */
@@ -198,7 +227,7 @@ const Planner = {
 
       const accessMode = trip.accessMode || 'transit';
       const checkInAt = this.addMin(vehicleDep, -margin);
-      const accessRoute = this.liveRoute(s, 'accessRoute', accessMode);
+      const accessRoute = this.transitAdjust(this.liveRoute(s, 'accessRoute', accessMode), checkInAt);
       const accessTotal = this.totalMin(accessRoute, accessMode);
       wx = this.weatherExtra(s, accessMode, accessRoute ? accessRoute.travelMin : 0);
       departAt = this.addMin(checkInAt, -(accessTotal + buffer + wx));
@@ -228,7 +257,7 @@ const Planner = {
       }
     } else {
       const due = this.at(s.date, s.arriveBy);
-      const route = this.liveRoute(s, 'route', s.mode);
+      const route = this.transitAdjust(this.liveRoute(s, 'route', s.mode), due);
       const total = this.totalMin(route, s.mode);
       wx = this.weatherExtra(s, s.mode, route ? route.travelMin : 0);
       departAt = this.addMin(due, -(total + buffer + wx));

@@ -11,8 +11,8 @@ let s = { title: '미팅', date: '2030-03-04', arriveBy: '09:00', mode: 'transit
     { type: 'walk', label: '도보', min: 7 }, { type: 'bus', label: '7714번 버스', from: 'A', to: 'B', min: 20, stops: 9 },
     { type: 'subway', label: '2호선', from: 'B', to: '강남', min: 20 }, { type: 'walk', label: '도보', min: 5 }] } };
 let p = Planner.compute(s);
-assert.strictEqual(hm(p.departAt), '07:53');   // 09:00 - 10 - 52 - 5
-assert.strictEqual(hm(p.wakeAt), '06:53');
+assert.strictEqual(hm(p.departAt), '07:42');   // 09:00 - 10 - 52 - 5 - 출근길 보정 11 (버스 20→26, 걷기 7→10, 5→7)
+assert.strictEqual(hm(p.wakeAt), '06:42');
 assert.strictEqual(hm(p.arriveAt), '08:50');
 assert.strictEqual(p.items[0].kind, 'wake');
 assert.strictEqual(p.items[1].kind, 'depart');
