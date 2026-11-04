@@ -147,43 +147,133 @@ const Home = {
 const CalendarView = {
   month: null,
   selected: null,
+  view: null,        // 'month' | 'week'
+
+  getView() {
+    if (!this.view) { try { this.view = localStorage.getItem('mp_cal_view') || 'month'; } catch (e) { this.view = 'month'; } }
+    return this.view;
+  },
+  setView(v) {
+    this.view = v;
+    try { localStorage.setItem('mp_cal_view', v); } catch (e) {}
+    this.render();
+  },
+
+  /** 'YYYY-MM-DD' 범위 안 날짜별 일정 { date: [s] } (출발 순) */
+  byDay(from, to) {
+    const map = {};
+    Recur.between(State.schedules, from, to).forEach(s => { (map[s.date] = map[s.date] || []).push(s); });
+    Object.values(map).forEach(l => l.sort((a, b) => (a.arriveBy || (a.trip && a.trip.departTime) || '').localeCompare(b.arriveBy || (b.trip && b.trip.departTime) || '')));
+    return map;
+  },
+  short(t) { const x = String(t || '').split(/\s*[·|]\s*/)[0]; return x.length > 6 ? x.slice(0, 5) + '…' : x; },
+  dowCls(key) { const w = Planner.at(key, '12:00').getDay(); return w === 0 || Recur.holiday(key) ? 'sun' : w === 6 ? 'sat' : ''; },
 
   render(params = {}) {
     const now = new Date();
-    if (!this.month) this.month = new Date(now.getFullYear(), now.getMonth(), 1);
-    if (!this.selected || params.date) this.selected = params.date || U.today();
+    if (params.date) this.selected = params.date;
+    if (!this.selected) this.selected = U.today();
+    if (params.date || !this.month) { const d = Planner.at(this.selected, '12:00'); this.month = new Date(d.getFullYear(), d.getMonth(), 1); }
+    const view = this.getView();
+    const body = view === 'week' ? this.weekHtml() : this.monthHtml();
+    const list = State.byDate(this.selected);
+    const isToday = this.selected === U.today();
+    App.setMain(`
+      <header class="top cal-top"><h1>${U.icon('calendar')} 캘린더</h1>
+        <div class="cal-switch"><button class="${view === 'month' ? 'on' : ''}" onclick="CalendarView.setView('month')">월</button><button class="${view === 'week' ? 'on' : ''}" onclick="CalendarView.setView('week')">주</button></div>
+      </header>
+      ${body}
+      ${view === 'month' ? `
+      <div class="sec-row"><h2 class="sec">${U.dateLabel(this.selected)}${Recur.holiday(this.selected) ? ` <span class="holiday">${Recur.holiday(this.selected)}</span>` : ''}</h2>
+        <button class="btn small primary" onclick="App.navigate('register',{date:'${this.selected}'})">＋ 추가</button></div>
+      ${list.length > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${this.selected}',from:'calendar'})">🗓️ 이 날 일정 ${list.length}개 · 하루 동선 보기</button>` : ''}
+      <div class="list">${list.length ? list.map(s => Home.row(s)).join('') : `<button class="empty-add" onclick="App.navigate('register',{date:'${this.selected}'})"><b>이 날은 일정이 없어요</b><small>눌러서 ${isToday ? '오늘' : U.dateLabel(this.selected).split(' · ')[0]} 일정 추가</small></button>`}</div>` : ''}
+    `);
+  },
+
+  monthHtml() {
     const y = this.month.getFullYear(), m = this.month.getMonth();
     const first = new Date(y, m, 1).getDay();
     const days = new Date(y, m + 1, 0).getDate();
-    const counts = {};
-    Recur.between(State.schedules, `${y}-${U.pad(m + 1)}-01`, `${y}-${U.pad(m + 1)}-${U.pad(days)}`)
-      .forEach(s => { counts[s.date] = (counts[s.date] || 0) + 1; });
-
+    const map = this.byDay(`${y}-${U.pad(m + 1)}-01`, `${y}-${U.pad(m + 1)}-${U.pad(days)}`);
+    const today = U.today();
     let cells = '';
     for (let i = 0; i < first; i++) cells += '<div></div>';
     for (let d = 1; d <= days; d++) {
       const key = `${y}-${U.pad(m + 1)}-${U.pad(d)}`;
-      const dow = (first + d - 1) % 7;
-      cells += `<button class="cal-day ${key === U.today() ? 'today' : ''} ${key === this.selected ? 'sel' : ''} ${dow === 0 || Recur.holiday(key) ? 'sun' : dow === 6 ? 'sat' : ''}"
-        onclick="CalendarView.select('${key}')"><span>${d}</span>${counts[key] ? `<i>${counts[key] > 1 ? counts[key] : ''}</i>` : ''}</button>`;
+      const l = map[key] || [];
+      const hol = Recur.holiday(key);
+      cells += `<button class="cal-day ${key === today ? 'today' : ''} ${key === this.selected ? 'sel' : ''} ${key < today ? 'gone' : ''} ${this.dowCls(key)}"
+        onclick="CalendarView.select('${key}')" aria-label="${m + 1}월 ${d}일${l.length ? ` 일정 ${l.length}개` : ''}">
+        <span class="n">${d}</span>
+        ${hol ? `<em class="hol">${U.esc(hol.length > 4 ? hol.slice(0, 3) + '…' : hol)}</em>` : ''}
+        ${l.slice(0, 2).map(s => `<em class="ev ${s.mode}">${U.esc(this.short(s.title))}</em>`).join('')}
+        ${l.length > 2 ? `<em class="more">+${l.length - 2}</em>` : ''}
+      </button>`;
     }
-    const list = State.byDate(this.selected);
-    App.setMain(`
-      <header class="top"><h1>${U.icon('calendar')} 캘린더</h1></header>
-      <div class="card cal">
+    const isThis = y === new Date().getFullYear() && m === new Date().getMonth();
+    return `<div class="card cal">
         <div class="cal-head">
-          <button onclick="CalendarView.shift(-1)">‹</button>
+          <button onclick="CalendarView.shift(-1)" aria-label="이전 달">‹</button>
           <b>${y}년 ${m + 1}월</b>
-          <button onclick="CalendarView.shift(1)">›</button>
+          <button onclick="CalendarView.shift(1)" aria-label="다음 달">›</button>
         </div>
+        ${isThis && this.selected === today ? '' : `<button class="cal-today" onclick="CalendarView.goToday()">오늘</button>`}
         <div class="cal-grid dow">${U.DOW.map(d => `<div>${d}</div>`).join('')}</div>
-        <div class="cal-grid">${cells}</div>
-      </div>
-      <div class="sec-row"><h2 class="sec">${U.dateLabel(this.selected)}${Recur.holiday(this.selected) ? ` <span class="holiday">${Recur.holiday(this.selected)}</span>` : ''}</h2>
-        <button class="btn small primary" onclick="App.navigate('register',{date:'${this.selected}'})">＋ 추가</button></div>
-      <div class="list">${list.length ? list.map(s => Home.row(s)).join('') : '<div class="empty-line">이 날은 일정이 없어요.</div>'}</div>
-    `);
+        <div class="cal-grid month">${cells}</div>
+      </div>`;
   },
-  select(d) { this.selected = d; this.render(); },
-  shift(n) { this.month = new Date(this.month.getFullYear(), this.month.getMonth() + n, 1); this.render(); }
+
+  /** 주간: 선택한 날이 있는 주(일~토)를 날짜별로 */
+  weekHtml() {
+    const sel = Planner.at(this.selected, '12:00');
+    const start = new Date(sel); start.setDate(sel.getDate() - sel.getDay());
+    const keys = [...Array(7)].map((_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); return U.ymd(d); });
+    const map = this.byDay(keys[0], keys[6]);
+    const today = U.today();
+    const a = Planner.at(keys[0], '12:00'), b = Planner.at(keys[6], '12:00');
+    const title = a.getMonth() === b.getMonth() ? `${a.getMonth() + 1}월 ${a.getDate()}일 ~ ${b.getDate()}일` : `${a.getMonth() + 1}/${a.getDate()} ~ ${b.getMonth() + 1}/${b.getDate()}`;
+    const total = keys.reduce((n, k) => n + (map[k] || []).length, 0);
+    const days = keys.map(k => {
+      const d = Planner.at(k, '12:00');
+      const l = (map[k] || []).map(s => ({ s, plan: Planner.compute(s) }));
+      const hol = Recur.holiday(k);
+      const items = l.map(({ s, plan }) => {
+        const trip = Planner.isTrip(s.mode);
+        return `<button class="wk-ev" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
+          <span class="wk-t"><b>${U.hm(s.chained ? plan.departAt : plan.wakeAt)}</b><small>${s.chained ? '출발' : '기상'}</small></span>
+          <span class="wk-m"><b>${U.esc(s.title)}</b><small>${trip ? `${U.esc(s.trip.departTime)} 탑승` : `${U.esc(s.arriveBy)} 도착`}${s.endBy && !trip ? ` · ${U.esc(s.endBy)} 끝` : ''}${plan.homeAt ? ` · ${U.hm(plan.homeAt)} 집` : ''}</small></span>
+          ${U.modeIcon(s.mode, 'wk-ic')}
+        </button>`;
+      }).join('');
+      return `<div class="wk-day ${k === today ? 'today' : ''} ${k < today ? 'gone' : ''}">
+        <div class="wk-date ${this.dowCls(k)}"><small>${U.DOW[d.getDay()]}</small><b>${d.getDate()}</b></div>
+        <div class="wk-list">
+          ${hol ? `<div class="wk-hol">${U.esc(hol)}</div>` : ''}
+          ${items || `<button class="wk-empty" onclick="App.navigate('register',{date:'${k}'})">＋ 일정 추가</button>`}
+          ${l.length > 1 ? `<button class="wk-day-link" onclick="App.navigate('day',{date:'${k}',from:'calendar'})">하루 동선 보기 ›</button>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="card cal wkv">
+        <div class="cal-head">
+          <button onclick="CalendarView.shiftWeek(-1)" aria-label="이전 주">‹</button>
+          <b>${title}</b>
+          <button onclick="CalendarView.shiftWeek(1)" aria-label="다음 주">›</button>
+        </div>
+        <div class="wk-sub">${total ? `이번 주 일정 ${total}개` : '이 주에는 일정이 없어요'}${keys.includes(today) ? '' : ` · <button class="link" onclick="CalendarView.goToday()">오늘로</button>`}</div>
+        ${days}
+      </div>`;
+  },
+
+  select(d) {
+    if (d === this.selected && !State.byDate(d).length) return App.navigate('register', { date: d });
+    this.selected = d; this.render();
+  },
+  shift(n) { this.month = new Date(this.month.getFullYear(), this.month.getMonth() + n, 1); this.render(); },
+  shiftWeek(n) {
+    const d = Planner.at(this.selected, '12:00'); d.setDate(d.getDate() + 7 * n);
+    this.selected = U.ymd(d); this.month = new Date(d.getFullYear(), d.getMonth(), 1); this.render();
+  },
+  goToday() { this.selected = U.today(); this.month = null; this.render({ date: this.selected }); }
 };

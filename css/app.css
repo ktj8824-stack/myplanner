@@ -555,3 +555,52 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .tl-item.home .tl-dot { background: var(--navy); opacity: .55; }
 .toggle-row > span.tr-2 { flex-direction: column; align-items: flex-start; gap: 2px; }
 .tr-2 small { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+
+/* ---------- 캘린더: 월(일정 이름) · 주 ---------- */
+.cal-top { display: flex; align-items: center; justify-content: space-between; }
+.cal-switch { display: flex; background: #E9EBEF; border-radius: 12px; padding: 3px; }
+.cal-switch button { min-width: 44px; height: 32px; border-radius: 9px; font-weight: 700; font-size: 14px; color: var(--muted); }
+.cal-switch button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(31, 42, 68, .12); }
+.cal { position: relative; }
+.cal-today { position: absolute; top: 20px; right: 64px; height: 30px; padding: 0 12px; border-radius: 99px; background: var(--blue-soft); color: var(--blue); font-weight: 700; font-size: 13px; }
+.cal-grid.month { gap: 0; row-gap: 4px; }
+.cal-grid.month .cal-day { aspect-ratio: auto; min-height: 66px; border-radius: 12px; justify-content: flex-start; padding: 5px 2px 4px; gap: 2px; font-size: 14px; min-width: 0; }
+.cal-grid.month .cal-day .n { width: 26px; height: 26px; line-height: 26px; border-radius: 50%; text-align: center; flex: none; }
+.cal-grid.month .cal-day.today .n { background: var(--blue-soft); }
+.cal-grid.month .cal-day.sel { background: var(--bg); color: inherit; }
+.cal-grid.month .cal-day.sel .n { background: var(--navy); color: #fff; }
+.cal-grid.month .cal-day.gone { opacity: .55; }
+.cal-grid.month .cal-day.sel.gone { opacity: 1; }
+.cal-day em { font-style: normal; display: block; width: 100%; font-size: 10.5px; font-weight: 600; line-height: 1.35; padding: 1px 3px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: clip; text-align: left; color: var(--ink); letter-spacing: -.03em; }
+.cal-day em.ev { background: var(--blue-soft); color: #1B64DA; }
+.cal-day em.ev.car, .cal-day em.ev.taxi { background: #FFF1DB; color: #B26A00; }
+.cal-day em.ev.train, .cal-day em.ev.flight { background: #E8EAF2; color: var(--navy); }
+.cal-day em.hol { color: var(--red); background: none; padding: 0 3px; font-size: 10px; }
+.cal-day em.more { color: var(--muted); background: none; padding: 0 3px; font-size: 10px; }
+.empty-add { width: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 12px; border-radius: 18px; border: 1.5px dashed #D5D9E0; background: transparent; }
+.empty-add b { font-size: 15px; color: var(--ink-2); }
+.empty-add small { font-size: 13px; color: var(--blue); font-weight: 600; }
+
+.cal.wkv { display: block; padding: 16px 14px 6px; }
+.wk-sub { margin: -2px 6px 8px; font-size: 13px; color: var(--muted); }
+.wk-sub .link { padding: 0; font-size: 13px; }
+.wk-day { display: flex; gap: 12px; padding: 12px 4px; border-top: 1px solid var(--line); }
+.wk-day.gone { opacity: .5; }
+.wk-date { width: 40px; flex: none; display: flex; flex-direction: column; align-items: center; padding-top: 2px; }
+.wk-date small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.wk-date b { font-size: 20px; font-weight: 800; line-height: 1.3; }
+.wk-date.sun b, .wk-date.sun small { color: var(--red); }
+.wk-date.sat b, .wk-date.sat small { color: var(--blue); }
+.wk-day.today .wk-date b { width: 34px; height: 34px; line-height: 34px; text-align: center; border-radius: 50%; background: var(--navy); color: #fff; margin-top: 2px; }
+.wk-list { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.wk-hol { font-size: 12px; color: var(--red); font-weight: 700; }
+.wk-ev { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; border-radius: 14px; background: var(--bg); text-align: left; }
+.wk-t { display: flex; flex-direction: column; width: 44px; flex: none; }
+.wk-t b { font-size: 15px; font-weight: 800; color: var(--orange-ink); font-variant-numeric: tabular-nums; }
+.wk-t small { font-size: 11px; color: var(--muted); }
+.wk-m { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.wk-m b { font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-m small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wk-ev .wk-ic { width: 26px; height: 26px; flex: none; }
+.wk-empty { align-self: flex-start; padding: 8px 2px; font-size: 13.5px; color: var(--muted); font-weight: 600; }
+.wk-day-link { align-self: flex-end; font-size: 12.5px; color: var(--blue); font-weight: 700; padding: 2px 4px; }
