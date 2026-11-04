@@ -21,13 +21,13 @@ const Timeline = {
     const hol = Recur.holiday(s.date);
 
     const routeLeg = Planner.isTrip(s.mode) ? s.accessRoute : s.route;
-    const info = s.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, `여유 ${s.bufferMin}분`] : [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
+    const info = plan.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, `여유 ${s.bufferMin}분`] : [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
     if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(routeLeg.summary) : ''}`);
     if (plan.homeAt) info.push(`🏠 ${U.hm(plan.homeAt)} 집 도착${plan.lastLeaveAt ? ` · 막차 ${U.esc(s.goHome.lastTime)}` : ''}`);
     if (Planner.isTrip(s.mode) && s.trip.number) info.push(`${U.modeIcon(s.mode)} ${U.esc(s.trip.number)}${s.trip.seat ? ' · ' + U.esc(s.trip.seat) : ''}`);
     App.setMain(`
       <header class="subhead"><button class="back" onclick="App.navigate('home')" aria-label="뒤로"></button><h1>일정</h1>
-        ${s._shared ? '<span></span>' : `<button class="round-btn side" onclick="App.navigate('register',{id:'${s.baseId || s.id}'})" aria-label="수정">✏️</button>`}</header>
+        ${s._shared ? '<span></span>' : `<button class="round-btn side" onclick="App.navigate('register',{id:'${s.baseId || s.id}',back:{screen:'timeline',params:{id:'${s.occId || s.id}'}}})" aria-label="수정">✏️</button>`}</header>
 
       ${s._shared ? `<div class="shared-bar">👨‍👩‍👧 <b>${U.esc(s._shared.from)}</b>님이 공유한 일정 · 내 폰에서도 알람이 울려요</div>` : ''}
       ${rep ? `
@@ -43,7 +43,7 @@ const Timeline = {
         <div class="lb"><span>${U.dateLabel(s.date)}${hol ? ` · ${hol}` : ''}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
-          ${s.chained ? `<div class="on"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
+          ${plan.chained ? `<div class="on"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
           <div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div class="on"><small>기상${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
@@ -109,7 +109,7 @@ const Timeline = {
       </div>` : `
       <div class="actions">
         <button class="btn ghost danger" onclick="Timeline.remove()">삭제</button>
-        <button class="btn ghost" onclick="App.navigate('register',{id:'${s.baseId || s.id}'})">${rep ? '반복 전체 수정' : '수정'}</button>
+        <button class="btn ghost" onclick="App.navigate('register',{id:'${s.baseId || s.id}',back:{screen:'timeline',params:{id:'${s.occId || s.id}'}}})">${rep ? '반복 전체 수정' : '수정'}</button>
       </div>`}
     `);
     this.showAlarms(s, plan);
@@ -414,7 +414,7 @@ const Settings = {
       ${reps.length ? `
         <div class="card">
           <label class="lbl">반복 일정</label>
-          ${reps.map(s => `<button class="row flat" onclick="App.navigate('register',{id:'${s.id}'})">
+          ${reps.map(s => `<button class="row flat" onclick="App.navigate('register',{id:'${s.id}',back:{screen:'settings'}})">
             <div class="row-ic">🔁</div>
             <div class="row-main"><b>${U.esc(s.title)}</b><small>${U.esc(Recur.label(s))} · ${Planner.isTrip(s.mode) ? s.trip.departTime + ' 출발' : s.arriveBy + ' 도착'}</small></div>
             <div class="row-side">›</div></button>`).join('')}
@@ -580,6 +580,10 @@ const Settings = {
   test() { Alarm.showRinging('⏰ 알람 미리 듣기', '이런 소리로 깨워 드려요.', ''); },
   async reset() {
     if (!confirm('모든 일정을 지울까요? 되돌릴 수 없어요.')) return;
-    State.schedules = []; State.save(); await Alarm.rescheduleAll(); U.toast('모두 지웠어요.'); App.navigate('home');
+    // 내 일정은 지운 것으로 기록해서 로그인한 다른 기기·서버에서도 지워지게 (공유받은 일정은 남김)
+    const mine = State.schedules.filter(s => !s._shared && !s.demo).map(s => s.id);
+    State.schedules = State.schedules.filter(s => s._shared); State.save();
+    if (typeof Cloud !== 'undefined') mine.forEach(id => Cloud.markDirty(id));
+    await Alarm.rescheduleAll(); U.toast('모두 지웠어요.'); App.navigate('home');
   }
 };

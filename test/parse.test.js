@@ -38,4 +38,16 @@ check('지난 달 → 내년', '1월 8일 오후 3시 결혼식 더채플앳청�
 check('빈 문자', '안녕하세요 반갑습니다', { kind: 'event', date: '', time: '' });
 
 if (fails) { console.log(`\n${fails}개 실패`); process.exit(1); }
+{
+  const now2 = new Date(2026, 10, 4, 15, 0); // 2026-11-04 (수) 15:00
+  const P2 = (t) => { const r = Parse.parse(t, now2); return r.date + ' ' + r.time; };
+  assert.strictEqual(P2('[OO병원] 2026.11.05 14:00 내과 진료'), '2026-11-05 14:00');   // 숫자 날짜 바로 뒤 시각
+  assert.strictEqual(P2('11/05 14:00 치과'), '2026-11-05 14:00');
+  assert.strictEqual(P2('내일 밤 12시 홍대입구역'), '2026-11-06 00:00');            // 밤 12시 = 다음 날 0시
+  assert.strictEqual(P2('자정에 강남역에서').trim(), '00:00');
+  assert.strictEqual(P2('정오에 시청역').trim(), '12:00');
+  assert.strictEqual(P2('[OO병원] 진료 1시간 전까지 오세요. 11월 6일 오후 3시'), '2026-11-06 15:00'); // '1시간'은 시각 아님
+  assert.strictEqual(P2('이번주 월요일 10시 강남역'), '2026-11-02 10:00');
+  console.log('✓ 숫자 날짜 뒤 시각 · 밤 12시·자정·정오 · N시간 · 이번 주');
+}
 console.log('\n문자 해석 확인 완료');

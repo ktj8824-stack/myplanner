@@ -53,7 +53,7 @@ const DayPlan = {
         r.conflict = x.plan.departAt < pStart || (!!pEnd && x.plan.departAt < pEnd);
         const place = this.placeOf(prev);
         r.prevPlace = place;
-        r.canChain = !!place && !x.s.chained && !x.s._shared && !this.near(x.s.origin, place);
+        r.canChain = !!place && !x.plan.chained && !x.s._shared && !this.near(x.s.origin, place);
       }
       return r;
     });
@@ -74,7 +74,7 @@ const DayView = {
     const ymd = this.date || U.today();
     const list = DayPlan.build(this.entries(ymd));
     const now = Date.now();
-    const first = list.find(x => !x.s.chained);
+    const first = list.find(x => !x.plan.chained);
     const last = list[list.length - 1];
     const hol = Recur.holiday(ymd);
     const back = this.from === 'home' ? "App.navigate('home')" : this.from.startsWith('timeline:') ? `App.navigate('timeline',{id:'${this.from.slice(9)}'})` : "App.navigate('calendar')";
@@ -93,7 +93,7 @@ const DayView = {
         }
         if (x.canChain && !trip) h += `<button class="dv-chain" onclick="DayView.chain('${s.baseId || s.id}','${(x.prev.s.baseId || x.prev.s.id)}')">📍 ${U.esc(x.prevPlace.name)}에서 바로 출발로 바꾸기 ›</button>`;
       }
-      if (!s.chained) h += `<div class="tl-item wake ${past(plan.wakeAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.wakeAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>기상 · 준비</b><small>준비 ${s.prepMin}분${i ? ' · 집에 들렀다 가는 일정' : ''}</small></div></div>`;
+      if (!plan.chained) h += `<div class="tl-item wake ${past(plan.wakeAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.wakeAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>기상 · 준비</b><small>준비 ${s.prepMin}분${i ? ' · 집에 들렀다 가는 일정' : ''}</small></div></div>`;
       h += `<div class="tl-item depart ${past(plan.departAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.departAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>${U.esc((s.origin && s.origin.name) || '집')}에서 출발</b><small>${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${Planner.MODES[trip ? s.trip.accessMode : s.mode].label}${(trip ? s.accessRoute : s.route) ? ' · ' + U.durLabel((trip ? s.accessRoute : s.route).travelMin) : ''}</small></div></div>`;
       h += `<div class="tl-item event ${past(x.start)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(x.start)}</div><div class="tl-dot"></div><div class="tl-body"><b>${U.esc(s.title)}</b><small>${trip ? `${U.esc(s.trip.number || Planner.MODES[s.mode].label)} 탑승 · ${U.esc((s.trip.departStation && s.trip.departStation.name) || '')}` : U.esc((s.dest && s.dest.name) || '')}${x.end ? ` · ${U.hm(x.end)}까지` : ''}</small></div></div>`;
       if (plan.homeAt && i === list.length - 1) {
@@ -128,7 +128,25 @@ const DayView = {
     const prevOcc = Recur.resolve(prevId + (Recur.isRepeating(p) ? '@' + this.date : ''));
     const place = DayPlan.placeOf({ s: prevOcc || p });
     if (!place) return;
+    if (Recur.isRepeating(b)) return this.chainDay(b, place, prevId);
     App.navigate('register', { id, chainFrom: { place, from: prevId } });
+  },
+
+  /** 반복 일정은 '이 날만' 앞 일정 장소에서 출발로 (다른 날 출근은 그대로 집에서) */
+  async chainDay(b, place, prevId) {
+    const ymd = this.date;
+    const occ = Recur.instance(b, ymd);
+    U.toast('이 날만 앞 일정 장소에서 출발하도록 경로를 찾는 중…');
+    const origin = { name: place.name, address: place.address || '', lat: place.lat, lng: place.lng };
+    let route = null;
+    try { route = (await Routes.options(origin, occ.dest, occ.mode, occ.arriveBy ? Planner.at(ymd, occ.arriveBy) : null))[0] || null; } catch (e) {}
+    if (!route) return U.toast('경로를 찾지 못했어요. 잠시 후 다시 해 주세요');
+    const ov = { ...((b.overrides || {})[ymd] || {}), origin, route, chained: { from: prevId }, prepMin: 0 };
+    b.overrides = { ...(b.overrides || {}), [ymd]: ov };
+    State.upsert(b);
+    await Alarm.rescheduleAll();
+    U.toast(`이 날만 ${place.name}에서 바로 출발해요. 다른 날은 그대로예요`);
+    this.render();
   }
 };
 

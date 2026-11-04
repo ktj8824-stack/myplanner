@@ -168,8 +168,19 @@ const Planner = {
    * @param s  일정 { date, arriveBy, mode, prepMin, bufferMin, route, trip, accessRoute, egressRoute }
    * @returns  { wakeAt, departAt, arriveAt, items[], warnings[] }
    */
+  /** 앞 일정에서 바로 이어서 가는지 — 앞 일정이 지워졌거나 그날 건너뛰었으면 아님 */
+  chainState(s) {
+    if (!s.chained) return { chained: false, broken: false };
+    if (typeof State === 'undefined' || !State.get || typeof Recur === 'undefined') return { chained: true, broken: false };
+    const p = State.get(s.chained.from);
+    const ok = !!p && Recur.occursOn(p, s.date);
+    return { chained: ok, broken: !ok };
+  },
+
   compute(s) {
-    const prep = Number(s.prepMin ?? 60);
+    const { chained, broken } = this.chainState(s);
+    // 이어서 가던 일정이 혼자 남으면 준비 시간 0으로 깨우지 않도록 기본 1시간
+    const prep = broken && !Number(s.prepMin) ? 60 : Number(s.prepMin ?? 60);
     const buffer = Number(s.bufferMin ?? 10);
     const warnings = [];
     let items = [];
@@ -229,14 +240,14 @@ const Planner = {
     }
 
     // 앞 일정 장소에서 바로 이어서 가는 일정(s.chained)은 기상·준비 없이 출발부터
-    let wakeAt = s.chained ? departAt : this.addMin(departAt, -prep);
+    let wakeAt = chained ? departAt : this.addMin(departAt, -prep);
     // 실시간 교통이 평소보다 빨라도 기상은 늦추지 않음 (출발만 늦춤)
-    if (!s.chained && this.liveFor(s) && s._noLive !== true) {
+    if (!chained && this.liveFor(s) && s._noLive !== true) {
       const base = this.compute({ ...s, live: null, _noLive: true });
       if (base.wakeAt < wakeAt) wakeAt = base.wakeAt;
     }
     const departRow = { at: departAt, kind: 'depart', icon: '🏠', title: `${(s.origin && s.origin.name) || '집'}에서 출발`, detail: this.isTrip(s.mode) ? `${this.MODES[(s.trip && s.trip.accessMode) || 'transit'].label}로 ${(s.trip && s.trip.departStation && s.trip.departStation.name) || '역'}까지` : this.MODES[s.mode].label };
-    if (s.chained) items.unshift({ ...departRow, title: `${(s.origin && s.origin.name) || '앞 일정 장소'}에서 이어서 출발` });
+    if (chained) items.unshift({ ...departRow, title: `${(s.origin && s.origin.name) || '앞 일정 장소'}에서 이어서 출발` });
     else items.unshift({ at: wakeAt, kind: 'wake', icon: '⏰', title: '기상 · 준비 시작', detail: `준비 시간 ${prep}분` }, departRow);
     // 출발 행 바로 뒤의 첫 이동 항목과 시각이 같으므로, 출발이 먼저 보이도록 안정 정렬
     if (s.arriveBy) items.push({ at: this.at(s.date, s.arriveBy), kind: 'event', icon: '🎯', title: s.title || '일정 시작', detail: (s.dest && s.dest.name) || '' });
@@ -273,7 +284,7 @@ const Planner = {
 
     const HM0 = /^\d{1,2}:\d{2}$/;
     const hasTime = this.isTrip(s.mode) ? !!(s.trip && HM0.test(s.trip.departTime || '')) : HM0.test(s.arriveBy || '');
-    if (hasTime && !s.chained && (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString())) {
+    if (hasTime && !chained && (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString())) {
       warnings.push('기상 시간이 새벽이거나 전날이에요. 준비 시간·여유 시간을 확인해 주세요.');
     }
     if (s.route && s.route.source === 'estimate' || s.accessRoute && s.accessRoute.source === 'estimate') {
@@ -287,7 +298,8 @@ const Planner = {
     if (!invalid && noRoute && s.mode !== 'walk') warnings.push('경로 정보가 없어 이동 시간이 빠진 채로 계산됐어요. 일정을 수정해 경로를 찾아 주세요.');
     const w = this.weatherFor(s);
     const weather = w && this.WEATHER[w.kind] ? { ...w, ...this.WEATHER[w.kind], extraMin: wx } : null;
-    return { invalid, wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt };
+    if (broken) warnings.unshift(`앞 일정이 이 날 없어져서 ${(s.origin && s.origin.name) || '출발지'}에서 따로 출발하는 것으로 계산했어요. 출발지를 확인해 주세요.`);
+    return { invalid, chained, wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
@@ -295,7 +307,8 @@ const Planner = {
     const out = [];
     if (plan.invalid) return out;
     const opt = Object.assign({ wake: true, preDepart: true, depart: true, nightBefore: true }, s.alarm || {});
-    if (s.chained) opt.wake = false; // 앞 일정에서 바로 이어서 가는 일정은 깨울 필요 없음 (출발 알람만)
+    if (plan.chained) opt.wake = false; // 앞 일정에서 바로 이어서 가는 일정은 깨울 필요 없음 (출발 알람만)
+    else if (s.chained) { opt.wake = true; opt.nightBefore = true; } // 앞 일정이 없어진 날: 다시 깨워 줌
     const firstMove = plan.items.find(i => i.kind === 'move' || i.kind === 'board');
     const firstLabel = firstMove ? `${firstMove.title}${firstMove.detail ? ' (' + firstMove.detail + ')' : ''}` : '';
     const hm = d => U.hm(d);
@@ -308,8 +321,8 @@ const Planner = {
       night.setDate(night.getDate() - 1);
       if (night.getTime() > plan.wakeAt.getTime() - 60 * 60000) night = this.addMin(plan.wakeAt, -120);
       const sameDay = night.toDateString() === plan.wakeAt.toDateString();
-      const what = s.chained ? '출발' : '기상';
-      const t = s.chained ? plan.departAt : plan.wakeAt;
+      const what = plan.chained ? '출발' : '기상';
+      const t = plan.chained ? plan.departAt : plan.wakeAt;
       out.push({ key: 'night', at: night, title: `${sameDay ? '오늘' : '내일'} ${hm(t)} ${what} 예정`,
         body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}${packTxt}` });
     }

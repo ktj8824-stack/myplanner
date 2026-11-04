@@ -12,6 +12,9 @@ const Register = {
   QUICK: ['출근', '회의', '미팅', '병원', '약속', '등교', '여행', '면접'],
 
   render(params = {}) {
+    this._seq = (this._seq || 0) + 1; // 이전 화면에서 찾던 경로 결과는 버림
+    this.loading = false;
+    this.backTo = params.back || null;  // 수정 화면을 연 곳 (반복 일정의 그 회차 등)
     if (params.id && State.get(params.id) && State.get(params.id)._shared) {
       U.toast('가족이 공유한 일정은 보낸 사람만 고칠 수 있어요');
       return App.navigate('timeline', { id: params.id });
@@ -29,7 +32,9 @@ const Register = {
     if (params.id && State.get(params.id)) {
       this.d = JSON.parse(JSON.stringify(State.get(params.id)));
       this.d.repeat = this.d.repeat || { type: 'none', days: [], until: '', skipHolidays: true };
+      this.d.alarm = this.d.alarm || { ...State.settings.alarm };
       this.editing = true;
+      this.opts = []; this.accessOpts = [];
     } else if (!params.keep) {
       const st = State.settings;
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
@@ -46,7 +51,7 @@ const Register = {
     }
     if (params.chainFrom && this.d) { this.applyChain(params.chainFrom.place, params.chainFrom.from); U.toast('앞 일정 장소에서 출발하도록 바꿨어요. 경로를 확인하고 저장하세요'); }
     this.draw();
-    if (params.id) this.fetchRoutes();
+    if (params.id) this.fetchRoutes({ keep: true }); // 수정: 고른 경로는 그대로 두고 후보만 채움
     if (params.paste) PasteImport.open(params.text || '');
   },
 
@@ -57,7 +62,7 @@ const Register = {
       return `<button class="input place-btn ${p ? '' : 'empty'}" onclick="Register.pick('${field}','${title}')">${U.icon(icon)} ${p ? U.esc(p.name) : emptyText}</button>`;
     };
     App.setMain(`
-      <header class="subhead"><button class="back" onclick="${this.editing ? `App.navigate('timeline',{id:'${d.id}'})` : `App.navigate('home')`}" aria-label="뒤로"></button><h1>${this.editing ? '일정 수정' : '새 일정'}</h1><span></span></header>
+      <header class="subhead"><button class="back" onclick="Register.back()" aria-label="뒤로"></button><h1>${this.editing ? '일정 수정' : '새 일정'}</h1><span></span></header>
       ${this.editing ? '' : `<button class="paste-cta" onclick="PasteImport.open()">
         <span class="paste-ic"><img src="img/icons/message.png" alt=""></span><span><b>받은 문자로 채우기</b><small>KTX·항공권·병원 예약 문자 붙여넣기</small></span><span class="chev">›</span>
       </button>`}
@@ -191,10 +196,17 @@ const Register = {
     Routes.openNav('kakao', 'transit', this.d.dest, home);
   },
 
+  back() {
+    const to = this.backTo;
+    if (to && to.screen) return App.navigate(to.screen, to.params || {});
+    if (this.editing && this.d) return App.navigate('timeline', { id: this.d.id });
+    App.navigate('home');
+  },
+
   /** 같은 날 앞 일정이 있으면 '그 장소에서 바로 출발' 버튼 */
   chainChips() {
     const d = this.d;
-    if (!d || !d.date || typeof DayPlan === 'undefined') return '';
+    if (!d || !d.date || typeof DayPlan === 'undefined' || Recur.isRepeating(d)) return ''; // 반복 전체에 적용되면 안 됨 (하루 동선에서 그날만)
     const mine = Planner.isTrip(d.mode) ? (d.trip.departTime || '23:59') : (d.arriveBy || '23:59');
     const before = State.byDate(d.date).filter(o => (o.baseId || o.id) !== d.id).map(o => ({ s: o, plan: Planner.compute(o) }))
       .filter(x => DayPlan.placeOf(x) && U.hm(DayPlan.startOf(x)) < mine && !DayPlan.near(DayPlan.placeOf(x), d.origin));
@@ -348,7 +360,7 @@ const Register = {
     }
     if (k === 'date' || k === 'arriveBy') {
       // 자가용·택시는 도착 시각 기준 예측이라 다시 조회
-      if (['car', 'taxi'].includes(this.d.mode)) return this.fetchRoutes();
+      if (['car', 'taxi'].includes(this.d.mode)) { this.d.route = null; this.opts = []; return this.fetchRoutes(); }
     }
     this.draw();
   },
@@ -362,13 +374,18 @@ const Register = {
   pick(field, title) {
     PlacePicker.open(title, p => {
       this.d[field] = p;
+      this.d.route = null; this.d.accessRoute = null; this.opts = []; this.accessOpts = []; // 장소가 바뀌면 경로 새로
       if (field === 'origin') this.unchain();
       this.draw(); this.fetchRoutes();
       if (field === 'dest' && this.d.goHome && this.d.goHome.on) { this.d.goHome.route = null; this.fetchHome(); }
     });
   },
   pickTrip(field, title) {
-    PlacePicker.open(title, p => { this.d.trip[field] = p; this.draw(); this.fetchRoutes(); }, { allowHome: false });
+    PlacePicker.open(title, p => {
+      this.d.trip[field] = p;
+      if (field === 'departStation') { this.d.accessRoute = null; this.accessOpts = []; } else this.d.egressRoute = null;
+      this.draw(); this.fetchRoutes();
+    }, { allowHome: false });
   },
 
   chooseRoute(i) {
@@ -377,32 +394,44 @@ const Register = {
     this.refreshParts();
   },
 
-  async fetchRoutes() {
+  /**
+   * 경로 후보 찾기. keep: 이미 고른 경로가 있으면 그대로 두고 후보 목록만 채움 (수정 화면)
+   * 늦게 도착한 이전 요청 결과(다른 일정·다른 수단)는 버림
+   */
+  async fetchRoutes({ keep = false } = {}) {
     const d = this.d;
+    const seq = this._seq = (this._seq || 0) + 1;
+    const stale = () => seq !== this._seq || d !== this.d;
     const isTrip = Planner.isTrip(d.mode);
+    const mode0 = d.mode, access0 = d.trip && d.trip.accessMode;
     const from = d.origin, to = isTrip ? d.trip.departStation : d.dest;
     if (!from || !to) return this.refreshParts();
+    const same = (a, b) => a && b && JSON.stringify((a.steps || []).map(s => s.label)) === JSON.stringify((b.steps || []).map(s => s.label));
+    const withChosen = (list, chosen) => (chosen && !list.some(r => same(r, chosen)) ? [chosen, ...list] : list);
     this.loading = true; this.refreshParts();
     try {
       if (isTrip) {
-        const mode = d.trip.accessMode;
         const dep = d.trip.departTime ? Planner.at(d.date, d.trip.departTime) : null;
-        this.accessOpts = await Routes.options(from, to, mode, dep);
-        d.accessRoute = this.accessOpts[0] || null;
-        // 도착역 → 목적지
-        if (d.trip.arriveStation && d.dest) {
-          const eg = await Routes.options(d.trip.arriveStation, d.dest, d.trip.egressMode || 'transit', null);
-          d.egressRoute = eg[0] || null;
-        } else d.egressRoute = null;
+        const list = await Routes.options(from, to, access0, dep);
+        let eg = null;
+        if (d.trip.arriveStation && d.dest && !(keep && d.egressRoute)) eg = (await Routes.options(d.trip.arriveStation, d.dest, d.trip.egressMode || 'transit', null))[0] || null;
+        if (stale() || d.mode !== mode0 || d.trip.accessMode !== access0) return;
+        if (keep && d.accessRoute) this.accessOpts = withChosen(list, d.accessRoute);
+        else { this.accessOpts = list; d.accessRoute = list[0] || null; }
+        if (eg) d.egressRoute = eg;
+        else if (!(d.trip.arriveStation && d.dest)) d.egressRoute = null;
       } else {
         const due = d.arriveBy ? Planner.at(d.date, d.arriveBy) : null;
-        this.opts = await Routes.options(from, to, d.mode, due);
-        d.route = this.opts[0] || null;
+        const list = await Routes.options(from, to, mode0, due);
+        if (stale() || d.mode !== mode0) return;
+        if (keep && d.route) this.opts = withChosen(list, d.route);
+        else { this.opts = list; d.route = list[0] || null; }
       }
     } catch (e) {
       console.error(e);
-      U.toast('경로를 찾지 못했어요.');
+      if (!stale()) U.toast('경로를 찾지 못했어요.');
     }
+    if (stale()) return;
     this.loading = false;
     this.refreshParts();
   },

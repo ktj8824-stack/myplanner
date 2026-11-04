@@ -43,7 +43,7 @@ const Parse = {
     if ((m = t.match(/(20\d{2})\s*[.\-/년]\s*(\d{1,2})\s*[.\-/월]\s*(\d{1,2})\s*일?/))) return mk(+m[1], +m[2], +m[3]);
     if ((m = t.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/))) return guessYear(+m[1], +m[2]);
     // 11/5(수), 11.05(화) — 시간·소수와 헷갈리지 않게 요일 괄호나 공백이 뒤따를 때만
-    if ((m = t.match(/(?:^|[^\d.:/])(\d{1,2})\s*[./]\s*(\d{1,2})(?=\s*\(\s*[일월화수목금토]|\s+[^\d:])/))) {
+    if ((m = t.match(/(?:^|[^\d.:/])(\d{1,2})\s*[./]\s*(\d{1,2})(?=\s*\(\s*[일월화수목금토]|\s+[^\d:]|\s+\d{1,2}\s*(?::|시)|\s*$)/))) {
       const mo = +m[1], d = +m[2];
       if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return guessYear(mo, d);
     }
@@ -60,6 +60,9 @@ const Parse = {
         mondayNext.setDate(today.getDate() + ((8 - today.getDay()) % 7 || 7));
         dt.setTime(mondayNext.getTime());
         dt.setDate(dt.getDate() + ((target + 6) % 7));
+      } else if (m[1] && /이번|금주/.test(m[1])) {
+        // 이번 주 (월요일 시작) — 이미 지난 요일이어도 이번 주 그날
+        dt.setDate(today.getDate() - ((today.getDay() + 6) % 7) + ((target + 6) % 7));
       } else {
         let add = (target - today.getDay() + 7) % 7;
         if (add === 0 && !(m[1])) add = 0; // "수요일" 당일이면 오늘
@@ -73,11 +76,15 @@ const Parse = {
   /* ---------- 시간 (문자 속 모든 시각, 등장 순서대로) ---------- */
   findTimes(t) {
     const out = [];
-    const re = /(오전|오후|아침|낮|저녁|밤|새벽|AM|PM|am|pm)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시\s*(?:(\d{1,2})\s*분|(반))?)/g;
+    t = t.replace(/자정/g, '밤 12시').replace(/정오/g, '낮 12시');
+    // '1시간 전까지'의 1시는 시각이 아님 → 시(?!간)
+    const re = /(오전|오후|아침|낮|저녁|밤|새벽|AM|PM|am|pm)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시(?!간)\s*(?:(\d{1,2})\s*분|(반))?)/g;
     let m;
     while ((m = re.exec(t))) {
-      const before = t.slice(Math.max(0, m.index - 1), m.index);
-      if (/[\d.]/.test(before)) continue; // 날짜·번호 일부
+      // 숫자 바로 앞 글자로 판단 (공백으로 시작하는 경우 날짜 뒤 '2026.11.05 14:00'도 시각으로)
+      const di = m.index + m[0].indexOf(m[2], m[1] ? m[1].length : 0);
+      const before = t.slice(Math.max(0, di - 1), di);
+      if (!m[1] && /[\d.]/.test(before)) continue; // 날짜·번호 일부
       const after = t.slice(m.index + m[0].length, m.index + m[0].length + 2);
       if (/^\s*분/.test(after) && !m[3]) continue;
       let h = +m[2];
@@ -86,12 +93,14 @@ const Parse = {
       if (h > 24 || min > 59) continue;
       if (!isColon && !/시/.test(m[0])) continue;
       const ap = m[1] || '';
-      if (/오후|저녁|밤|PM|pm/.test(ap) && h < 12) h += 12;
+      let nextDay = false;
+      if (/밤|새벽/.test(ap) && h === 12) { h = 0; nextDay = true; } // 밤 12시 = 그날 자정 → 다음 날 0시
+      else if (/오후|저녁|밤|PM|pm/.test(ap) && h < 12) h += 12;
       else if (/낮/.test(ap) && h < 6) h += 12;
       else if (/오전|아침|새벽|AM|am/.test(ap) && h === 12) h = 0;
       else if (!ap && !isColon && h >= 1 && h <= 6) h += 12; // "2시 진료" → 오후 2시
       if (h === 24) h = 0;
-      out.push({ hm: `${this.pad(h)}:${this.pad(min)}`, index: m.index, end: m.index + m[0].length, raw: m[0].trim() });
+      out.push({ hm: `${this.pad(h)}:${this.pad(min)}`, index: m.index, end: m.index + m[0].length, raw: m[0].trim(), nextDay });
     }
     return out;
   },
@@ -215,6 +224,7 @@ const Parse = {
     const t = this.normalize(text);
     const times = this.findTimes(t);
     const dateObj = this.findDate(t, now);
+    if (dateObj && times[0] && times[0].nextDay) dateObj.setDate(dateObj.getDate() + 1); // '내일 밤 12시' → 모레 0시
     const date = dateObj ? `${dateObj.getFullYear()}-${this.pad(dateObj.getMonth() + 1)}-${this.pad(dateObj.getDate())}` : '';
     const isTrain = /KTX|SRT|ITX|새마을|무궁화|누리로|코레일|승차권|열차|호차/i.test(t);
     const airline = new RegExp(`(?:^|[^A-Z0-9])(${Object.keys(this.AIRLINES).join('|')})\\s?\\d{2,4}(?![\\d:])`).test(t);
