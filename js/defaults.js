@@ -6,5 +6,7 @@
    ========================================= */
 window.APP_DEFAULTS = {
   ROUTE_PROXY_URL: 'https://iaccdqcthhtvvetmbryr.supabase.co/functions/v1/myplanner-route',
+  // 카카오 '네이티브 앱 키' (버디플래너와 같은 카카오 앱 · 앱 안에 들어가는 공개 값, REST 키 아님)
+  KAKAO_NATIVE_APP_KEY: '023bb498015836d0a4a922373e48f39f',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhY2NkcWN0aGh0dnZldG1icnlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0MzM1MDksImV4cCI6MjEwOTAwOTUwOX0.WUuGsdr-mG0gEqhEFQTS0ew8Kr6uy9l7PZ6pXe5zbRM'
 };

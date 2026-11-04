@@ -75,6 +75,10 @@ const Cloud = {
       || (window.Capacitor.registerPlugin && window.Capacitor.registerPlugin('CapacitorKakaoLogin')));
     if (K && K.login) {
       try {
+        if (K.initialize && !this._kakaoReady) {
+          await K.initialize({ appKey: Routes.key('KAKAO_NATIVE_APP_KEY') });
+          this._kakaoReady = true;
+        }
         const r = await K.login();
         if (!r || !r.idToken) throw new Error('카카오 ID 토큰이 없어요 (카카오 디벨로퍼스에서 OpenID Connect를 켜 주세요)');
         const data = await this._auth('token?grant_type=id_token', { provider: 'kakao', id_token: r.idToken });

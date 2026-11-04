@@ -139,6 +139,71 @@ if (!man.includes('android.intent.action.SEND')) {
   if (m) man = man.replace(m[0], m[0].replace(/\s*<\/activity>$/, `${share}        </activity>`));
   else console.warn('⚠️  MainActivity를 찾지 못해 공유 받기를 추가하지 못했어요.');
 }
+// 카카오맵·티맵·카카오T·카카오톡 앱을 열 수 있게 (안드로이드 11+ 앱 목록 보기 제한)
+if (!man.includes('net.daum.android.map')) {
+  const q = `
+    <!-- 길안내·로그인에 쓰는 다른 앱 -->
+    <queries>
+        <package android:name="com.kakao.talk" />
+        <package android:name="net.daum.android.map" />
+        <package android:name="com.skt.tmap.ku" />
+        <package android:name="com.kakao.taxi" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="kakaomap" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tmap" />
+        </intent>
+    </queries>
+`;
+  man = man.replace('</manifest>', `${q}</manifest>`);
+}
+
+// 카카오 로그인 (버디플래너와 같은 카카오 앱 · @team-lepisode/capacitor-kakao-login)
+const kakaoKey = readKakaoKey();
+if (kakaoKey) {
+  fs.mkdirSync(path.join(android, 'res', 'values'), { recursive: true });
+  fs.writeFileSync(path.join(android, 'res', 'values', 'mp_kakao.xml'),
+    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <string name="kakao_app_key" translatable="false">${kakaoKey}</string>\n    <string name="kakao_scheme" translatable="false">kakao${kakaoKey}</string>\n</resources>\n`);
+  if (!man.includes('com.kakao.sdk.auth.AuthCodeHandlerActivity')) {
+    man = man.replace('</application>', `        <!-- 카카오 로그인 돌아오기 -->
+        <activity android:name="com.kakao.sdk.auth.AuthCodeHandlerActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:host="oauth" android:scheme="@string/kakao_scheme" />
+            </intent-filter>
+        </activity>
+    </application>`);
+  }
+  // 카카오 SDK 저장소
+  const gradlePath = path.join(root, 'android', 'build.gradle');
+  if (fs.existsSync(gradlePath)) {
+    let g = fs.readFileSync(gradlePath, 'utf8');
+    if (!g.includes('devrepo.kakao.com')) {
+      g = g.replace(/allprojects\s*\{\s*repositories\s*\{/, m => `${m}\n        maven { url 'https://devrepo.kakao.com/nexus/content/groups/public/' }`);
+      fs.writeFileSync(gradlePath, g);
+    }
+  }
+  console.log('✅ 카카오 로그인 설정 (앱 키·돌아오기 화면·SDK 저장소)');
+} else {
+  console.warn('⚠️  카카오 네이티브 앱 키를 찾지 못해 카카오 로그인 설정을 건너뛰어요 (js/defaults.js의 KAKAO_NATIVE_APP_KEY)');
+}
+
 fs.writeFileSync(manPath, man);
 console.log('✅ AndroidManifest 권한·알람 구성요소 확인 완료');
 console.log('🎉 전체 화면 기상 알람 설치 끝. 안드로이드 스튜디오에서 실행해 보세요.');
+
+/** js/config.js(있으면) → js/defaults.js 순서로 카카오 네이티브 앱 키 */
+function readKakaoKey() {
+  for (const f of ['config.js', 'defaults.js']) {
+    const fp = path.join(root, 'js', f);
+    if (!fs.existsSync(fp)) continue;
+    const m = fs.readFileSync(fp, 'utf8').match(/KAKAO_NATIVE_APP_KEY\s*:\s*'([0-9a-f]{32})'/);
+    if (m) return m[1];
+  }
+  return '';
+}
