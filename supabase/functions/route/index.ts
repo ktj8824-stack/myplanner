@@ -184,7 +184,11 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
 const D = (globalThis as any).Deno;
 if (D && D.serve) {
   // 다른 앱(버디플래너)과 같은 프로젝트에 둘 수 있도록 MYPLANNER_ 접두사 비밀값을 먼저 읽음
-  const env = (k: string) => D.env.get("MYPLANNER_" + k) || D.env.get(k);
+  // 복사할 때 따라온 빈칸·줄바꿈은 지움
+  const env = (k: string) => (D.env.get("MYPLANNER_" + k) || D.env.get(k) || "").trim() || undefined;
+  // 진단용: 키 값은 남기지 않고 길이·빈칸 여부만 기록
+  const raw = D.env.get("MYPLANNER_TMAP_APP_KEY") || "";
+  console.log(`[myplanner-route] boot tmapKey len=${raw.length} trimmedLen=${raw.trim().length} quotes=${/["']/.test(raw)}`);
   D.serve((req: Request) => handle(req, {
     TMAP_APP_KEY: env("TMAP_APP_KEY"),
     ODSAY_API_KEY: env("ODSAY_API_KEY"),
