@@ -8,7 +8,7 @@
 ☐ 3. 티맵 키 → `MYPLANNER_TMAP_APP_KEY` (자동차·도보 시간, 아침 실시간 재계산)
 ☐ 4. ODsay 키(웹 URI `https://ktj8824-stack.github.io` 등록) → `MYPLANNER_ODSAY_API_KEY`, `MYPLANNER_ODSAY_REFERER` (버스·지하철)
 ☐ 5. Supabase → Authentication → URL Configuration → Redirect URLs에 `https://ktj8824-stack.github.io/myplanner/`
-☐ 6. Claude에게 "가족 공유 테이블 적용해" → 승인 (로그인·가족 공유·AI 사용량 테이블)
+✅ 6. 가족 공유·로그인·AI 사용량 테이블 적용 완료 (2026-11-04)
 ☐ 7. AI 비서: Claude API 키 → `MYPLANNER_ANTHROPIC_API_KEY` (+ 시험용 `MYPLANNER_AI_ALLOW_ALL`=`true`)
 ☐ 8. privacy.html·terms.html의 [운영자명]·[문의 이메일] 정하기
 ☐ 9. 로드 플래너(매니저 플래너)에 노출된 카카오·티맵 키 재발급
