@@ -73,9 +73,10 @@ const Home = {
         <div class="lb"><span>다음 일정 · ${U.esc(rel)}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
-          <div class="${wakePassed ? 'dim' : 'on'}"><small>기상${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
-          <div class="${moving ? 'dim' : ''}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>${trip ? '탑승' : '도착'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>
+          ${s.chained ? `<div class="${moving ? 'dim' : 'on'}"><small>출발 · ${U.esc((s.origin && s.origin.name) || '앞 일정')}</small><b>${U.hm(plan.departAt)}</b></div>
+          <div><small>시작</small><b>${s.arriveBy || U.hm(plan.arriveAt)}</b></div>` : `<div class="${wakePassed ? 'dim' : 'on'}"><small>기상${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
+          <div class="${moving ? 'dim' : ''}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>`}
+          ${s.chained ? `<div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div><small>${trip ? '탑승' : '도착'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>
         ${info.length ? `<div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
         <div id="heroBus"></div>
@@ -101,11 +102,11 @@ const Home = {
     const days = [...Array(7)].map((_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
     const has = new Set(Recur.between(State.schedules, U.ymd(days[0]), U.ymd(days[6])).map(s => s.date));
     return `
-      <div class="card" onclick="App.navigate('calendar')">
+      <div class="card">
         <div class="ct"><b>이번 주</b><span>${now.getMonth() + 1}월</span></div>
         <div class="wk">${days.map((d, i) => {
           const k = U.ymd(d);
-          return `<div class="${k === U.today() ? 'td' : ''}"><small class="${i === 0 || Recur.holiday(k) ? 'sun' : i === 6 ? 'sat' : ''}">${U.DOW[i]}</small><b>${d.getDate()}</b><i class="${has.has(k) ? '' : 'n'}"></i></div>`;
+          return `<div class="${k === U.today() ? 'td' : ''}" onclick="${has.has(k) ? `App.navigate('day',{date:'${k}',from:'home'})` : `CalendarView.selected='${k}';CalendarView.month=new Date(${d.getFullYear()},${d.getMonth()},1);App.navigate('calendar')`}"><small class="${i === 0 || Recur.holiday(k) ? 'sun' : i === 6 ? 'sat' : ''}">${U.DOW[i]}</small><b>${d.getDate()}</b><i class="${has.has(k) ? '' : 'n'}"></i></div>`;
         }).join('')}</div>
       </div>`;
   },
@@ -119,7 +120,7 @@ const Home = {
     const extra = Recur.isRepeating(s) ? ' · ' + U.esc(Recur.label(s)).replace(/ · .*/, '') : '';
     return `
       <button class="row" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
-        <div class="row-time"><b>${U.hm(plan.wakeAt)}</b><small>기상</small></div>
+        <div class="row-time"><b>${U.hm(s.chained ? plan.departAt : plan.wakeAt)}</b><small>${s.chained ? '출발' : '기상'}</small></div>
         <div class="row-main">
           <b>${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}${s.demo ? ' <span class="tag demo">예시</span>' : ''}</b>
           <small>${day} · ${timeLabel}${extra}</small>

@@ -21,7 +21,7 @@ const Timeline = {
     const hol = Recur.holiday(s.date);
 
     const routeLeg = Planner.isTrip(s.mode) ? s.accessRoute : s.route;
-    const info = [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
+    const info = s.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, `여유 ${s.bufferMin}분`] : [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
     if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(routeLeg.summary) : ''}`);
     if (Planner.isTrip(s.mode) && s.trip.number) info.push(`${U.modeIcon(s.mode)} ${U.esc(s.trip.number)}${s.trip.seat ? ' · ' + U.esc(s.trip.seat) : ''}`);
     App.setMain(`
@@ -42,13 +42,16 @@ const Timeline = {
         <div class="lb"><span>${U.dateLabel(s.date)}${hol ? ` · ${hol}` : ''}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
-          <div class="on"><small>기상${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
-          <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
+          ${s.chained ? `<div class="on"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
+          <div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div class="on"><small>기상${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
+          <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
+          <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>`}
         </div>
         <div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>
       </div>
 
+      ${(() => { const n = State.byDate(s.date).length; return n > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${s.date}',from:'timeline:${U.esc(s.occId || s.id)}'})">🗓️ 이 날 일정 ${n}개 · 하루 동선 보기</button>` : ''; })()}
       ${plan.weather ? `<div class="note">${U.esc(Weather.label(plan))}</div>` : ''}
       ${plan.live ? `<div class="note live">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="note dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
       ${plan.warnings.map(w => `<div class="note">⚠️ ${U.esc(w)}</div>`).join('')}

@@ -534,3 +534,12 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .pk-add { display: flex; gap: 8px; margin-top: 10px; }
 .pk-add .input { flex: 1; height: 46px; }
 .pk-add .btn { height: 46px; flex: none; }
+
+/* 하루 동선 */
+.dv-gap { margin: 2px 0 6px 64px; padding: 8px 12px; border-radius: 12px; background: var(--fill); color: var(--ink-2); font-size: 14px; font-weight: 600; }
+.dv-gap b { color: var(--ink); }
+.dv-gap.bad { background: #FFECEE; color: #C42838; }
+.dv-chain { display: block; margin: 0 0 8px 64px; padding: 8px 12px; border-radius: 12px; background: var(--blue-soft); color: var(--blue-ink); font-size: 14px; font-weight: 700; text-align: left; }
+.tl-item { cursor: pointer; }
+.tl-item.end .tl-dot { background: var(--navy); opacity: .5; }
+.end-hint { align-self: end; font-size: 13px; color: var(--muted); padding: 0 0 8px 4px; line-height: 1.45; }

@@ -214,16 +214,22 @@ const Planner = {
       if (buffer) items.push({ at: arriveAt, kind: 'arrive', icon: '📍', title: `${(s.dest && s.dest.name) || '목적지'} 도착`, detail: `약속 ${buffer}분 전 도착` });
     }
 
-    const wakeAt = this.addMin(departAt, -prep);
-    items.unshift(
-      { at: wakeAt, kind: 'wake', icon: '⏰', title: '기상 · 준비 시작', detail: `준비 시간 ${prep}분` },
-      { at: departAt, kind: 'depart', icon: '🏠', title: `${(s.origin && s.origin.name) || '집'}에서 출발`, detail: this.isTrip(s.mode) ? `${this.MODES[(s.trip && s.trip.accessMode) || 'transit'].label}로 ${(s.trip && s.trip.departStation && s.trip.departStation.name) || '역'}까지` : this.MODES[s.mode].label }
-    );
+    // 앞 일정 장소에서 바로 이어서 가는 일정(s.chained)은 기상·준비 없이 출발부터
+    const wakeAt = s.chained ? departAt : this.addMin(departAt, -prep);
+    const departRow = { at: departAt, kind: 'depart', icon: '🏠', title: `${(s.origin && s.origin.name) || '집'}에서 출발`, detail: this.isTrip(s.mode) ? `${this.MODES[(s.trip && s.trip.accessMode) || 'transit'].label}로 ${(s.trip && s.trip.departStation && s.trip.departStation.name) || '역'}까지` : this.MODES[s.mode].label };
+    if (s.chained) items.unshift({ ...departRow, title: `${(s.origin && s.origin.name) || '앞 일정 장소'}에서 이어서 출발` });
+    else items.unshift({ at: wakeAt, kind: 'wake', icon: '⏰', title: '기상 · 준비 시작', detail: `준비 시간 ${prep}분` }, departRow);
     // 출발 행 바로 뒤의 첫 이동 항목과 시각이 같으므로, 출발이 먼저 보이도록 안정 정렬
     if (s.arriveBy) items.push({ at: this.at(s.date, s.arriveBy), kind: 'event', icon: '🎯', title: s.title || '일정 시작', detail: (s.dest && s.dest.name) || '' });
+    if (s.endBy && /^\d\d:\d\d$/.test(s.endBy)) {
+      let end = this.at(s.date, s.endBy);
+      const start = s.arriveBy ? this.at(s.date, s.arriveBy) : arriveAt;
+      if (end <= start) end = this.addMin(end, 24 * 60);
+      items.push({ at: end, kind: 'end', icon: '🏁', title: '일정 끝', detail: (s.dest && s.dest.name) || '' });
+    }
     items = items.map((it, i) => ({ ...it, _i: i })).sort((a, b) => (a.at - b.at) || (a._i - b._i));
 
-    if (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString()) {
+    if (!s.chained && (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString())) {
       warnings.push('기상 시간이 새벽이거나 전날이에요. 준비 시간·여유 시간을 확인해 주세요.');
     }
     if (s.route && s.route.source === 'estimate' || s.accessRoute && s.accessRoute.source === 'estimate') {

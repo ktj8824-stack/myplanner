@@ -32,21 +32,6 @@ const Demo = {
       trip: { accessMode: 'transit', egressMode: 'transit', departTime: '08:00', arriveTime: '10:30', international: false } };
     const now = Date.now();
 
-    // 1) 병원 — 버스·지하철 환승 경로 + 비 예보(여유 추가·우산 안내) + 메모
-    const d1 = this.day(1);
-    const hospital = {
-      ...base, id: this.IDS[0], title: '서울아산병원 정기검진', date: d1, arriveBy: '10:00', mode: 'transit', prepMin: 50,
-      dest: { name: '서울아산병원', address: '서울 송파구 올림픽로43길 88', lat: 37.5266, lng: 127.1081 },
-      route: { travelMin: 58, source: 'odsay', summary: '환승 1회 · 1,500원', fare: 1500, transfers: 1, steps: [
-        { type: 'walk', label: '도보', to: '공덕역', min: 6 },
-        { type: 'subway', label: '5호선', from: '공덕', to: '천호', stops: 14, min: 30, way: '마천' },
-        { type: 'walk', label: '도보', to: '천호역 정류장', min: 3 },
-        { type: 'bus', label: '3216번', from: '천호역', to: '서울아산병원', stops: 6, min: 14 },
-        { type: 'walk', label: '도보', to: '서울아산병원 신관', min: 5 }] },
-      weather: { [d1]: { kind: 'rain', prob: 70, mm: 2.4, temp: 9, checkedAt: now } },
-      memo: '진료카드, 지난번 혈액검사 결과지 챙기기\n신관 2층 내과 접수'
-    };
-
     // 2) 출근 — 평일 반복(공휴일 쉼) + 자가용 실시간 교통(평소보다 막힘) + 건너뛰는 날
     const n2 = this.nextWeekday(1);
     const d2 = this.day(n2);
@@ -62,8 +47,25 @@ const Demo = {
       memo: '지하 3층 주차 (월 정기권)'
     };
 
+    // 1) 병원 — 출근한 날 오후, 회사에서 바로 출발(하루 동선) · 버스·지하철 환승 · 비 예보 · 끝나는 시간 · 메모
+    const office = commute.dest;
+    const hospital = {
+      ...base, id: this.IDS[0], title: '서울아산병원 정기검진', date: d2, arriveBy: '15:00', endBy: '16:30', mode: 'transit',
+      origin: { ...office }, chained: { from: this.IDS[1] }, prepMin: 0,
+      alarm: { ...alarm, wake: false, nightBefore: false },
+      dest: { name: '서울아산병원', address: '서울 송파구 올림픽로43길 88', lat: 37.5266, lng: 127.1081 },
+      route: { travelMin: 40, source: 'odsay', summary: '환승 1회 · 1,500원', fare: 1500, transfers: 1, steps: [
+        { type: 'walk', label: '도보', to: '강남역', min: 4 },
+        { type: 'subway', label: '2호선', from: '강남', to: '잠실', stops: 6, min: 13, way: '잠실' },
+        { type: 'walk', label: '도보', to: '잠실역 정류장', min: 3 },
+        { type: 'bus', label: '3313번', from: '잠실역', to: '서울아산병원', stops: 5, min: 13 },
+        { type: 'walk', label: '도보', to: '서울아산병원 신관', min: 5 }] },
+      weather: { [d2]: { kind: 'rain', prob: 70, mm: 2.4, temp: 9, checkedAt: now } },
+      memo: '신관 2층 내과 접수 · 오후 반차 냈음'
+    };
+
     // 3) 부산 출장 — KTX 탑승 기준 역산 + 역까지 택시 + 부산역에서 미팅 장소까지
-    const d3 = this.day(3);
+    const d3 = this.day(n2 + 2);
     const busan = {
       ...base, id: this.IDS[2], title: '부산 출장 · 벡스코 미팅', date: d3, arriveBy: '', mode: 'train', prepMin: 50, bufferMin: 10,
       dest: { name: '벡스코 제1전시장', address: '부산 해운대구 APEC로 55', lat: 35.1690, lng: 129.1360 },
