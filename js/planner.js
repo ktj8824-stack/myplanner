@@ -243,16 +243,17 @@ const Planner = {
     const hm = d => U.hm(d);
     const dest = (s.dest && s.dest.name) || '';
     const wxTxt = plan.weather ? ` ${plan.weather.icon} ${plan.weather.label}(${plan.weather.prob}%) — ${plan.weather.tip}.` : '';
+    const packTxt = typeof Pack !== 'undefined' ? Pack.line(s, plan) : '';
     if (opt.nightBefore) {
       const night = this.at(s.date, '21:00');
       night.setDate(night.getDate() - 1);
       out.push({ key: 'night', at: night, title: `내일 ${hm(plan.wakeAt)} 기상 예정`,
-        body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}` });
+        body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}${packTxt}` });
     }
     if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
-      body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}` });
+      body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}${packTxt}` });
     if (opt.preDepart) out.push({ key: 'pre', at: this.addMin(plan.departAt, -10), title: '출발 10분 전',
-      body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}. ${firstLabel}` });
+      body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
     if (opt.depart) out.push({ key: 'depart', at: plan.departAt, alarm: true, title: `🚪 지금 출발하세요 — ${s.title}`,
       body: firstLabel || `${dest}로 출발` });
     return out.filter(a => a.at.getTime() > Date.now());

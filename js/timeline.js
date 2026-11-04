@@ -71,6 +71,8 @@ const Timeline = {
         ${navMode === 'taxi' ? `<button class="btn primary" onclick="Routes.openNav('kakaot')">카카오T 부르기</button>` : `<button class="btn primary" onclick="Timeline.nav('${['car'].includes(navMode) ? 'tmap' : 'kakaomap'}')">${navMode === 'car' ? '티맵 길안내' : '길안내 시작'}</button>`}
       </div>
 
+      ${this.packCard(s, plan)}
+
       ${s.memo ? `<div class="card"><div class="q">메모</div><div style="color:var(--ink-2)">${U.esc(s.memo).replace(/\n/g, '<br>')}</div></div>` : ''}
 
       <div class="card">
@@ -107,6 +109,48 @@ const Timeline = {
     `);
     this.showAlarms(s, plan);
     Bus.renderInto('busCard', s, plan);
+  },
+
+  /** 🎒 챙길 것 카드 */
+  packCard(s, plan) {
+    const list = Pack.list(s, plan);
+    const left = list.filter(x => !x.done).length;
+    const ro = !!s._shared;
+    return `
+      <div class="card pack">
+        <div class="ct"><b>🎒 챙길 것</b><span>${list.length ? (left ? `${left}개 남음` : '다 챙겼어요 👍') : ''}</span></div>
+        ${list.length ? list.map(x => `
+          <div class="pk-row ${x.done ? 'done' : ''}">
+            <button class="pk-check" ${ro ? 'disabled' : ''} onclick="Timeline.packToggle(${U.esc(JSON.stringify(x.name))})" aria-label="${U.esc(x.name)} 챙김">${x.done ? '✓' : ''}</button>
+            <span class="pk-name">${U.esc(x.name)}${x.auto ? '<small>자동</small>' : ''}</span>
+            ${ro ? '' : `<button class="pk-del" onclick="Timeline.packRemove(${U.esc(JSON.stringify(x.name))},${x.auto})" aria-label="빼기">✕</button>`}
+          </div>`).join('') : '<div class="empty-line">챙길 것이 없어요. 필요한 걸 적어 두면 알림에 같이 알려 드려요.</div>'}
+        ${ro ? '' : `<div class="pk-add"><input id="pkInput" class="input" placeholder="예: 도장, 서류 봉투" maxlength="30" enterkeyhint="done" onkeydown="if(event.key==='Enter'){Timeline.packAdd()}"><button class="btn primary" onclick="Timeline.packAdd()">추가</button></div>`}
+        <p class="muted small" style="margin:10px 0 0">전날 밤 안내와 기상 알람에 안 챙긴 것을 같이 알려 드려요.</p>
+      </div>`;
+  },
+  async packToggle(name) {
+    const s = this.cur(), b = this.base();
+    Pack.toggle(b, s.date, name);
+    State.upsert(b);
+    this.render();
+    Alarm.rescheduleAll(); // 알림 문구의 '챙길 것' 갱신
+  },
+  async packAdd() {
+    const el = document.getElementById('pkInput');
+    const b = this.base();
+    if (!el || !Pack.addItem(b, el.value)) return;
+    State.upsert(b);
+    this.render();
+    Alarm.rescheduleAll();
+    setTimeout(() => document.getElementById('pkInput')?.focus(), 50);
+  },
+  async packRemove(name, wasAuto) {
+    const b = this.base();
+    Pack.removeItem(b, name, wasAuto);
+    State.upsert(b);
+    this.render();
+    Alarm.rescheduleAll();
   },
 
   skippedList() {

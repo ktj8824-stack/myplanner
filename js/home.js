@@ -64,6 +64,8 @@ const Home = {
     const lv = plan.live ? Planner.liveFor(s) : null;
     if (lv) info.push(`📡 실시간 교통 ${lv.prevMin && lv.travelMin !== lv.prevMin ? (lv.travelMin > lv.prevMin ? '+' : '') + (lv.travelMin - lv.prevMin) + '분' : lv.travelMin + '분'}`);
     else if (route && route.travelMin) info.push(`${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${U.durLabel(route.travelMin)}${route.summary && /환승|원/.test(route.summary) ? ' · ' + U.esc(route.summary) : ''}`);
+    const packLeft = Pack.left(s, plan).length;
+    if (packLeft) info.push(`🎒 챙길 것 ${packLeft}`);
     if (Recur.isRepeating(s)) info.push('🔁 ' + U.esc(Recur.label(s)).replace(/ · .*/, ''));
     if (s._shared) info.push('👨‍👩‍👧 ' + U.esc(s._shared.from));
     return `

@@ -520,3 +520,17 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .lbl.q-lbl { font-size: 17px; font-weight: 800; color: var(--ink); margin: 0 0 12px; }
 .lbl.q-lbl ~ .lbl.q-lbl { margin-top: 18px; }
 #cloudCard > .lbl:first-child, #alarmCheck > .lbl:first-child { font-size: 17px; font-weight: 800; color: var(--ink); margin: 0 0 10px; }
+
+/* 챙길 것 */
+.pack .ct { margin-bottom: 6px; }
+.pk-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; }
+.pk-row + .pk-row { border-top: 1px solid var(--line); }
+.pk-check { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line-2); display: grid; place-items: center; color: #fff; font-weight: 900; font-size: 15px; flex: none; }
+.pk-row.done .pk-check { background: var(--blue); border-color: var(--blue); }
+.pk-name { flex: 1; min-width: 0; font-size: 16px; font-weight: 600; }
+.pk-name small { margin-left: 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); background: var(--fill); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
+.pk-row.done .pk-name { color: var(--faint); text-decoration: line-through; }
+.pk-del { width: 30px; height: 30px; border-radius: 50%; color: var(--faint); font-size: 13px; flex: none; }
+.pk-add { display: flex; gap: 8px; margin-top: 10px; }
+.pk-add .input { flex: 1; height: 46px; }
+.pk-add .btn { height: 46px; flex: none; }
