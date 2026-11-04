@@ -11,19 +11,27 @@ const Home = {
     const next = up[0];
     const today = State.byDate(U.today());
 
-    const rest = up.filter(x => x.s.date !== U.today()).slice(0, 6);
+    // 반복 일정은 가장 가까운 회차 하나만 (목록이 출근으로 도배되지 않게)
+    const seen = new Set();
+    const rest = up.filter(x => x.s.date !== U.today()).filter(x => {
+      const k = x.s.baseId || x.s.id;
+      if (seen.has(k)) return false;
+      seen.add(k); return true;
+    }).slice(0, 6);
     App.setMain(`
       <header class="home-head">
         <div><div class="date">${U.dateLabel(U.today()).split(' · ')[0]}</div><h1>${name ? U.esc(name) + '님,<br>' : ''}${greet}</h1></div>
         <button class="avatar" onclick="App.navigate('settings')" aria-label="설정">${name ? U.esc(name.length >= 3 ? name.slice(-2) : name) : Icons.svg('settings')}</button>
       </header>
 
+      ${Demo.bar()}
       ${next ? this.heroCard(next) : `
         <div class="hero empty">
           <div class="empty-mark">${Icons.svg('moon')}</div>
           <b>예정된 일정이 없어요</b>
           <p class="muted">도착 시간만 넣으면 기상·출발 시간을 거꾸로 계산해 깨워 드려요.</p>
           <button class="btn primary big" onclick="App.navigate('register')">${Icons.svg('plus')}&nbsp;첫 일정 추가</button>
+          <button class="btn ghost big" onclick="Demo.add()">${Icons.svg('sparkles')}&nbsp;예시 일정 3개로 둘러보기</button>
         </div>`}
 
       <div class="quick">
@@ -67,6 +75,7 @@ const Home = {
           <div class="${moving ? 'dim' : wakePassed ? 'now' : ''}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>${trip ? '탑승' : '도착'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>
         </div>
+        ${plan.live ? `<div class="live-line">📡 ${U.esc(Live.label(s))}</div>` : ''}
         <div class="horizon"><i style="width:${pct}%"></i></div>
         <div class="hero-left"><span>${moving ? '이동 중이에요' : (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>자세히${Icons.svg('chevronRight')}</span></div>
         <div id="heroBus" onclick="event.stopPropagation()"></div>
@@ -83,7 +92,7 @@ const Home = {
       <button class="row" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
         <div class="row-time"><b>${U.hm(plan.wakeAt)}</b><small>기상</small></div>
         <div class="row-main">
-          <b>${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}</b>
+          <b>${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}${s.demo ? ' <span class="tag demo">예시</span>' : ''}</b>
           <small>${s.date !== U.today() ? (U.dateLabel(s.date).split(' · ')[1] || U.dateLabel(s.date)) + ' · ' : ''}${timeLabel}${place ? ' · ' + U.esc(place) : ''}</small>
         </div>
         <div class="row-ic">${s._shared ? Icons.svg('users') : Recur.isRepeating(s) ? Icons.svg('repeat') : Icons.svg(Icons.mode(s.mode))}</div>

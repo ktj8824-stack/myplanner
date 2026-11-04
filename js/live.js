@@ -48,7 +48,7 @@ const Live = {
       const now = Date.now();
       const soon = State.upcoming(1).filter(({ s, plan }) => {
         const leg = Planner.liveLeg(s);
-        if (!leg) return false;
+        if (!leg || s.demo) return false;
         const dep = plan.departAt.getTime();
         if (dep < now || dep > now + this.WINDOW_H * 3600000) return false;
         const lv = Planner.liveFor(s);

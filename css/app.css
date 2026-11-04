@@ -509,3 +509,10 @@ html, body { overflow-x: hidden; }
 .al-row .grow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .check-ic .ic-alert, .ai-c-note .ic-alert { color: var(--dawn-ink); }
 .ic-alert { color: inherit; }
+
+/* 예시 일정 */
+.demo-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 16px; margin-bottom: 12px; border-radius: 16px; background: var(--dawn-soft); color: var(--dawn-ink); font-size: 14.5px; font-weight: 700; }
+.demo-bar span { display: flex; align-items: center; }
+.demo-bar button { flex: none; padding: 8px 14px; border-radius: 10px; background: #fff; color: var(--dawn-ink); font-weight: 700; font-size: 14px; }
+.tag.demo { background: #E7EBF5; color: var(--ink-2); }
+.hero.empty .btn.ghost { margin-top: 10px; }

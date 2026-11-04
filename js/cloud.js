@@ -213,7 +213,7 @@ const Cloud = {
     // 처음 로그인: 기기에만 있던 일정을 모두 올림
     if (firstTime) {
       const onServer = new Set(mine.map(r => r.id));
-      State.schedules.filter(s => !s._shared && !onServer.has(s.id)).forEach(s => dirty.push(s.id));
+      State.schedules.filter(s => !s._shared && !s.demo && !onServer.has(s.id)).forEach(s => dirty.push(s.id));
       localStorage.setItem(this.DIRTY_KEY, JSON.stringify([...new Set(dirty)]));
     }
     // 공유받은 일정: 서버에 있는 그대로 (내 폰의 알람 끄기·실시간 값은 유지)
@@ -250,7 +250,7 @@ const Cloud = {
     const me = this.userId();
     const rows = dirty.map(id => {
       const s = State.get(id);
-      if (s && s._shared) return null;
+      if (s && (s._shared || s.demo)) return null; // 예시 일정은 서버에 올리지 않음
       return s ? { owner_id: me, id, data: this._wire(s), deleted: false, updated_at: new Date().toISOString() }
         : { owner_id: me, id, data: { id }, deleted: true, updated_at: new Date().toISOString() };
     }).filter(Boolean);

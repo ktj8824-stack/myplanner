@@ -371,6 +371,12 @@ const Settings = {
       </details>
 
       <div class="card">
+        <label class="lbl">예시 일정</label>
+        <p class="muted small" style="margin-top:0">병원(버스·지하철·비 예보), 평일 출근(자가용·실시간 교통), 부산 출장(KTX) 일정으로 기능을 둘러볼 수 있어요. 서버에는 올라가지 않아요.</p>
+        ${Demo.has() ? `<button class="btn ghost" onclick="Demo.remove()">예시 일정 지우기</button>` : `<button class="btn ghost" onclick="Demo.add()">✨ 예시 일정 3개 넣기</button>`}
+      </div>
+
+      <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
         <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v0.9</p>
       </div>

@@ -56,7 +56,7 @@ const Weather = {
       const now = Date.now();
       const todo = State.upcoming(this.DAYS).filter(({ s }) => {
         const o = s.origin;
-        if (!o || o.lat == null) return false;
+        if (s.demo || !o || o.lat == null) return false; // 예시 일정은 미리 넣은 예보 그대로
         const w = Planner.weatherFor(s);
         return !w || now - w.checkedAt > this.STALE_H * 3600000;
       });
