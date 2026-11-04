@@ -125,20 +125,7 @@ const Routes = {
     keyword = (keyword || '').trim();
     if (!keyword) return [];
     const px = this.proxy();
-    if (this.can('tmap')) {
-      const data = await this.api('tmap_pois', { keyword });
-      const pois = data?.searchPoiInfo?.pois?.poi || [];
-      if (pois.length) {
-        this.lastSource = 'tmap';
-        return pois.map(p => ({
-          name: p.name,
-          address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' '),
-          lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon)
-        })).filter(p => isFinite(p.lat) && isFinite(p.lng));
-      }
-      if (data && !px) { this.lastSource = 'tmap'; return []; } // 직접 키로 찾았는데 결과 없음
-    }
-    // 카카오 (서버 함수 → 직접 키 순서)
+    // 1) 카카오 장소 검색 (한국 장소·상호 검색이 가장 정확) — 서버 함수 → 직접 키 순서
     let docs = null;
     if (px) {
       const data = await this.api('kakao_local', { keyword });
@@ -152,11 +139,26 @@ const Routes = {
         if (res.ok) docs = (await res.json()).documents || [];
       } catch (e) { console.warn('카카오 장소 검색 실패', e); }
     }
-    if (docs) {
+    if (docs && docs.length) {
       this.lastSource = 'kakao';
       return docs.map(d => ({ name: d.place_name, address: d.road_address_name || d.address_name, lat: +d.y, lng: +d.x }));
     }
-    // 예시 장소: "강남"·"판교역 2번 출구"는 찾되, "서울아산병원"이 "서울역"으로 잘못 잡히지 않게
+    // 2) 티맵 장소 검색 (카카오가 안 되거나 결과가 없을 때)
+    if (this.can('tmap')) {
+      const data = await this.api('tmap_pois', { keyword });
+      const pois = data?.searchPoiInfo?.pois?.poi || [];
+      if (pois.length) {
+        this.lastSource = 'tmap';
+        return pois.map(p => ({
+          name: p.name,
+          address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' '),
+          lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon)
+        })).filter(p => isFinite(p.lat) && isFinite(p.lng));
+      }
+      if (data) { this.lastSource = 'tmap'; return []; }
+    }
+    if (docs) { this.lastSource = 'kakao'; return []; } // 카카오가 응답했는데 결과 없음
+    // 3) 예시 장소: "강남"·"판교역 2번 출구"는 찾되, "서울아산병원"이 "서울역"으로 잘못 잡히지 않게
     this.lastSource = 'sample';
     return this.SAMPLE_PLACES.filter(p => p.name.includes(keyword) || keyword.includes(p.name)
       || keyword.replace(/\s/g, '') === p.name.replace(/역$|공항.*$/, ''));
