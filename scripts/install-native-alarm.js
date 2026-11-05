@@ -14,8 +14,9 @@ if (!fs.existsSync(android)) {
 }
 
 // 1) appId → 자바 패키지
-const capCfg = fs.readFileSync(path.join(root, 'capacitor.config.ts'), 'utf8');
-const appId = (capCfg.match(/appId:\s*'([^']+)'/) || [])[1] || 'kr.myplanner.app';
+// (TypeScript 설치 없이 쓰도록 capacitor.config.json)
+let appId = 'kr.myplanner.app';
+try { appId = JSON.parse(fs.readFileSync(path.join(root, 'capacitor.config.json'), 'utf8')).appId || appId; } catch (e) {}
 const pkgDir = path.join(android, 'java', ...appId.split('.'));
 fs.mkdirSync(pkgDir, { recursive: true });
 
