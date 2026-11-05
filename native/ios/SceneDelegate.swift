@@ -13,15 +13,26 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window?.rootViewController = MainViewController()
         window?.makeKeyAndVisible()
 
-        SceneDelegateProxy.shared.scene(scene, willConnectTo: session, options: connectionOptions)
+        // 앱이 꺼진 상태에서 카카오 로그인·링크로 열렸을 때
+        for ctx in connectionOptions.urlContexts { openURL(ctx.url) }
+        if let activity = connectionOptions.userActivities.first { continueActivity(activity) }
+    }
+
+    // Capacitor에 URL·링크 전달 (이 Capacitor 버전에는 SceneDelegateProxy가 없어 직접 넘김)
+    private func openURL(_ url: URL) {
+        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
+    }
+
+    private func continueActivity(_ activity: NSUserActivity) {
+        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: activity, restorationHandler: { _ in })
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        SceneDelegateProxy.shared.scene(scene, openURLContexts: URLContexts)
+        for ctx in URLContexts { openURL(ctx.url) }
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
-        SceneDelegateProxy.shared.scene(scene, continue: userActivity)
+        continueActivity(userActivity)
     }
 }
 
