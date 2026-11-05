@@ -159,7 +159,8 @@ const Routes = {
     }
     if (docs) { this.lastSource = 'kakao'; return []; } // 카카오가 응답했는데 결과 없음
     // 3) 예시 장소: "강남"·"판교역 2번 출구"는 찾되, "서울아산병원"이 "서울역"으로 잘못 잡히지 않게
-    this.lastSource = 'sample';
+    // 서버가 있는데 응답이 없었으면 '준비 중'이 아니라 연결 문제
+    this.lastSource = (px || kakao) ? 'offline' : 'sample';
     return this.SAMPLE_PLACES.filter(p => p.name.includes(keyword) || keyword.includes(p.name)
       || keyword.replace(/\s/g, '') === p.name.replace(/역$|공항.*$/, ''));
   },

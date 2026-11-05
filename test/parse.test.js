@@ -50,4 +50,18 @@ if (fails) { console.log(`\n${fails}개 실패`); process.exit(1); }
   assert.strictEqual(P2('이번주 월요일 10시 강남역'), '2026-11-02 10:00');
   console.log('✓ 숫자 날짜 뒤 시각 · 밤 12시·자정·정오 · N시간 · 이번 주');
 }
+{
+  const now3 = new Date(2026, 10, 5, 10, 0);
+  const R = t => Parse.parse(t, now3);
+  assert.strictEqual(R('미팅 11/12 2:30 PM 위워크 을지로').time, '14:30');       // 오후 표시가 뒤에
+  assert.strictEqual(R('11/12 9:15 am 회의').time, '09:15');
+  assert.strictEqual(R('11/12 12:00 AM 출발').time, '00:00');
+  assert.strictEqual(R('11/12 2:30 오후 회의').time, '14:30');
+  const r = R('토요일 저녁 7시 홍대 맛집에서 모임');
+  assert.strictEqual(r.place, '홍대 맛집');                                       // 날짜·시각이 장소에 섞이지 않음
+  assert.strictEqual(r.time, '19:00');
+  assert.strictEqual(r.title, '홍대 맛집 모임');
+  assert.strictEqual(R('내일 오후 3시 우리 동네 카페에서 봐요').place, '동네 카페');
+  console.log('✓ 뒤에 오는 PM·오후 · 장소에서 날짜·시각 빼기');
+}
 console.log('\n문자 해석 확인 완료');

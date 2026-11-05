@@ -78,7 +78,8 @@ const Parse = {
     const out = [];
     t = t.replace(/자정/g, '밤 12시').replace(/정오/g, '낮 12시');
     // '1시간 전까지'의 1시는 시각이 아님 → 시(?!간)
-    const re = /(오전|오후|아침|낮|저녁|밤|새벽|AM|PM|am|pm)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시(?!간)\s*(?:(\d{1,2})\s*분|(반))?)/g;
+    // 오전/오후·AM/PM은 앞('오후 2:30')이나 뒤('2:30 PM') 어디든
+    const re = /(오전|오후|아침|낮|저녁|밤|새벽|AM|PM|am|pm)?\s*(\d{1,2})\s*(?::\s*(\d{2})|시(?!간)\s*(?:(\d{1,2})\s*분|(반))?)(?:\s*(AM|PM|am|pm|A\.M\.|P\.M\.|오전|오후)(?![A-Za-z]))?/g;
     let m;
     while ((m = re.exec(t))) {
       // 숫자 바로 앞 글자로 판단 (공백으로 시작하는 경우 날짜 뒤 '2026.11.05 14:00'도 시각으로)
@@ -92,7 +93,7 @@ const Parse = {
       const isColon = m[3] != null;
       if (h > 24 || min > 59) continue;
       if (!isColon && !/시/.test(m[0])) continue;
-      const ap = m[1] || '';
+      const ap = (m[1] || m[6] || '').replace(/\./g, '');
       let nextDay = false;
       if (/밤|새벽/.test(ap) && h === 12) { h = 0; nextDay = true; } // 밤 12시 = 그날 자정 → 다음 날 0시
       else if (/오후|저녁|밤|PM|pm/.test(ap) && h < 12) h += 12;
@@ -186,6 +187,8 @@ const Parse = {
     return `${this.pad(h % 24)}:${this.pad(m)}`;
   },
 
+  WHEN_WORDS: /(\d{1,4}\s*[./-]\s*\d{1,2}(?:\s*[./-]\s*\d{1,2})?|\d{1,2}\s*(?::\s*\d{2}|시\s*(?:\d{1,2}\s*분|반)?|월|일|분)|[월화수목금토일]요일|오늘|내일|모레|글피|다음\s*주|이번\s*주|다다음\s*주|오전|오후|아침|점심|저녁|낮|밤|새벽|AM|PM|am|pm|\([월화수목금토일]\))/g,
+
   /* ---------- 일반 약속·예약 ---------- */
   findPlace(t) {
     let m;
@@ -198,21 +201,25 @@ const Parse = {
     // "판교역 2번 출구", "홍대입구역 근처 카페"
     if ((m = t.match(/([가-힣A-Za-z0-9]{1,12}역)(?:\s*(\d{1,2})\s*번\s*출구)?/))) return m[1] + (m[2] ? ` ${m[2]}번 출구` : '');
     if ((m = t.match(new RegExp(`([가-힣A-Za-z0-9]{2,15}(?:${this.PLACE_SUFFIX}))(?=에서|으로|로|에|\\s|$|[,.])`)))) return m[1];
-    if ((m = t.match(/([가-힣A-Za-z0-9 ]{2,15}?)\s*에서\s/))) return m[1].trim();
+    // '토요일 저녁 7시 홍대 맛집에서 모임' → 날짜·시각 말을 지우고 '…에서' 앞 마지막 2어절만
+    if ((m = t.match(/([^\n,.]{2,40}?)\s*에서(?:\s|$)/))) {
+      const w = m[1].replace(this.WHEN_WORDS, ' ').trim().split(/\s+/).filter(Boolean).slice(-2).join(' ');
+      if (w.length >= 2) return w.slice(0, 20);
+    }
     return '';
   },
 
   findTitle(t, place, kind) {
     const words = [['면접', '면접'], ['진료|외래|검진|검사|접종|내원|치료', '진료'], ['미팅', '미팅'], ['회의', '회의'],
       ['수업|강의|레슨', '수업'], ['상담', '상담'], ['예배|미사', '예배'], ['결혼식|웨딩', '결혼식'], ['돌잔치', '돌잔치'],
-      ['장례|발인|조문', '조문'], ['시험', '시험'], ['출근', '출근'], ['약속|봐요|만나|보자', '약속'], ['예약', '예약']];
+      ['장례|발인|조문', '조문'], ['시험', '시험'], ['출근', '출근'], ['모임|회식|동창회', '모임'], ['약속|봐요|만나|보자', '약속'], ['예약', '예약']];
     const bracket = (t.match(/\[([^\]]{2,20})\]/) || [])[1];
     const brand = bracket && !/코레일|SRT|대한항공|아시아나|항공|Web발신|광고|알림|안내/.test(bracket) ? bracket.trim() : '';
     const dept = (t.match(/([가-힣]{2,6}(?:내과|외과|과|센터))\s*(?:진료|외래)/) || [])[1];
     for (const [re, w] of words) {
       if (new RegExp(re).test(t)) {
         if (w === '진료') return `${brand || place || '병원'}${dept ? ' ' + dept : ''} 진료`.trim();
-        if (w === '약속' || w === '예약') return brand ? `${brand} ${w}` : place ? `${place.replace(/\s*\d+번 출구/, '')} ${w}` : w;
+        if (w === '약속' || w === '예약' || w === '모임') return brand ? `${brand} ${w}` : place ? `${place.replace(/\s*\d+번 출구/, '')} ${w}` : w;
         return brand ? `${brand} ${w}` : w;
       }
     }

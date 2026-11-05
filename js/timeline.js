@@ -21,8 +21,10 @@ const Timeline = {
     const hol = Recur.holiday(s.date);
 
     const routeLeg = Planner.isTrip(s.mode) ? s.accessRoute : s.route;
-    const info = plan.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, `여유 ${s.bufferMin}분`] : [`준비 ${s.prepMin}분`, `여유 ${s.bufferMin}분`];
-    if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(routeLeg.summary) : ''}`);
+    // 위 칸은 '약속' 시각, 여유를 뺀 실제 도착은 아래 줄에 따로 (홈·AI 카드와 같은 기준)
+    const arriveNote = s.bufferMin ? `${U.hm(plan.arriveAt)} 도착 (${s.bufferMin}분 여유)` : `여유 0분`;
+    const info = plan.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, arriveNote] : [`준비 ${s.prepMin}분`, arriveNote];
+    if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(U.routeRest(routeLeg.summary)) : ''}`);
     if (plan.homeAt) info.push(`🏠 ${U.hm(plan.homeAt)} 집 도착${plan.lastLeaveAt ? ` · 막차 ${U.esc(s.goHome.lastTime)}` : ''}`);
     if (Planner.isTrip(s.mode) && s.trip.number) info.push(`${U.modeIcon(s.mode)} ${U.esc(s.trip.number)}${s.trip.seat ? ' · ' + U.esc(s.trip.seat) : ''}`);
     App.setMain(`
@@ -44,10 +46,10 @@ const Timeline = {
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
           ${plan.chained ? `<div class="on"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>
+          <div><small>${Planner.isTrip(s.mode) ? '탑승' : '시작'}</small><b>${Planner.isTrip(s.mode) ? s.trip.departTime : s.arriveBy}</b></div>
           <div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div class="on"><small>기상${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>`}
+          <div><small>${Planner.isTrip(s.mode) ? '탑승' : '약속'}</small><b>${Planner.isTrip(s.mode) ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>
         <div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>
       </div>
@@ -224,8 +226,8 @@ const Timeline = {
     Sheet.open(`
       <div class="sheet-head"><b>${U.dateLabel(s.date).split(' · ')[0]}만 바꾸기</b><button class="x" onclick="Sheet.close()">✕</button></div>
       ${isTrip ? '' : `<label class="lbl">도착 시간</label><input type="time" id="ovArrive" class="input" value="${s.arriveBy}">`}
-      <label class="lbl">준비 시간 (분)</label><input type="number" id="ovPrep" class="input" inputmode="numeric" value="${s.prepMin}">
-      <label class="lbl">여유 시간 (분)</label><input type="number" id="ovBuffer" class="input" inputmode="numeric" value="${s.bufferMin}">
+      <label class="lbl">준비 시간 (분)</label><input type="number" id="ovPrep" class="input" inputmode="numeric" min="0" max="300" value="${s.prepMin}">
+      <label class="lbl">여유 시간 (분)</label><input type="number" id="ovBuffer" class="input" inputmode="numeric" min="0" max="300" value="${s.bufferMin}">
       <button class="btn primary big" style="margin-top:16px" onclick="Timeline.saveDay()">이 날만 적용</button>`);
   },
 
@@ -236,6 +238,8 @@ const Timeline = {
     if (a && a.value && a.value !== b.arriveBy) ov.arriveBy = a.value;
     const p = parseInt(document.getElementById('ovPrep').value, 10);
     const f = parseInt(document.getElementById('ovBuffer').value, 10);
+    const bad = v => !isNaN(v) && (v < 0 || v > 300);
+    if (bad(p) || bad(f)) return U.toast('준비·여유 시간은 0~300분 사이로 넣어 주세요.');
     if (!isNaN(p) && p !== +b.prepMin) ov.prepMin = Math.max(0, p);
     if (!isNaN(f) && f !== +b.bufferMin) ov.bufferMin = Math.max(0, f);
     b.overrides = b.overrides || {};
@@ -283,17 +287,24 @@ const Timeline = {
         else throw new Error('실시간 조회 불가');
       } else if (isTrip) {
         const r = await Routes.options(s.origin, s.trip.departStation, s.trip.accessMode, Planner.at(s.date, s.trip.departTime));
-        if (r[0]) b.accessRoute = this.keepSimilar(b.accessRoute, r);
+        const real = r.filter(x => x.source !== 'estimate');
+        if (!real.length) throw new Error('offline');
+        b.accessRoute = this.keepSimilar(b.accessRoute, real);
       } else {
         const r = await Routes.options(s.origin, s.dest, s.mode, Planner.at(s.date, s.arriveBy));
-        if (r[0]) b.route = this.keepSimilar(b.route, r);
+        const real = r.filter(x => x.source !== 'estimate');
+        if (!real.length) throw new Error('offline');
+        b.route = this.keepSimilar(b.route, real);
       }
       State.upsert(b);
       await Alarm.rescheduleAll();
       const after = Planner.compute(this.cur()).departAt;
       const diff = Math.round((before - after) / 60000);
       U.toast(diff > 0 ? `${diff}분 일찍 출발해야 해요. 알람을 당겼어요.` : diff < 0 ? `${-diff}분 늦게 출발해도 돼요.` : '변동 없어요.');
-    } catch (e) { U.toast(Routes.can('tmap') ? '경로를 확인하지 못했어요.' : '티맵 키가 있어야 실시간 교통을 확인할 수 있어요.'); }
+    } catch (e) {
+      U.toast(navigator.onLine === false || e.message === 'offline' ? '인터넷 연결 후 다시 시도해 주세요. 원래 경로와 알람은 그대로예요.'
+        : Routes.can('tmap') ? '경로를 확인하지 못했어요. 원래 알람은 그대로예요.' : '티맵 키가 있어야 실시간 교통을 확인할 수 있어요.');
+    }
     this.render();
   },
 
@@ -444,13 +455,14 @@ const Settings = {
         <button class="btn ghost" onclick="Settings.test()">🔊 알람 미리 듣기</button>
       </div>
 
-      <details class="card">
+      ${this.devOn() ? `<details class="card">
         <summary class="lbl">개발자 설정 (API 키 테스트)</summary>
         <p class="muted small">경로 서버 주소를 넣으면 키 없이 서버가 대신 조회해요(권장). 출시 버전은 js/config.js 값을 써요. 여기 넣은 값은 이 기기에서만 우선 적용돼요.</p>
         ${keys.map(([k, l]) => `<label class="lbl">${l}</label>
-          <input class="input mono" value="${U.esc(localStorage.getItem('mp_key_' + k) || '')}" placeholder="${Routes.key(k) ? 'config.js 키 사용 중' : '비어 있음 → 추정치 사용'}"
+          <input class="input mono" value="${U.esc(localStorage.getItem('mp_key_' + k) || '')}" placeholder="${this.keySource(k)}"
             onchange="Settings.setKey('${k}',this.value)">`).join('')}
-      </details>
+        <button class="btn ghost" onclick="Settings.devToggle(false)">개발자 설정 숨기기</button>
+      </details>` : ''}
 
       <div class="card">
         <label class="lbl">예시 일정</label>
@@ -460,11 +472,34 @@ const Settings = {
 
       <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
-        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br>마이플래너 v1.0</p>
+        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br><span onclick="Settings.devTap()">마이플래너 v1.0</span></p>
       </div>
     `);
     this.alarmCheck();
     this.cloudCard();
+  },
+
+  /** 개발자 설정: 평소엔 숨김, 버전 글자를 7번 누르면 보임 */
+  devOn() { try { return localStorage.getItem('mp_dev') === '1'; } catch (e) { return false; } },
+  devTap() {
+    this._devTaps = (this._devTaps || 0) + 1;
+    clearTimeout(this._devT); this._devT = setTimeout(() => { this._devTaps = 0; }, 3000);
+    if (this._devTaps >= 7) { this._devTaps = 0; this.devToggle(true); }
+  },
+  devToggle(on) {
+    try { on ? localStorage.setItem('mp_dev', '1') : localStorage.removeItem('mp_dev'); } catch (e) {}
+    U.toast(on ? '개발자 설정을 켰어요' : '개발자 설정을 숨겼어요');
+    this.render();
+  },
+  /** 입력칸에 보여 줄 '지금 어떤 값을 쓰는지' */
+  keySource(k) {
+    let local = '';
+    try { local = localStorage.getItem('mp_key_' + k) || ''; } catch (e) {}
+    if (local) return '이 기기에 넣은 값 사용 중';
+    if (window.APP_CONFIG && window.APP_CONFIG[k]) return 'config.js 값 사용 중';
+    if (window.APP_DEFAULTS && window.APP_DEFAULTS[k]) return '기본 서버 값 사용 중';
+    if (/ODSAY|TMAP|KAKAO/.test(k) && Routes.proxy()) return '비어 있음 → 경로 서버가 대신 조회';
+    return '비어 있음 → 추정치 사용';
   },
 
   /** 로그인 · 동기화 · 가족 */
@@ -472,7 +507,7 @@ const Settings = {
     const el = document.getElementById('cloudCard');
     if (!el) return;
     if (!Cloud.isConfigured()) {
-      el.innerHTML = `<label class="lbl">로그인 · 가족 공유</label><p class="muted small">서버 연결 전이에요. 개발자 설정에 경로 서버 주소와 Supabase 공개 키를 넣으면 쓸 수 있어요.</p>`;
+      el.innerHTML = `<label class="lbl">로그인 · 가족 공유</label><p class="muted small">서버 연결을 준비하고 있어요. 준비되면 여기서 로그인할 수 있어요.</p>`;
       return;
     }
     if (!Cloud.isSignedIn()) {

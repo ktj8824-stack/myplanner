@@ -3,6 +3,15 @@
    ========================================= */
 
 const U = {
+  /** 경로 요약에서 맨 앞 'N분 · '을 뺀 나머지 (시간을 이미 따로 보여 줄 때) */
+  routeRest(summary) { return String(summary || '').replace(/^\s*(?:\d+\s*시간\s*)?\d+\s*분\s*·\s*/, ''); },
+  /** 날씨는 잠깐(기본 2.5초)만 기다리고, 늦게 오면 받는 대로 알람을 다시 맞춤 */
+  async quickWeather(ms = 2500) {
+    if (typeof Weather === 'undefined') return;
+    const p = Promise.resolve().then(() => Weather.refresh()).catch(() => 0);
+    const done = await Promise.race([p.then(() => true), new Promise(r => setTimeout(() => r(false), ms))]);
+    if (!done && typeof Alarm !== 'undefined') p.then(() => Alarm.rescheduleAll()).catch(() => {});
+  },
   pad: n => String(n).padStart(2, '0'),
   hm(d) { return d ? `${U.pad(d.getHours())}:${U.pad(d.getMinutes())}` : ''; },
   ymd(d) { return `${d.getFullYear()}-${U.pad(d.getMonth() + 1)}-${U.pad(d.getDate())}`; },

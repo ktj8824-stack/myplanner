@@ -397,11 +397,11 @@ const Assistant = {
   planSummary(d) {
     // 아직 저장 전인 앞 카드에서 이어서 가는 경우도 미리 '이어서 출발'로 계산
     const p = Planner.compute(d.chained && !State.get(d.chained.from) ? { ...d, _chainPreview: true } : d);
-    if (p.chained) return { wake: '바로', chained: true, depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(p.arriveAt),
-      endLabel: Planner.isTrip(d.mode) ? '탑승' : '도착', warn: p.warnings.filter(w => !/어림|추정/.test(w))[0] || '', estimate: p.warnings.some(w => /어림|추정/.test(w)),
+    if (p.chained) return { wake: '바로', chained: true, depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : d.arriveBy,
+      endLabel: Planner.isTrip(d.mode) ? '탑승' : '약속', warn: p.warnings.filter(w => !/어림|추정/.test(w))[0] || '', estimate: p.warnings.some(w => /어림|추정/.test(w)),
       weather: p.weather ? `${p.weather.icon} ${p.weather.label} — ${p.weather.tip}` : '' };
-    return { wake: U.hmRel(p.wakeAt, d.date), depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(p.arriveAt),
-      endLabel: Planner.isTrip(d.mode) ? '탑승' : '도착', warn: p.warnings.filter(w => !/추정한 시간/.test(w))[0] || '',
+    return { wake: U.hmRel(p.wakeAt, d.date), depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : d.arriveBy,
+      endLabel: Planner.isTrip(d.mode) ? '탑승' : '약속', warn: p.warnings.filter(w => !/추정한 시간/.test(w))[0] || '',
       estimate: p.warnings.some(w => /추정한 시간/.test(w)), weather: p.weather ? `${p.weather.icon} ${p.weather.label} — ${p.weather.tip}` : '' };
   },
 
@@ -428,7 +428,7 @@ const Assistant = {
     }
     State.upsert(d);
     if (typeof DayPlan !== 'undefined') { try { const n = await DayPlan.rechainNext(d); if (n) c.rechained = n; } catch (e) {} }
-    try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
+    await U.quickWeather();
     await Alarm.rescheduleAll();
     const saved = Recur.isRepeating(d) ? (State.upcoming(14).find(x => x.s.baseId === d.id) || {}).s : d;
     c.savedId = saved ? (saved.occId || saved.id) : d.id;
@@ -517,7 +517,7 @@ const Assistant = {
     }
     State.upsert(base);
     if (c.change && c.change.end_time && typeof DayPlan !== 'undefined') { try { await DayPlan.rechainNext(Recur.resolve(c.occId) || base); } catch (e) {} }
-    try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
+    await U.quickWeather();
     await Alarm.rescheduleAll();
     c.state = 'saved';
     this.paintCard(i, j);
@@ -530,8 +530,9 @@ const Assistant = {
   cardHtml(c, i, j) {
     if (!c) return '';
     if (c.kind === 'login') return `<div class="ai-c-body">카카오로 로그인하면 바로 쓸 수 있어요.</div><button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
-    if (c.kind === 'pro') return `<div class="ai-c-title">⭐ PRO로 바꾸면</div><div class="ai-c-body">AI 비서를 하루 60번까지 쓰고, 말 한마디로 일정·알람·가족 공유까지 해결해요.</div>
-      <button class="btn primary big" onclick="U.toast('PRO 결제는 앱 출시 때 열려요')">PRO 알아보기</button>`;
+    // 결제가 열리기 전에는 버튼 없이 안내만 (없는 기능을 누르게 하지 않음)
+    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">내일 다시 쓸 수 있어요. 그동안은 아래 <b>＋ 일정 추가</b>나 받은 문자 붙여넣기로 등록할 수 있어요.</div>
+      <button class="btn ghost" onclick="App.navigate('register')">＋ 일정 추가</button>`;
     if (c.state === 'dismissed') return `<div class="muted small">취소했어요</div>`;
     if (c.state === 'error') return `<div class="ai-c-body">⚠️ ${U.esc(c.error || '처리하지 못했어요')}</div>`;
     if (c.state === 'pending' || c.state === 'saving') return `<div class="ai-c-body muted">🔎 ${c.state === 'saving' ? '알람 맞추는 중…' : '경로를 찾아 시간을 계산하는 중…'}</div>`;

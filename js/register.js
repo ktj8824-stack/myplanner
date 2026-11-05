@@ -126,7 +126,7 @@ const Register = {
         <textarea class="input" rows="2" placeholder="챙길 것, 참고할 내용" oninput="Register.d.memo=this.value">${U.esc(d.memo || '')}</textarea>
       </div>
 
-      <div class="cta-bar"><button class="btn primary big" onclick="Register.save()">⏰ 저장하고 알람 켜기</button></div>
+      <div class="cta-bar"><button class="btn primary big" id="regSave" onclick="Register.save()">⏰ 저장하고 알람 켜기</button></div>
     `);
   },
 
@@ -147,7 +147,7 @@ const Register = {
       body = `
         <div class="seg">${this.HOME_MODES.map(k => `<button class="${(gh.mode || 'transit') === k ? 'on' : ''}" onclick="Register.setHome('mode','${k}')">${U.modeIcon(k)} ${Planner.MODES[k].label}</button>`).join('')}</div>
         <div class="gh-res">${this.homeLoading ? '🔎 집까지 경로를 찾는 중…'
-          : r ? `${U.esc((d.dest && d.dest.name) || '')} → 집 <b>${U.durLabel(r.travelMin)}</b>${r.summary ? ` <small>${U.esc(r.summary)}</small>` : ''}${plan && plan.homeAt ? `<br>${U.esc(d.endBy)}에 끝나면 <b>${U.hm(plan.homeAt)}</b> 집 도착` : ''}`
+          : r ? `${U.esc((d.dest && d.dest.name) || '')} → 집 <b>${U.durLabel(r.travelMin)}</b>${U.routeRest(r.summary) ? ` <small>${U.esc(U.routeRest(r.summary))}</small>` : ''}${plan && plan.homeAt ? `<br>${U.esc(d.endBy)}에 끝나면 <b>${U.hm(plan.homeAt)}</b> 집 도착` : ''}`
           : `<button class="link" onclick="Register.fetchHome()">🔎 집까지 경로 찾기</button>`}</div>
         ${(gh.mode || 'transit') === 'transit' ? `
           <div class="grid2 mt">
@@ -337,14 +337,14 @@ const Register = {
         ${isFlight ? `<label class="toggle-row"><span>국제선 (수속 ${Planner.MODES.flight.intlMarginMin}분 전 도착)</span><input type="checkbox" ${t.international ? 'checked' : ''} onchange="Register.setTrip('international',this.checked)"></label>` : ''}
         <label class="lbl">${word}까지 어떻게 가세요?</label>
         <div class="seg">${Planner.ACCESS_MODES.map(k => `<button class="${t.accessMode === k ? 'on' : ''}" onclick="Register.setTrip('accessMode','${k}')">${U.modeIcon(k)} ${Planner.MODES[k].label}</button>`).join('')}</div>
-        <p class="muted small">${isFlight ? '항공' : '열차'} 시간표는 코레일·SRT·항공사 앱에서 예매한 시각을 그대로 넣어 주세요.</p>
+        <p class="muted small">${isFlight ? '항공 시간표는 항공사 앱' : '열차 시간표는 코레일톡·SRT 앱'}에서 예매한 시각을 그대로 넣어 주세요.</p>
       </div>`;
   },
 
   routeBox() {
     const d = this.d, isTrip = Planner.isTrip(d.mode);
     const from = d.origin, to = isTrip ? d.trip.departStation : d.dest;
-    if (!from || !to) return `<p class="muted small" style="margin:12px 2px 0">출발지와 ${isTrip ? '출발 역·공항' : '목적지'}을 고르면 경로와 시각을 계산해 드려요.</p>`;
+    if (!from || !to) return `<p class="muted small" style="margin:12px 2px 0">출발지와 ${isTrip ? '출발 역·공항을' : '목적지를'} 고르면 경로와 시각을 계산해 드려요.</p>`;
     if (this.loading) return '<div class="muted pad">🔎 경로를 찾는 중…</div>';
     const list = isTrip ? this.accessOpts : this.opts;
     const chosen = isTrip ? d.accessRoute : d.route;
@@ -354,7 +354,7 @@ const Register = {
       <label class="lbl" style="margin-top:16px">${isTrip ? (d.mode === 'flight' ? '공항' : '역') + '까지 ' : ''}경로 ${shown.length > 1 ? '· 하나를 고르세요' : ''}</label>
       ${shown.map((r, i) => `
         <button class="route-opt ${chosen && JSON.stringify(chosen.steps) === JSON.stringify(r.steps) ? 'on' : ''}" onclick="Register.chooseRoute(${i})">
-          <div class="route-top"><b>${U.durLabel(r.travelMin)}</b><small>${U.esc(r.summary || '')}</small>${r.source === 'estimate' ? '<span class="badge warn">추정</span>' : ''}</div>
+          <div class="route-top"><b>${U.durLabel(r.travelMin)}</b><small>${U.esc(U.routeRest(r.summary))}</small>${r.source === 'estimate' ? '<span class="badge warn">추정</span>' : ''}</div>
           <div class="route-steps">${r.steps.filter(s => s.type !== 'walk' || s.min >= 3).map(s => `<span class="step ${s.type}">${U.modeIcon(s.type)} ${U.esc(s.type === 'walk' ? s.min + '분' : s.label.replace(/ \(또는.*\)/, ''))}</span>`).join('<i>›</i>')}</div>
         </button>`).join('')}
       <button class="link" onclick="Register.fetchRoutes()">↻ 다시 찾기</button>`;
@@ -521,6 +521,18 @@ const Register = {
   },
 
   async save() {
+    if (this._saving) return;
+    this._saving = true;
+    const btn = document.getElementById('regSave');
+    const label = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ 알람 맞추는 중…'; }
+    try { await this._save(); } finally {
+      this._saving = false;
+      if (btn && btn.isConnected) { btn.disabled = false; btn.textContent = label; }
+    }
+  },
+
+  async _save() {
     const d = this.d;
     d.title = (d.title || '').trim();
     if (!d.title) return U.toast('일정 이름을 적어 주세요.');
@@ -533,12 +545,17 @@ const Register = {
     }
     if (d.repeat.type === 'weekly' && !(d.repeat.days || []).length) return U.toast('반복할 요일을 골라 주세요.');
     if (d.repeat.until && d.repeat.until < d.date) return U.toast('반복 종료일이 시작일보다 빨라요.');
+    // 반복이 아닌데 약속(탑승) 시각이 이미 지났으면 한 번 확인
+    if (!Recur.isRepeating(d) && !d.startNow) {
+      const at = Planner.at(d.date, Planner.isTrip(d.mode) ? d.trip.departTime : d.arriveBy);
+      if (at.getTime() < Date.now() && !confirm('이미 지난 시간이에요. 알람은 울리지 않아요. 그래도 저장할까요?')) return;
+    }
     if (!this.ready()) await this.fetchRoutes();
     if (!this.ready()) return U.toast('경로를 먼저 찾아 주세요.');
     d.updatedAt = Date.now();
     State.upsert(d);
     // 저장하자마자 날씨까지 반영해서 알람·안내 시각이 처음부터 맞도록
-    if (typeof Weather !== 'undefined') { try { await Weather.refresh(); } catch (e) {} }
+    await U.quickWeather();
     const list = await Alarm.rescheduleAll();
     const mine = list.filter(a => (a.s.baseId || a.s.id) === d.id);
     const firstWake = mine.find(a => a.key === 'wake');
@@ -600,7 +617,7 @@ const PasteImport = {
     const ok = r.found.length > 1 || (r.found.length === 1 && r.kind !== 'event');
     box.innerHTML = `
       <div class="pp-kind">${kindLbl}${r.title ? ' · <b>' + U.esc(r.title) + '</b>' : ''}</div>
-      ${r.found.map(f => `<div class="pp-ok">✔ ${U.esc(f)}</div>`).join('')}
+      ${r.found.map(f => `<div class="pp-ok">✔ ${U.esc(/^\d{4}-\d{2}-\d{2}$/.test(f) ? U.dateLabel(f) : f)}</div>`).join('')}
       ${r.missing.map(f => `<div class="pp-miss">✎ ${U.esc(f)} — 채운 뒤 직접 골라 주세요</div>`).join('')}`;
     btn.disabled = !ok;
   },

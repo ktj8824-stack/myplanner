@@ -36,7 +36,7 @@ const MarketView = {
     try {
       const q = 'select=id,category,brand,title,image_url,link,badge,ref_price,ref_price_at,rocket'
         + `&apps=cs.%7B${this.APP_ID}%7D&order=sort.asc,id.asc`;
-      const res = await fetch(`${url}/rest/v1/market_products?${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+      const res = await U.fetchT(`${url}/rest/v1/market_products?${q}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } }, 10000);
       if (!res.ok) throw new Error(res.status);
       const rows = await res.json();
       this.items = Array.isArray(rows) ? rows : [];

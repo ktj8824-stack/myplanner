@@ -21,20 +21,30 @@ const Share = {
   },
 
   /** 링크에 넣을 일정 (기기 전용·개인 값은 뺌) */
-  pack(s) {
+  pack(s, opt = {}) {
     const keep = ['title', 'date', 'arriveBy', 'mode', 'prepMin', 'bufferMin', 'origin', 'dest', 'route', 'trip',
-      'accessRoute', 'egressRoute', 'memo', 'repeat'];
+      'accessRoute', 'egressRoute', 'repeat'];
+    if (opt.memo) keep.push('memo');
     const o = { v: 1 };
     keep.forEach(k => { if (s[k] != null && s[k] !== '') o[k] = s[k]; });
+    // 보낸 사람의 집(주소·좌표)은 넘기지 않음 → 받는 사람 집 기준으로 경로를 다시 찾음
+    if (this.isHome(o.origin)) { delete o.origin; delete o.route; delete o.accessRoute; }
     if (o.repeat && o.repeat.type === 'none') delete o.repeat;
     return this.b64e(JSON.stringify(o));
+  },
+
+  isHome(p) {
+    const h = typeof State !== 'undefined' && State.settings && State.settings.home;
+    if (!p) return false;
+    if (h && p.lat != null && Math.abs(h.lat - p.lat) < 0.002 && Math.abs(h.lng - p.lng) < 0.002) return true;
+    return /^(우리\s*)?집$/.test(String(p.name || '').trim());
   },
 
   baseUrl() {
     const isWeb = /^https?:$/.test(location.protocol) && !/localhost|127\.0\.0\.1/.test(location.hostname);
     return isWeb ? location.origin + location.pathname : this.WEB;
   },
-  link(s) { return this.baseUrl() + '#mp=' + this.pack(s); },
+  link(s, opt) { return this.baseUrl() + '#mp=' + this.pack(s, opt); },
 
   /** 글 안에서 마이플래너 일정 링크 찾기 → 일정 객체 (없으면 null) */
   detect(text) {
@@ -64,7 +74,9 @@ const Share = {
       + `⏰ 기상 ${U.hm(plan.wakeAt)} · 🚪 출발 ${U.hm(plan.departAt)} (${m.label})\n`
       + `링크를 누르면 내 폰 알람에 추가돼요 👇`;
     // 이 날 바뀐 시간(이 날만 변경)이 링크에도 그대로 들어가도록 회차 값으로. 반복은 원본 규칙 유지
-    const url = this.link({ ...s, repeat: base.repeat, date: s.date });
+    // 메모는 개인 내용일 수 있어서 물어보고 넣음
+    const memo = !!(s.memo && String(s.memo).trim()) && confirm(`메모도 같이 보낼까요?\n\n"${String(s.memo).slice(0, 60)}"`);
+    const url = this.link({ ...s, repeat: base.repeat, date: s.date }, { memo });
     try {
       if (navigator.share) { await navigator.share({ title: s.title, text, url }); return; }
     } catch (e) { if (e && e.name === 'AbortError') return; }
@@ -90,9 +102,11 @@ const Share = {
       <div class="card import-card">
         <div class="muted small">${U.dateLabel(o.date)} · ${m.emoji} ${m.label}${o.repeat ? ' · 🔁 ' + U.esc(Recur.label(o)) : ''}</div>
         <div class="import-title">${U.esc(o.title)}</div>
-        <div class="small">${o.origin ? '🏠 ' + U.esc(o.origin.name) : ''}${o.dest ? ' → 🎯 ' + U.esc(o.dest.name) : ''}</div>
-        ${plan ? `<div class="small muted">기상 ${U.hm(plan.wakeAt)} · 출발 ${U.hm(plan.departAt)}</div>` : ''}
+        <div class="small">${o.origin ? '🏠 ' + U.esc(o.origin.name) + ' → ' : ''}${o.dest ? '🎯 ' + U.esc(o.dest.name) : ''}</div>
+        ${plan && o.origin ? `<div class="small muted">기상 ${U.hm(plan.wakeAt)} · 출발 ${U.hm(plan.departAt)}</div>` : ''}
       </div>
+      ${this.existing(o) ? `<p class="small">이미 내 일정에 있어요. 누르면 그 일정을 열어요.</p>` : ''}
+      ${!o.origin ? `<p class="small">${home ? `내 집(<b>${U.esc(home.name)}</b>)에서 출발로 경로를 찾아요.` : '추가 화면에서 출발지를 골라 주세요.'}</p>` : ''}
       ${home && !sameHome && o.origin ? `
         <p class="small">출발지가 보낸 사람 기준(<b>${U.esc(o.origin.name)}</b>)이에요.</p>
         <button class="btn primary big" onclick="Share.accept(true)">🏠 내 집(${U.esc(home.name)})에서 출발로 추가</button>
@@ -101,10 +115,19 @@ const Share = {
       <p class="muted small center">추가 화면에서 확인한 뒤 저장하면 알람이 맞춰져요.</p>`);
   },
 
+  /** 같은 일정(이름·날짜·시각)이 이미 있으면 그 일정 */
+  existing(o) {
+    const t = x => Planner.isTrip(x.mode) ? (x.trip && x.trip.departTime) : x.arriveBy;
+    return State.schedules.find(x => !x._shared && x.title === o.title && x.date === o.date && t(x) === t(o)) || null;
+  },
+
   accept(useHome) {
     const o = this._incoming;
     if (!o) return;
     Sheet.close();
+    const dup = this.existing(o);
+    if (dup) { U.toast('이미 추가한 일정이에요'); return App.navigate('timeline', { id: dup.id }); }
+    if (!o.origin) useHome = true;
     const st = State.settings;
     const draft = {
       ...o, id: U.uid(), alarm: { ...st.alarm }, skips: [], overrides: {},

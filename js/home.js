@@ -7,7 +7,12 @@ const Home = {
     const name = State.settings.name;
     const h = new Date().getHours();
     const greet = h < 5 ? '늦은 밤이에요' : h < 11 ? '좋은 아침이에요' : h < 17 ? '좋은 오후예요' : '좋은 저녁이에요';
-    const up = State.upcoming();
+    let up = State.upcoming();
+    // 2주보다 먼 일정만 있어도 홈에 보이게: 가까운 게 적으면 1년 안까지 넓혀서 찾기
+    if (up.length < 5) {
+      const have = new Set(up.map(x => x.s.occId || x.s.id));
+      up = up.concat(State.upcoming(365).filter(x => !have.has(x.s.occId || x.s.id)));
+    }
     const next = up[0];
     // 다가오는 일정: 다음 일정은 위 카드에 있으니 빼고, 반복 일정은 가장 가까운 회차 하나만
     const seen = new Set(next ? [next.s.baseId || next.s.id] : []);
@@ -56,18 +61,20 @@ const Home = {
     const left = Math.max(0, Math.round(((wakePassed ? plan.departAt : plan.wakeAt) - now) / 60000));
     const m = Planner.MODES[s.mode];
     const trip = Planner.isTrip(s.mode);
-    const rel = U.dateLabel(s.date).split(' · ')[1] || U.dateLabel(s.date).split(' · ')[0];
+    const dday = Math.round((Planner.at(s.date, '12:00') - Planner.at(U.today(), '12:00')) / 86400000);
+    const far = dday > Alarm.HORIZON_DAYS;
+    const rel = far ? U.dateLabel(s.date) : (U.dateLabel(s.date).split(' · ')[1] || U.dateLabel(s.date).split(' · ')[0]);
     const wakePrev = U.hmRel(plan.wakeAt, s.date).startsWith('전날');
     const route = trip ? s.accessRoute : (plan.live ? null : s.route);
     const info = [];
     if (plan.weather) info.push(`${plan.weather.icon} ${U.esc(plan.weather.label)}${plan.weather.extraMin ? ' +' + plan.weather.extraMin + '분' : ''}`);
     const lv = plan.live ? Planner.liveFor(s) : null;
-    if (lv) info.push(`📡 실시간 교통 ${lv.prevMin && lv.travelMin !== lv.prevMin ? (lv.travelMin > lv.prevMin ? '+' : '') + (lv.travelMin - lv.prevMin) + '분' : lv.travelMin + '분'}`);
-    else if (route && route.travelMin) info.push(`${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${U.durLabel(route.travelMin)}${route.summary && /환승|원/.test(route.summary) ? ' · ' + U.esc(route.summary) : ''}`);
+    if (lv) info.push(`실시간 교통 ${lv.prevMin && lv.travelMin !== lv.prevMin ? (lv.travelMin > lv.prevMin ? '+' : '') + (lv.travelMin - lv.prevMin) + '분' : lv.travelMin + '분'}`);
+    else if (route && route.travelMin) info.push(`${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${U.durLabel(route.travelMin)}${route.summary && /환승|원/.test(route.summary) ? ' · ' + U.esc(U.routeRest(route.summary)) : ''}`);
     const packLeft = Pack.left(s, plan).length;
-    if (packLeft) info.push(`🎒 챙길 것 ${packLeft}`);
-    if (Recur.isRepeating(s)) info.push('🔁 ' + U.esc(Recur.label(s)).replace(/ · .*/, ''));
-    if (s._shared) info.push('👨‍👩‍👧 ' + U.esc(s._shared.from));
+    if (packLeft) info.push(`챙길 것 ${packLeft}개`);
+    if (Recur.isRepeating(s)) info.push(U.icon('calendar') + ' ' + U.esc(Recur.label(s)).replace(/ · .*/, ''));
+    if (s._shared) info.push(U.icon('group') + ' ' + U.esc(s._shared.from));
     return `
       <div class="card next">
         <div class="lb"><span>다음 일정 · ${U.esc(rel)}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
@@ -76,11 +83,12 @@ const Home = {
           ${plan.chained ? `<div class="${moving ? 'dim' : 'on'}"><small>출발 · ${U.esc((s.origin && s.origin.name) || '앞 일정')}</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>시작</small><b>${s.arriveBy || U.hm(plan.arriveAt)}</b></div>` : `<div class="${wakePassed ? 'dim' : 'on'}"><small>기상${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div class="${moving ? 'dim' : ''}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>`}
-          ${plan.chained ? `<div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div><small>${trip ? '탑승' : '도착'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>`}
+          ${plan.chained ? `<div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div><small>${trip ? '탑승' : '약속'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>
         ${info.length ? `<div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
         <div id="heroBus"></div>
-        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${moving ? '🚶 이동 중이에요' : '⏰ ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
+        ${far ? `<div class="info"><span>⏰ 알람은 일정 2주 전부터 자동으로 맞춰져요</span></div>` : ''}
+        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${far ? '📅 D-' + dday : moving ? '🚶 이동 중이에요' : '⏰ ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
       </div>`;
   },
 
@@ -115,7 +123,8 @@ const Home = {
     plan = plan || Planner.compute(s);
     const m = Planner.MODES[s.mode];
     const trip = Planner.isTrip(s.mode);
-    const day = s.date === U.today() ? '오늘' : (U.dateLabel(s.date).split(' · ')[1] || U.DOW[Planner.at(s.date, '12:00').getDay()] + '요일');
+    const lb = U.dateLabel(s.date);
+    const day = s.date === U.today() ? '오늘' : (lb.split(' · ')[1] || lb.replace(/^(\d+)월 (\d+)일/, '$1/$2'));
     const timeLabel = trip ? `${s.trip.number ? U.esc(s.trip.number) + ' ' : ''}${s.trip.departTime} 탑승` : `${s.arriveBy} 도착`;
     const extra = Recur.isRepeating(s) ? ' · ' + U.esc(Recur.label(s)).replace(/ · .*/, '') : '';
     return `

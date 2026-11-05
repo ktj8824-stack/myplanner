@@ -27,6 +27,13 @@ const App = {
         this.navigate('home');
       });
     }
+    // 앱이 일정 링크로 열렸을 때 (도메인 앱 링크 연결 후 동작. 카카오 로그인 콜백 등 다른 주소는 무시)
+    if (capApp) {
+      capApp.addListener('appUrlOpen', ev => {
+        const o = Share.detect(ev && ev.url);
+        if (o) setTimeout(() => Share.openImport(o), 300);
+      });
+    }
     if ('serviceWorker' in navigator && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
       navigator.serviceWorker.register('./sw.js').catch(() => {});
     }
@@ -132,7 +139,9 @@ const PlacePicker = {
     const results = await Routes.searchPlace(q);
     if (seq !== this._seq) return; // 더 최근 검색이 있으면 무시
     this.results = results;
-    const sampleNote = Routes.lastSource === 'sample'
+    const sampleNote = Routes.lastSource === 'offline' || navigator.onLine === false
+      ? `<div class="pp-note">장소 검색 서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 검색해 주세요. (지금은 주요 역·공항만 찾을 수 있어요)</div>`
+      : Routes.lastSource === 'sample'
       ? `<div class="pp-note">지금은 장소 검색 서버가 준비 중이라 주요 역·공항만 찾을 수 있어요. 곧 모든 장소가 검색돼요.</div>` : '';
     if (!this.results.length) {
       box.innerHTML = `<div class="muted pad">‘${U.esc(q.trim())}’ 검색 결과가 없어요. 다른 이름이나 주소로 찾아 보세요.</div>${sampleNote}`;
