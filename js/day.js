@@ -57,6 +57,88 @@ const DayPlan = {
       }
       return r;
     });
+  },
+
+  /* ---------- 같은 날 앞뒤 약속 자동 연결 ---------- */
+  CHAIN_MAX_GAP_MIN: 180, // 앞 약속이 끝나고 3시간 안이면 집에 안 들르고 바로 가는 것으로 봄
+
+  /** 일정 d(초안)의 시작 시각 (도착 약속 / 기차·비행기 출발) */
+  startOfDraft(d) {
+    if (Planner.isTrip(d.mode)) return d.trip && d.trip.departTime ? Planner.at(d.date, d.trip.departTime) : null;
+    return d.arriveBy ? Planner.at(d.date, d.arriveBy) : null;
+  },
+
+  /** 같은 날 d보다 먼저 끝나는 바로 앞 약속 { s, place, end } (끝나는 시간을 아는 것만). 없으면 null */
+  prevFor(d, extra = []) {
+    const start = this.startOfDraft(d);
+    if (!start || !d.date) return null;
+    const list = State.byDate(d.date).concat(extra.filter(x => x && x.date === d.date))
+      .filter(o => (o.baseId || o.id) !== (d.baseId || d.id) && !o._shared)
+      .map(o => { try { return { s: o, plan: Planner.compute(o) }; } catch (e) { return null; } })
+      .filter(x => x && !x.plan.invalid)
+      .map(x => ({ s: x.s, start: this.startOf(x), end: this.endOf(x), place: this.placeOf(x) }))
+      .filter(x => x.end && x.place && x.start < start && x.end <= start)
+      .sort((a, b) => b.end - a.end);
+    return list[0] || null;
+  },
+
+  /**
+   * 새 일정: 앞 약속이 끝나고 얼마 안 돼 시작하면 출발지를 앞 약속 장소로 (기상 없이 출발 알람만).
+   * 사용자가 '집에서 출발'을 고른 일정(homeFirst)·지금 위치 출발·이미 연결된 일정은 그대로. 바뀌면 앞 약속을 돌려줌
+   */
+  applyAuto(d, extra = []) {
+    if (!d || d.startNow || d.homeFirst || d.chained || Planner.isTrip(d.mode)) return null;
+    const prev = this.prevFor(d, extra);
+    if (!prev) return null;
+    const start = this.startOfDraft(d);
+    if ((start - prev.end) / 60000 > this.CHAIN_MAX_GAP_MIN) return null;
+    if (this.near(d.origin, prev.place)) return null;
+    const p = prev.place;
+    d.origin = { name: p.name, address: p.address || '', lat: p.lat, lng: p.lng };
+    d.chained = { from: prev.s.baseId || prev.s.id };
+    d.prepMin = 0;
+    d.alarm = { ...(d.alarm || {}), wake: false, nightBefore: false };
+    d.route = null;
+    return prev;
+  },
+
+  /**
+   * x를 저장한 뒤: 같은 날 x 바로 다음 약속이 x의 앞 약속(또는 집)에서 출발로 되어 있으면 x 장소에서 출발로 바꿈.
+   * (사이에 끼워 넣은 경우) 경로를 다시 찾아 저장. 바뀐 일정 이름을 돌려줌
+   */
+  async rechainNext(x) {
+    if (!x || !x.date) return null;
+    const xs = Recur.resolve((x.baseId || x.id) + (Recur.isRepeating(x) ? '@' + x.date : '')) || x;
+    let xp;
+    try { xp = Planner.compute(xs); } catch (e) { return null; }
+    const xEnd = this.endOf({ s: xs, plan: xp }), xPlace = this.placeOf({ s: xs });
+    if (!xEnd || !xPlace) return null;
+    const xStart = this.startOf({ s: xs, plan: xp });
+    const xId = xs.baseId || xs.id;
+    const nexts = State.byDate(x.date).filter(o => (o.baseId || o.id) !== xId && !o._shared && !Planner.isTrip(o.mode))
+      .map(o => ({ o, plan: Planner.compute(o) })).filter(n => !n.plan.invalid)
+      .map(n => ({ ...n, start: this.startOf({ s: n.o, plan: n.plan }) }))
+      .filter(n => n.start > xStart).sort((a, b) => a.start - b.start);
+    const n = nexts[0];
+    if (!n || n.o.startNow || (n.o.homeFirst && !n.o.chained) || n.start < xEnd) return null;
+    if ((n.start - xEnd) / 60000 > this.CHAIN_MAX_GAP_MIN) return null;
+    if (n.o.chained && n.o.chained.from === xId) return null;
+    const prevOfX = xs.chained ? xs.chained.from : null;
+    // 다음 약속이 집에서 출발이거나, x의 앞 약속에서 이어서 가던 경우만 바꿈 (사용자가 일부러 고른 다른 출발지는 존중)
+    const fromHome = !n.o.chained && State.settings.home && this.near(n.o.origin, State.settings.home);
+    const fromPrevOfX = n.o.chained && (n.o.chained.from === prevOfX || !State.get(n.o.chained.from));
+    if (!fromHome && !fromPrevOfX && n.o.chained) return null;
+    if (!fromHome && !n.o.chained) return null;
+    const origin = { name: xPlace.name, address: xPlace.address || '', lat: xPlace.lat, lng: xPlace.lng };
+    let route = null;
+    try { route = (await Routes.options(origin, n.o.dest, n.o.mode, n.o.arriveBy ? Planner.at(x.date, n.o.arriveBy) : null))[0] || null; } catch (e) {}
+    const base = State.get(n.o.baseId || n.o.id);
+    if (!base) return null;
+    const patch = { origin, route, chained: { from: xId }, prepMin: 0 };
+    if (Recur.isRepeating(base)) base.overrides = { ...(base.overrides || {}), [x.date]: { ...((base.overrides || {})[x.date] || {}), ...patch } };
+    else { Object.assign(base, patch); base.alarm = { ...(base.alarm || {}), wake: false, nightBefore: false }; }
+    State.upsert(base);
+    return n.o.title;
   }
 };
 
@@ -88,8 +170,16 @@ const DayView = {
       if (x.prev) {
         if (x.conflict) {
           h += `<div class="dv-gap bad">⚠️ 앞 일정 ${x.knownEnd ? '끝나기' : '시작하기'} 전에 출발해야 해요${x.canChain ? ' · 앞 일정 장소에서 출발하면 줄어들 수 있어요' : ''}</div>`;
+        } else if (x.knownEnd) {
+          // 빈 시간: 앞 약속이 끝나고 이 약속으로 출발하기 전까지 (이동 시간은 이미 빠짐)
+          const endHM = U.hm(DayPlan.endOf(x.prev));
+          h += `<div class="dv-free">
+            <div><b>빈 시간 ${U.durLabel(x.gapMin)}</b><small>${endHM} ~ ${U.hm(plan.departAt)} · 다음 약속까지 이동 시간은 빼고 계산했어요</small></div>
+            ${x.gapMin >= 30 ? `<button class="btn small" onclick="App.navigate('register',{date:'${ymd}',insert:{end:'${endHM}'}})">＋ 끼워 넣기</button>` : ''}
+          </div>`;
         } else {
-          h += `<div class="dv-gap">⏳ ${x.knownEnd ? '앞 일정 끝나고' : '앞 일정 시작부터'} <b>${U.durLabel(x.gapMin)}</b> 뒤 출발</div>`;
+          h += `<div class="dv-gap">⏳ 앞 일정 시작부터 <b>${U.durLabel(x.gapMin)}</b> 뒤 출발
+            <button class="link" onclick="DayView.askEnd('${x.prev.s.baseId || x.prev.s.id}')">· 앞 약속 끝나는 시간 넣기</button></div>`;
         }
         if (x.canChain && !trip) h += `<button class="dv-chain" onclick="DayView.chain('${s.baseId || s.id}','${(x.prev.s.baseId || x.prev.s.id)}')">📍 ${U.esc(x.prevPlace.name)}에서 바로 출발로 바꾸기 ›</button>`;
       }
@@ -119,6 +209,32 @@ const DayView = {
       <p class="muted small" style="margin:0 4px 12px">일정에 <b>끝나는 시간</b>을 넣으면 사이 여유 시간을 더 정확히 계산해요.</p>
       <button class="btn primary big" onclick="App.navigate('register',{date:'${ymd}'})">＋ 이 날 일정 추가</button>
     `);
+  },
+
+  /** 앞 약속이 몇 시에 끝나는지 물어서 저장 (빈 시간·이어서 출발 계산용). 반복 일정은 이 날만 */
+  askEnd(id) {
+    const b = State.get(id);
+    if (!b) return;
+    const occ = Recur.isRepeating(b) ? Recur.instance(b, this.date) : b;
+    Sheet.open(`
+      <div class="sheet-head"><b>'${U.esc(b.title)}' 몇 시에 끝나요?</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <p class="muted small">끝나는 시간을 알면 다음 약속까지 남는 시간과 이동을 정확히 계산해요.</p>
+      <input type="time" id="endIn" class="input" value="${U.esc(occ.endBy || '')}">
+      <button class="btn primary big" style="margin-top:14px" onclick="DayView.saveEnd('${U.esc(id)}')">저장</button>`);
+  },
+  async saveEnd(id) {
+    const v = (document.getElementById('endIn') || {}).value || '';
+    if (!/^\d\d:\d\d$/.test(v)) return U.toast('끝나는 시간을 골라 주세요');
+    const b = State.get(id);
+    if (!b) return;
+    if (Recur.isRepeating(b)) b.overrides = { ...(b.overrides || {}), [this.date]: { ...((b.overrides || {})[this.date] || {}), endBy: v } };
+    else b.endBy = v;
+    State.upsert(b);
+    Sheet.close();
+    const name = await DayPlan.rechainNext(Recur.isRepeating(b) ? Recur.instance(b, this.date) : b).catch(() => null);
+    await Alarm.rescheduleAll();
+    U.toast(name ? `다음 약속 '${name}'은 여기서 바로 출발로 바꿨어요` : '저장했어요');
+    this.render();
   },
 
   /** 다음 일정을 '앞 일정 장소에서 바로 출발'로 바꾸고, 경로를 다시 찾도록 수정 화면으로 */

@@ -627,3 +627,10 @@ body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bott
 .now-box .link { padding: 0 0 0 6px; font-size: 14px; }
 .now-ask { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: #FFF6E0; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14.5px; color: var(--ink); }
 .now-ask .btn { flex: none; }
+
+/* ---------- 하루 동선: 빈 시간 ---------- */
+.dv-free { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 6px 0 10px 58px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); }
+.dv-free b { display: block; font-size: 15px; color: #1B64DA; }
+.dv-free small { display: block; font-size: 12px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
+.dv-free .btn { flex: none; background: #fff; color: #1B64DA; }
+.dv-gap .link { padding: 0 0 0 4px; font-size: 13px; }

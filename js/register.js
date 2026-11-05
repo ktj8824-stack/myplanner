@@ -49,6 +49,14 @@ const Register = {
       this.editing = false;
       this.opts = []; this.accessOpts = [];
     }
+    if (params.insert && this.d && !params.id) {
+      // 하루 동선의 빈 시간에서 '끼워 넣기': 앞 약속 끝 + 1시간을 도착 시간으로 제안 (장소를 고르면 앞 약속에서 출발로 자동 연결)
+      const [h, m] = String(params.insert.end || '12:00').split(':').map(Number);
+      const tot = Math.ceil((h * 60 + m + 60) / 10) * 10;
+      this.d.date = params.date || this.d.date;
+      this.d.arriveBy = `${U.pad(Math.floor(tot / 60) % 24)}:${U.pad(tot % 60)}`;
+      U.toast('어디로 가는지 고르면 앞 약속 장소에서 출발로 맞춰 드려요');
+    }
     if (params.chainFrom && this.d) { this.applyChain(params.chainFrom.place, params.chainFrom.from); U.toast('앞 일정 장소에서 출발하도록 바꿨어요. 경로를 확인하고 저장하세요'); }
     this.draw();
     if (params.id) this.fetchRoutes({ keep: true }); // 수정: 고른 경로는 그대로 두고 후보만 채움
@@ -87,6 +95,7 @@ const Register = {
           ? `<div class="now-on"><span><b>📍 지금 위치에서 바로 출발</b><small>기상·준비 없이 출발 알람만 울려요</small></span><button class="link" onclick="Register.stopNow()">취소</button></div>`
           : `<button class="now-btn" onclick="Register.startNow()">📍 지금 위치에서 바로 출발 <small>이미 밖이에요</small></button>`}
         ${d.startNow ? '' : this.chainChips()}
+        ${d.chained && !d.startNow ? `<button class="link" style="padding:8px 2px 0" onclick="Register.homeFirst()">🏠 집에 들렀다 가요 (집에서 출발로)</button>` : ''}
         ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label>${placeBtn('dest', '목적지', '목적지 검색', 'pin')}` : ''}
       </div>
 
@@ -253,6 +262,16 @@ const Register = {
       d.route = null; this.opts = []; this.taxiAlt = null;
       this.draw(); this.fetchRoutes();
     }, () => U.toast('위치 권한을 허용해 주세요. 또는 출발지를 직접 골라 주세요.'), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  },
+
+  /** 앞 약속에서 바로 가지 않고 집에서 출발 (자동 연결 다시 안 함) */
+  homeFirst() {
+    const d = this.d, st = State.settings;
+    this.unchain();
+    d.homeFirst = true;
+    d.origin = st.home ? { ...st.home } : d.origin;
+    d.route = null; this.opts = [];
+    this.draw(); this.fetchRoutes();
   },
 
   stopNow() {
@@ -456,6 +475,11 @@ const Register = {
    */
   async fetchRoutes({ keep = false } = {}) {
     const d = this.d;
+    // 새 일정: 같은 날 앞 약속이 끝나고 바로면 그 장소에서 출발로 자동 연결
+    if (!this.editing && typeof DayPlan !== 'undefined' && d.dest) {
+      const prev = DayPlan.applyAuto(d);
+      if (prev) { U.toast(`'${prev.s.title}' 끝나고 ${prev.place.name}에서 바로 출발로 맞췄어요`); this.draw(); }
+    }
     const seq = this._seq = (this._seq || 0) + 1;
     const stale = () => seq !== this._seq || d !== this.d;
     const isTrip = Planner.isTrip(d.mode);
@@ -522,6 +546,12 @@ const Register = {
     if (d.startNow) U.toast(dep ? `${U.hm(dep.at)}에 출발 알람을 울려 드릴게요.` : '지금 바로 출발하세요! 길안내를 눌러 보세요.');
     else U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
       : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
+    // 사이에 끼워 넣은 일정이면 다음 약속도 여기서 출발로 (기다리지 않음)
+    if (typeof DayPlan !== 'undefined') DayPlan.rechainNext(d).then(async name => {
+      if (!name) return;
+      try { await Alarm.rescheduleAll(); } catch (e) {}
+      U.toast(`다음 약속 '${name}'도 여기서 바로 출발로 바꿨어요`);
+    }).catch(() => {});
     // 반복 일정이면 가장 가까운 회차로 이동
     const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;
     App.navigate('timeline', { id: next ? next.s.occId : d.id });
