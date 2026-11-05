@@ -9,6 +9,7 @@ const App = {
 
   async init() {
     State.load();
+    this.trackViewport();
     this.applyTextSize();
     Cloud.init();
     this.renderNav();
@@ -92,10 +93,24 @@ const App = {
 };
 
 /* ---------- 아래에서 올라오는 시트 (장소 검색 등) ---------- */
+/* 아이폰 자판이 올라오면 보이는 화면 높이가 줄어듦 → 시트를 보이는 영역에 맞춰 위가 잘리지 않게 */
+App.trackViewport = function () {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const set = () => {
+    const r = document.documentElement.style;
+    r.setProperty('--vvh', Math.round(vv.height) + 'px');
+    r.setProperty('--vvtop', Math.round(vv.offsetTop) + 'px');
+  };
+  vv.addEventListener('resize', set);
+  vv.addEventListener('scroll', set);
+  set();
+};
+
 const Sheet = {
-  open(html) {
+  open(html, cls = '') {
     const el = document.getElementById('sheet');
-    el.innerHTML = `<div class="sheet-bg" onclick="Sheet.close()"></div><div class="sheet-panel">${html}</div>`;
+    el.innerHTML = `<div class="sheet-bg" onclick="Sheet.close()"></div><div class="sheet-panel ${cls}">${html}</div>`;
     el.classList.add('show');
   },
   close() { document.getElementById('sheet').classList.remove('show'); },
@@ -121,7 +136,7 @@ const PlacePicker = {
         ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">${U.icon('home')} 집 · ${U.esc(home.name)}</button>` : ''}
         <button class="chip" onclick="PlacePicker.pickCurrent()">${U.icon('pin')} 현재 위치</button>
       </div>
-      <div id="ppResults" class="pp-results"><div class="muted pad">가는 곳 이름을 적어 주세요.</div></div>`);
+      <div id="ppResults" class="pp-results"><div class="muted pad">가는 곳 이름을 적어 주세요.</div></div>`, 'pp-sheet');
     if (opts.query) {
       document.getElementById('ppInput').value = opts.query;
       this.search();
