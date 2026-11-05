@@ -439,10 +439,12 @@ const Settings = {
         </div>` : ''}
 
       <div class="card">
-        <label class="lbl q-lbl">글자 크기</label>
+        <label class="lbl q-lbl">글씨 크기</label>
         <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>
           `<button class="${(st.textSize || 'normal') === k ? 'on' : ''} ts-${k}" onclick="Settings.setTextSize('${k}')">${l}</button>`).join('')}</div>
-        <p class="muted small" style="margin:10px 0 0">글자와 버튼이 함께 커져요.</p>
+        <p class="muted small" style="margin:10px 0 0">글씨와 버튼이 함께 커져요. (크게 1.15배 · 아주 크게 1.3배)</p>
+        <label class="toggle-row" style="margin-top:8px"><span class="tr-2">쉬운 화면<small>홈은 큰 버튼 2개만, 일정 추가는 ① 어디 ② 몇 시 ③ 확인 순서로 한 화면에 하나씩 물어봐요</small></span>
+          <input type="checkbox" id="easyToggle" ${st.easy ? 'checked' : ''} onchange="Settings.set('easy', this.checked)"></label>
       </div>
 
       <div class="card">

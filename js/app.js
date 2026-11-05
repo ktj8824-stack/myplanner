@@ -15,6 +15,7 @@ const App = {
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     this.navigate(first ? 'welcome' : 'home');
+    TextAsk.maybe(); // 처음 한 번: 글씨를 크게 볼까요?
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
     await Alarm.init();
     if (this.current === 'home') Home.render();
@@ -61,7 +62,8 @@ const App = {
         <button class="brand" onclick="App.navigate('home')"><img src="icon-192.png" alt="">마이플래너</button>
         <button class="top-btn" onclick="App.openMenu()" aria-label="전체 메뉴"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M3.5 7h17M3.5 12h17M3.5 17h17"/></svg></button>
       </div>`;
-    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', null, 'AI 비서'], ['market', 'bag', '마켓'], ['settings', 'user', '마이']];
+    // 아래 메뉴는 4개 (마켓은 홈 아이콘·전체 메뉴에서)
+    const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', null, 'AI 비서'], ['settings', 'user', '마이']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
       `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${ic ? Icons.svg(ic) : '<img src="img/icons/community.png" alt="">'}</span><span>${label}</span></button>`).join('');
   },
@@ -82,11 +84,12 @@ const App = {
   },
 
   /** 글자 크기: 보통 / 크게 / 아주 크게 (40~60대) — 화면 전체를 같은 비율로 키움 */
-  TEXT_SIZES: { normal: 1, large: 1.12, xlarge: 1.25 },
+  TEXT_SIZES: { normal: 1, large: 1.15, xlarge: 1.3 },
   applyTextSize() {
     const k = State.settings.textSize || 'normal';
     document.documentElement.dataset.text = k;
     document.documentElement.style.setProperty('--zoom', this.TEXT_SIZES[k] || 1);
+    if (this._vvSet) this._vvSet();
   },
 
   setMain(html) { document.getElementById('main').innerHTML = html; }
@@ -99,9 +102,14 @@ App.trackViewport = function () {
   if (!vv) return;
   const set = () => {
     const r = document.documentElement.style;
-    r.setProperty('--vvh', Math.round(vv.height) + 'px');
-    r.setProperty('--vvtop', Math.round(vv.offsetTop) + 'px');
+    // 글씨 크기(zoom)를 키우면 시트 안 px도 같이 커지므로 나눠서 넣음
+    const z = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--zoom')) || 1;
+    const zoomed = document.documentElement.dataset.text && document.documentElement.dataset.text !== 'normal';
+    const k = zoomed ? z : 1;
+    r.setProperty('--vvh', Math.round(vv.height / k) + 'px');
+    r.setProperty('--vvtop', Math.round(vv.offsetTop / k) + 'px');
   };
+  App._vvSet = set;
   vv.addEventListener('resize', set);
   vv.addEventListener('scroll', set);
   set();
