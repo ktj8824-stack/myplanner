@@ -95,6 +95,15 @@ final class SafeDialogUIDelegate: NSObject, WKUIDelegate {
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
                  defaultText: String?, initiatedByFrame frame: WKFrameInfo,
                  completionHandler: @escaping (String?) -> Void) {
+        // Capacitor 내부 신호({"type":"CapacitorCookies.isEnabled"} 등)는 창을 띄우지 말고 Capacitor 원래 처리로
+        if prompt.hasPrefix("{"), prompt.contains("\"type\""),
+           let orig = original,
+           orig.responds(to: #selector(WKUIDelegate.webView(_:runJavaScriptTextInputPanelWithPrompt:defaultText:initiatedByFrame:completionHandler:))) {
+            orig.webView?(webView, runJavaScriptTextInputPanelWithPrompt: prompt, defaultText: defaultText,
+                          initiatedByFrame: frame, completionHandler: completionHandler)
+            return
+        }
+        if prompt.hasPrefix("{"), prompt.contains("\"type\"") { completionHandler(nil); return }
         let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
         alert.addTextField { $0.text = defaultText }
         alert.addAction(UIAlertAction(title: "취소", style: .cancel) { _ in completionHandler(nil) })
