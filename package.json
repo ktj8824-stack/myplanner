@@ -11,13 +11,15 @@
     "native-alarm": "node scripts/install-native-alarm.js",
     "test:native": "javac -d test/.out native/android/RecheckMath.java native/android/BusMath.java test/java/RecheckMathTest.java test/java/BusMathTest.java && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.RecheckMathTest && java -Dstdout.encoding=UTF-8 -cp test/.out kr.myplanner.app.BusMathTest",
     "eval:ai": "node --no-warnings test/ai-eval/run.mjs",
-    "setup:android": "npm install && npx cap add android && npm run cap-sync"
+    "setup:android": "npm install && npx cap add android && npm run cap-sync",
+    "setup:ios": "bash scripts/setup-ios.sh"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.0.0",
     "@capacitor/core": "^8.5.0",
     "@capacitor/geolocation": "^8.0.0",
+    "@capacitor/ios": "^8.5.0",
     "@capacitor/local-notifications": "^8.0.0",
     "@team-lepisode/capacitor-kakao-login": "^8.0.0"
   },

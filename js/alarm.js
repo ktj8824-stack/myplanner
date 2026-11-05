@@ -223,11 +223,12 @@ const Alarm = {
             extra: { scheduleId: a.sid, alarm: !!a.alarm }
           }));
           if (this.isIOS()) {
+            notes.forEach(n => { if (n.extra.alarm) n.sound = 'mp_alarm.caf'; }); // 30초 알람 음악 (AppDelegate가 Library/Sounds로 복사)
             // 기상·출발은 1·2분 뒤 다시 울림, 시간 순으로 가까운 60개만 (넘치면 아이폰이 조용히 버림)
             const more = [];
             list.forEach(a => { if (a.alarm) this.IOS_REPEAT.forEach(m => more.push({
               id: this.numId(a.sid + a.key + 'r' + m), title: a.title, body: `${m}분 지났어요. ${a.body}`,
-              schedule: { at: new Date(a.at.getTime() + m * 60000) }, extra: { scheduleId: a.sid, alarm: true } })); });
+              schedule: { at: new Date(a.at.getTime() + m * 60000) }, sound: 'mp_alarm.caf', extra: { scheduleId: a.sid, alarm: true } })); });
             notes = notes.concat(more).sort((x, y) => x.schedule.at - y.schedule.at).slice(0, this.IOS_MAX);
           }
           await LN.schedule({ notifications: notes });
