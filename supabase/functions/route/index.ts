@@ -204,6 +204,7 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
         return json({ error: "서울 버스 정보를 받지 못함" }, 502);
       }
       const r = rideFromRoute(items, fromArs, toArs);
+      console.log(`[myplanner-route] seoul_bus route=${bl} ${fromArs}->${toArs} stops=${items.length} ride=${r ? r.ride : "none"}`);
       const body = JSON.stringify(r ? { ...r, busRouteId: bl, source: "seoul" } : { ride: null, busRouteId: bl, source: "seoul" });
       cache.set(key, { at: now, status: 200, body });
       return json(body, 200);
@@ -262,6 +263,10 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
     if (res.ok && service === "bus_arrival") {
       try { body = JSON.stringify({ arrivals: normalizeBus(JSON.parse(body)), source: "odsay" }); }
       catch { return json({ error: "실시간 응답 해석 실패" }, 502); }
+    }
+    if (res.ok && service === "odsay_transit") {
+      // 서울 버스 실시간용 정류장 번호·지역 노선 id가 오는지 확인용
+      console.log(`[myplanner-route] odsay_transit arsID=${body.includes('"startArsID"')} localBl=${body.includes('"busLocalBlID"')}`);
     }
     if (!res.ok || (service.startsWith("odsay") && body.includes('"error"'))) {
       // 원인 확인용 기록 (ODsay는 오류도 200으로 보냄) (키는 URL·헤더에만 있고 여기엔 남기지 않음)
