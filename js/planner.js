@@ -241,6 +241,7 @@ const Planner = {
    */
   /** 앞 일정에서 바로 이어서 가는지 — 앞 일정이 지워졌거나 그날 건너뛰었으면 아님 */
   chainState(s) {
+    if (s.startNow) return { chained: true, broken: false }; // 지금 있는 곳에서 바로 출발 (이미 밖)
     if (!s.chained) return { chained: false, broken: false };
     if (typeof State === 'undefined' || !State.get || typeof Recur === 'undefined') return { chained: true, broken: false };
     const p = State.get(s.chained.from);
@@ -318,7 +319,7 @@ const Planner = {
       if (base.wakeAt < wakeAt) wakeAt = base.wakeAt;
     }
     const departRow = { at: departAt, kind: 'depart', icon: '🏠', title: `${(s.origin && s.origin.name) || '집'}에서 출발`, detail: this.isTrip(s.mode) ? `${this.MODES[(s.trip && s.trip.accessMode) || 'transit'].label}로 ${(s.trip && s.trip.departStation && s.trip.departStation.name) || '역'}까지` : this.MODES[s.mode].label };
-    if (chained) items.unshift({ ...departRow, title: `${(s.origin && s.origin.name) || '앞 일정 장소'}에서 이어서 출발` });
+    if (chained) items.unshift({ ...departRow, title: s.startNow ? `${(s.origin && s.origin.name) || '지금 위치'}에서 바로 출발` : `${(s.origin && s.origin.name) || '앞 일정 장소'}에서 이어서 출발` });
     else items.unshift({ at: wakeAt, kind: 'wake', icon: '⏰', title: '기상 · 준비 시작', detail: `준비 시간 ${prep}분` }, departRow);
     // 출발 행 바로 뒤의 첫 이동 항목과 시각이 같으므로, 출발이 먼저 보이도록 안정 정렬
     if (s.arriveBy) items.push({ at: this.at(s.date, s.arriveBy), kind: 'event', icon: '🎯', title: s.title || '일정 시작', detail: (s.dest && s.dest.name) || '' });

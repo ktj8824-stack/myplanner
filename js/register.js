@@ -83,7 +83,10 @@ const Register = {
         <div class="chips">${this.QUICK.map(q => `<button class="chip" onclick="Register.quick('${q}')">${q}</button>`).join('')}</div>
         <label class="lbl">출발할 곳${d.chained ? ' · 앞 일정에서 바로 출발' : ''}</label>
         ${placeBtn('origin', '출발지', '출발지 검색', 'home')}
-        ${this.chainChips()}
+        ${isTrip ? '' : d.startNow
+          ? `<div class="now-on"><span><b>📍 지금 위치에서 바로 출발</b><small>기상·준비 없이 출발 알람만 울려요</small></span><button class="link" onclick="Register.stopNow()">취소</button></div>`
+          : `<button class="now-btn" onclick="Register.startNow()">📍 지금 위치에서 바로 출발 <small>이미 밖이에요</small></button>`}
+        ${d.startNow ? '' : this.chainChips()}
         ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label>${placeBtn('dest', '목적지', '목적지 검색', 'pin')}` : ''}
       </div>
 
@@ -98,7 +101,7 @@ const Register = {
 
       <div class="card">
         <div class="q">준비는 얼마나 걸려요?</div>
-        <div class="seg">${(d.chained ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
+        <div class="seg">${(d.chained || d.startNow ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
         <label class="lbl">약속보다 일찍 도착 (여유)</label>
         <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
         ${this.repeatForm()}
@@ -234,8 +237,37 @@ const Register = {
   },
 
   /** 출발지를 직접 고르면 '이어서 출발'을 풀고 기본값으로 */
+  /** 급한 약속: 지금 있는 곳(휴대폰 위치)에서 바로 출발 — 기상·준비·전날 안내 없이 출발 알람만 */
+  startNow() {
+    if (!navigator.geolocation) return U.toast('위치를 쓸 수 없어요. 출발지를 직접 골라 주세요.');
+    U.toast('지금 위치를 찾는 중…');
+    const d = this.d;
+    navigator.geolocation.getCurrentPosition(pos => {
+      if (d !== this.d) return;
+      d.origin = { name: '지금 위치', address: '', lat: pos.coords.latitude, lng: pos.coords.longitude };
+      delete d.chained;
+      d.startNow = true;
+      d.prepMin = 0;
+      d.alarm = { ...d.alarm, wake: false, nightBefore: false, depart: true };
+      if (!d.date || d.date < U.today()) d.date = U.today();
+      d.route = null; this.opts = []; this.taxiAlt = null;
+      this.draw(); this.fetchRoutes();
+    }, () => U.toast('위치 권한을 허용해 주세요. 또는 출발지를 직접 골라 주세요.'), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+  },
+
+  stopNow() {
+    const d = this.d, st = State.settings;
+    d.startNow = false;
+    d.origin = st.home ? { ...st.home } : null;
+    d.prepMin = st.prepMin;
+    d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore };
+    d.route = null; this.opts = []; this.taxiAlt = null;
+    this.draw(); this.fetchRoutes();
+  },
+
   unchain() {
     const d = this.d, st = State.settings;
+    if (d.startNow) { d.startNow = false; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore }; return; }
     if (!d.chained) return;
     delete d.chained;
     d.prepMin = st.prepMin;
@@ -314,12 +346,36 @@ const Register = {
     if (!this.ready()) return '';
     let plan;
     try { plan = Planner.compute(d); } catch (e) { return ''; }
+    const now = Date.now(), trip = Planner.isTrip(d.mode);
+    const travelMs = plan.arriveAt - plan.departAt;
+    let nowBox = '';
+    if (!trip && d.date === U.today() && d.arriveBy) {
+      const due = Planner.at(d.date, d.arriveBy).getTime();
+      const late = plan.departAt.getTime() < now;
+      if (d.startNow || late) {
+        const arriveNow = new Date(now + travelMs);
+        const lateMin = Math.round((arriveNow.getTime() + (+d.bufferMin || 0) * 60000 - due) / 60000);
+        const tx = this.taxiAlt;
+        const txArrive = tx ? new Date(now + (Planner.totalMin(tx, 'taxi')) * 60000) : null;
+        nowBox = `<div class="now-box ${late ? 'late' : ''}">
+          <b>${late ? `지금 출발하면 ${U.hm(arriveNow)} 도착${lateMin > 0 ? ` · 약 ${lateMin}분 늦어요` : ''}` : `${U.hm(plan.departAt)}까지 출발하면 돼요 (${Math.max(0, Math.round((plan.departAt - now) / 60000))}분 남음)`}</b>
+          ${late && txArrive && d.mode !== 'taxi' && txArrive < arriveNow ? `<span>🚕 택시면 ${U.hm(txArrive)} 도착 <button class="link" onclick="Routes.openNav('kakaot')">카카오T 부르기 ›</button></span>` : ''}
+        </div>`;
+      }
+      // 이미 기상 시간이 지났는데 집에서 출발로 되어 있으면: 밖이냐고 물어봄
+      if (!d.startNow && !d.chained && plan.wakeAt.getTime() < now) {
+        nowBox = `<div class="now-ask"><span>기상 시간이 이미 지났어요. <b>지금 밖에 계세요?</b></span><button class="btn small primary" onclick="Register.startNow()">📍 지금 위치에서 출발</button></div>` + nowBox;
+      }
+    }
     return `
+      ${nowBox}
       <div class="result">
         <div class="tri">
-          <div class="on"><small>기상${U.hmRel(plan.wakeAt, d.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
-          <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>${Planner.isTrip(d.mode) ? '탑승' : '도착'}</small><b>${Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(plan.arriveAt)}</b></div>
+          ${plan.chained ? `<div class="on"><small>${d.startNow ? '지금 위치' : '앞 일정'}에서</small><b>바로</b></div>` : `<div class="on"><small>기상${U.hmRel(plan.wakeAt, d.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>`}
+          ${d.startNow && plan.departAt.getTime() < now
+            ? `<div><small>출발</small><b>지금</b></div><div><small>도착 예상</small><b>${U.hm(new Date(now + travelMs))}</b></div>`
+            : `<div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
+          <div><small>${Planner.isTrip(d.mode) ? '탑승' : '도착'}</small><b>${Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(plan.arriveAt)}</b></div>`}
         </div>
         ${plan.warnings.map(w => `<div class="warn-line">⚠️ ${U.esc(w)}</div>`).join('')}
       </div>`;
@@ -426,6 +482,10 @@ const Register = {
         if (stale() || d.mode !== mode0) return;
         if (keep && d.route) this.opts = withChosen(list, d.route);
         else { this.opts = list; d.route = list[0] || null; }
+        // 급한 약속이면 택시로 가면 언제 도착하는지도 (늦을 때 보여 줌)
+        if (d.startNow && mode0 !== 'taxi' && d.date === U.today()) {
+          Routes.options(from, to, 'taxi', due).then(t => { if (!stale()) { this.taxiAlt = t[0] || null; this.refreshParts(); } }).catch(() => {});
+        }
       }
     } catch (e) {
       console.error(e);
@@ -458,7 +518,9 @@ const Register = {
     const list = await Alarm.rescheduleAll();
     const mine = list.filter(a => (a.s.baseId || a.s.id) === d.id);
     const firstWake = mine.find(a => a.key === 'wake');
-    U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
+    const dep = mine.find(a => a.key === 'depart');
+    if (d.startNow) U.toast(dep ? `${U.hm(dep.at)}에 출발 알람을 울려 드릴게요.` : '지금 바로 출발하세요! 길안내를 눌러 보세요.');
+    else U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
       : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
     // 반복 일정이면 가장 가까운 회차로 이동
     const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;

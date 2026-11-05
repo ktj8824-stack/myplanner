@@ -614,3 +614,16 @@ body::before { content: ''; position: fixed; left: 0; right: 0; top: 0; height: 
 body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 40px); background: linear-gradient(180deg, rgba(244, 245, 247, 0), var(--bg) 45%); z-index: 24; pointer-events: none; }
 #main { padding-bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 96px); }
 #toast { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 84px); }
+
+/* ---------- 지금 바로 출발 (급한 약속) ---------- */
+.now-btn { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: 8px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); color: var(--blue); font-weight: 700; font-size: 15px; text-align: left; }
+.now-btn small { font-weight: 600; font-size: 12.5px; opacity: .75; }
+.now-on { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; padding: 12px 14px; border-radius: 14px; background: var(--blue-soft); }
+.now-on span { display: flex; flex-direction: column; font-size: 15px; color: var(--ink); }
+.now-on small { font-size: 12.5px; color: var(--muted); }
+.now-box { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: #EAF7EF; color: #11683A; display: flex; flex-direction: column; gap: 6px; font-size: 15px; }
+.now-box.late { background: #FFF1F0; color: #C0362C; }
+.now-box span { color: var(--ink-2); font-size: 14px; }
+.now-box .link { padding: 0 0 0 6px; font-size: 14px; }
+.now-ask { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: #FFF6E0; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14.5px; color: var(--ink); }
+.now-ask .btn { flex: none; }

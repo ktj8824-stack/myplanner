@@ -102,6 +102,7 @@ const U = {
     if (o.alarm && typeof o.alarm === 'object') { out.alarm = {}; ['wake', 'preDepart', 'depart', 'nightBefore', 'goHome'].forEach(k => { if (k in o.alarm) out.alarm[k] = !!o.alarm[k]; }); }
     if (o.alarmOff != null) out.alarmOff = !!o.alarmOff;
     if (o.chained && typeof o.chained === 'object') out.chained = { from: str(o.chained.from, 120) };
+    if (o.startNow) out.startNow = true;
     if (o.goHome && typeof o.goHome === 'object') out.goHome = { on: !!o.goHome.on, mode: mode(o.goHome.mode, 'transit'), lastTime: hm(o.goHome.lastTime), route: route(o.goHome.route), to: place(o.goHome.to) };
     if (o.pack && typeof o.pack === 'object') out.pack = { add: (o.pack.add || []).slice(0, 50).map(x => str(x, 30)).filter(Boolean), removed: (o.pack.removed || []).slice(0, 50).map(x => str(x, 30)).filter(Boolean) };
     if (o.packDone && typeof o.packDone === 'object') { out.packDone = {}; Object.keys(o.packDone).slice(0, 30).forEach(k => { if (ymd(k) && Array.isArray(o.packDone[k])) out.packDone[k] = o.packDone[k].slice(0, 50).map(x => str(x, 30)); }); }

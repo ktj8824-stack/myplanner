@@ -157,3 +157,18 @@ console.log('까다로운 경우 테스트 완료');
   console.log('✓ 서울 버스 실시간 타는 시간 반영 (짧은 값은 출발 가까울 때만, 기상은 그대로)');
 }
 console.log('서울 버스 실시간 테스트 완료');
+
+// 14) 급한 약속: 지금 위치에서 바로 출발 → 기상·준비·전날 안내 없이 출발 알람만
+{
+  const s = base({ arriveBy: '16:30', startNow: true, prepMin: 0, origin: { name: '지금 위치', lat: 37.5, lng: 126.9 },
+    alarm: { wake: true, nightBefore: true, preDepart: true, depart: true } });
+  const p = Planner.compute(s);
+  assert.strictEqual(p.chained, true);
+  assert.strictEqual(p.wakeAt.getTime(), p.departAt.getTime());
+  assert.ok(!p.items.some(i => i.kind === 'wake'));
+  assert.ok(p.items[0].title.includes('지금 위치에서 바로 출발'));
+  const keys = Planner.alarms(s, p).map(a => a.key);
+  assert.ok(!keys.includes('wake') && keys.includes('depart'));
+  assert.ok(Planner.alarms(s, p).find(a => a.key === 'night').title.includes('출발 예정'));
+  console.log('✓ 지금 바로 출발: 출발 알람만');
+}
