@@ -61,5 +61,49 @@ const mk = (id, title, arriveBy, endBy, dest, extra = {}) => ({ id, title, date:
   const c2 = mk('c', '성수 카페', '16:00', '17:00', P.cafe); State.schedules.push(c2);
   assert.strictEqual(await DayPlan.rechainNext(c2), null);
   console.log('✓ 사용자가 고른 출발지는 존중');
+
+  // 5) 이어서 가는 일정을 앞 약속보다 이르게(08:00) 바꾸면 연결이 깨진 것으로 보고, 기상 알람을 다시 켬
+  State.schedules = [mk('a', '강남 오전', '10:00', '12:00', P.gangnam)];
+  const nx = mk('b', '성수 카페', '13:00', '', P.cafe);
+  DayPlan.applyAuto(nx); State.schedules.push(nx);
+  assert.strictEqual(nx.chained.from, 'a');
+  assert.strictEqual(DayPlan.chainBroken(nx), false);
+  assert.strictEqual(Planner.compute(nx).chained, true);
+  const moved = { ...nx, arriveBy: '08:00' };
+  assert.strictEqual(DayPlan.chainBroken(moved), true);
+  const pl = Planner.compute(moved);
+  assert.strictEqual(pl.chained, false);                                   // 계산도 안전하게: 이어서 출발 아님
+  assert.ok(pl.warnings[0].includes('앞 일정보다 먼저'));
+  assert.ok(Planner.alarms(moved, pl).some(a => a.key === 'wake'));        // 기상 알람 복구
+  routeCalls = [];
+  const patch = await DayPlan.unchainPatch(moved);
+  assert.strictEqual(patch.chained, false);
+  assert.strictEqual(patch.origin.name, '집');
+  assert.strictEqual(patch.prepMin, 60);
+  assert.deepStrictEqual(routeCalls[0], ['집', '성수 카페', 'transit']);  // 집 기준 경로 다시
+  // 반복 일정의 그 날만 푼 경우(chained:false)도 기상 알람이 울림
+  const ovOcc = { ...nx, ...patch, route: patch.route };
+  const pl2 = Planner.compute(ovOcc);
+  assert.ok(!pl2.chained && Planner.alarms(ovOcc, pl2).some(a => a.key === 'wake'));
+  // 앞 약속 사이(11:00)로 당겨도 깨짐
+  assert.strictEqual(DayPlan.chainBroken({ ...nx, arriveBy: '11:00' }), true);
+  console.log('✓ 시간을 앞 약속보다 이르게 바꾸면 연결 풀고 집에서 출발·기상 알람 복구');
+
+  // 6) 지금 위치에서 출발: 원래 출발 시각이 지난 뒤 저장하면 실제 나선 시각 기준으로
+  const due = Planner.at(D, '15:00').getTime();
+  const urgent = mk('u', '급한 약속', '15:00', '', P.cafe, { startNow: true, prepMin: 0, origin: { name: '지금 위치', lat: 37.5, lng: 127 } });
+  const normal = Planner.compute(urgent);
+  const travel = (normal.arriveAt - normal.departAt) / 60000;
+  urgent.leftAt = due - 20 * 60000;                                         // 14:40에 나섬
+  const nowPlan = Planner.compute(urgent);
+  assert.strictEqual(U.hm(nowPlan.departAt), '14:40');
+  assert.strictEqual((nowPlan.arriveAt - nowPlan.departAt) / 60000, travel);
+  const late = travel - 20;
+  assert.ok(nowPlan.warnings.some(w => w.includes(`약 ${late}분 늦으니`)));
+  assert.ok(nowPlan.items.find(i => i.kind === 'arrive').detail.includes(`${late}분 늦게`));
+  assert.ok(nowPlan.items.every(i => i.at >= nowPlan.departAt));           // 지난 시각 줄 없음
+  assert.strictEqual(U.cleanSchedule(urgent).leftAt, urgent.leftAt);       // 동기화해도 유지
+  assert.ok(!U.cleanSchedule({ ...urgent, startNow: false }).leftAt);
+  console.log('✓ 급한 약속은 지금 나선 시각 기준으로 화면·도착 예상');
   console.log('약속 자동 연결 테스트 완료');
 })().catch(e => { console.error(e); process.exit(1); });

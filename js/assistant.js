@@ -515,6 +515,15 @@ const Assistant = {
       if (c.change.end_time) base.endBy = c.change.end_time;
       if (c.change.new_date || c.change.new_time) { base.live = {}; }
     }
+    // 시간·날짜를 바꿔 앞 일정보다 이르게 됐으면 '이어서 출발'을 풀고 집에서 출발로
+    if (!c.summary.skip && typeof DayPlan !== 'undefined') {
+      const occ = Recur.isRepeating(base) ? Recur.instance(base, cur.date) : base;
+      if (occ.chained && DayPlan.chainBroken(occ)) {
+        const patch = await DayPlan.unchainPatch(occ);
+        if (Recur.isRepeating(base)) base.overrides[cur.date] = { ...base.overrides[cur.date], ...patch };
+        else { Object.assign(base, patch); delete base.chained; base.alarm = { ...(base.alarm || {}), wake: State.settings.alarm.wake, nightBefore: State.settings.alarm.nightBefore }; }
+      }
+    }
     State.upsert(base);
     if (c.change && c.change.end_time && typeof DayPlan !== 'undefined') { try { await DayPlan.rechainNext(Recur.resolve(c.occId) || base); } catch (e) {} }
     await U.quickWeather();

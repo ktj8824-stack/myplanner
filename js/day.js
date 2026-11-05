@@ -83,6 +83,33 @@ const DayPlan = {
   },
 
   /**
+   * 시간·날짜를 바꾼 뒤에도 '앞 일정에서 이어서 출발'이 말이 되는지.
+   * 앞 일정이 그날 없거나, 이 일정이 앞 일정이 끝나기 전에 시작하면 true (연결을 풀어야 함)
+   */
+  chainBroken(d) {
+    if (!d || !d.chained || d.startNow) return false;
+    const p = State.get(d.chained.from);
+    if (!p || !d.date || !Recur.occursOn(p, d.date)) return true;
+    const po = Recur.isRepeating(p) ? Recur.instance(p, d.date) : p;
+    let plan;
+    try { plan = Planner.compute(po); } catch (e) { return true; }
+    const end = this.endOf({ s: po, plan }) || this.startOf({ s: po, plan });
+    const start = this.startOfDraft(d);
+    return !end || !start || end > start;
+  },
+
+  /** 연결을 풀 때 바꿀 값: 집에서 출발(경로도 집 기준으로 다시) + 준비 시간·기상 알람 복구 */
+  async unchainPatch(d) {
+    const st = State.settings;
+    const home = st.home ? { ...st.home } : null;
+    let route = null;
+    if (home && d.dest && !Planner.isTrip(d.mode)) {
+      try { route = (await Routes.options(home, d.dest, d.mode, d.arriveBy ? Planner.at(d.date, d.arriveBy) : null))[0] || null; } catch (e) {}
+    }
+    return { chained: false, origin: home || d.origin, route: home ? route : d.route, prepMin: +st.prepMin || 60 };
+  },
+
+  /**
    * 새 일정: 앞 약속이 끝나고 얼마 안 돼 시작하면 출발지를 앞 약속 장소로 (기상 없이 출발 알람만).
    * 사용자가 '집에서 출발'을 고른 일정(homeFirst)·지금 위치 출발·이미 연결된 일정은 그대로. 바뀌면 앞 약속을 돌려줌
    */

@@ -256,6 +256,7 @@ const Register = {
       d.origin = { name: '지금 위치', address: '', lat: pos.coords.latitude, lng: pos.coords.longitude };
       delete d.chained;
       d.startNow = true;
+      delete d.leftAt;
       d.prepMin = 0;
       d.alarm = { ...d.alarm, wake: false, nightBefore: false, depart: true };
       if (!d.date || d.date < U.today()) d.date = U.today();
@@ -277,6 +278,7 @@ const Register = {
   stopNow() {
     const d = this.d, st = State.settings;
     d.startNow = false;
+    delete d.leftAt;
     d.origin = st.home ? { ...st.home } : null;
     d.prepMin = st.prepMin;
     d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore };
@@ -286,7 +288,7 @@ const Register = {
 
   unchain() {
     const d = this.d, st = State.settings;
-    if (d.startNow) { d.startNow = false; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore }; return; }
+    if (d.startNow) { d.startNow = false; delete d.leftAt; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore }; return; }
     if (!d.chained) return;
     delete d.chained;
     d.prepMin = st.prepMin;
@@ -433,6 +435,16 @@ const Register = {
       this.fetchRoutes();
       return;
     }
+    if ((k === 'date' || k === 'arriveBy') && typeof DayPlan !== 'undefined' && DayPlan.chainBroken(this.d)) {
+      // 앞 약속보다 이르게 바꿨으면 '이어서 출발'을 풀고 집에서 출발로 (기상 알람 복구)
+      const st = State.settings;
+      this.unchain();
+      this.d.origin = st.home ? { ...st.home } : null;
+      this.d.route = null; this.opts = [];
+      U.toast('앞 일정보다 먼저라 집에서 출발로 바꿨어요');
+      this.draw();
+      return this.fetchRoutes();
+    }
     if (k === 'date' || k === 'arriveBy') {
       // 자가용·택시는 도착 시각 기준 예측이라 다시 조회
       if (['car', 'taxi'].includes(this.d.mode)) { this.d.route = null; this.opts = []; return this.fetchRoutes(); }
@@ -552,6 +564,11 @@ const Register = {
     }
     if (!this.ready()) await this.fetchRoutes();
     if (!this.ready()) return U.toast('경로를 먼저 찾아 주세요.');
+    // 지금 위치에서 출발인데 원래 출발 시각이 이미 지났으면: 지금 나서는 것으로 기록 (화면·도착 예상이 지금 기준)
+    if (d.startNow) {
+      delete d.leftAt;
+      try { if (Planner.compute(d).departAt.getTime() < Date.now()) d.leftAt = Date.now(); } catch (e) {}
+    }
     d.updatedAt = Date.now();
     State.upsert(d);
     // 저장하자마자 날씨까지 반영해서 알람·안내 시각이 처음부터 맞도록
@@ -560,7 +577,8 @@ const Register = {
     const mine = list.filter(a => (a.s.baseId || a.s.id) === d.id);
     const firstWake = mine.find(a => a.key === 'wake');
     const dep = mine.find(a => a.key === 'depart');
-    if (d.startNow) U.toast(dep ? `${U.hm(dep.at)}에 출발 알람을 울려 드릴게요.` : '지금 바로 출발하세요! 길안내를 눌러 보세요.');
+    if (d.startNow) U.toast(d.leftAt ? `지금 출발하면 ${U.hm(Planner.compute(d).arriveAt)}쯤 도착해요. 길안내를 눌러 보세요.`
+      : dep ? `${U.hm(dep.at)}에 출발 알람을 울려 드릴게요.` : '지금 바로 출발하세요! 길안내를 눌러 보세요.');
     else U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
       : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
     // 사이에 끼워 넣은 일정이면 다음 약속도 여기서 출발로 (기다리지 않음)

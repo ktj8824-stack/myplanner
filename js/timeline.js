@@ -242,6 +242,12 @@ const Timeline = {
     if (bad(p) || bad(f)) return U.toast('준비·여유 시간은 0~300분 사이로 넣어 주세요.');
     if (!isNaN(p) && p !== +b.prepMin) ov.prepMin = Math.max(0, p);
     if (!isNaN(f) && f !== +b.bufferMin) ov.bufferMin = Math.max(0, f);
+    // 시간을 앞 일정보다 이르게 바꿨으면 이 날만 '이어서 출발'을 풀고 집에서 출발로
+    const occ = { ...s, ...ov };
+    if (s.chained && typeof DayPlan !== 'undefined' && DayPlan.chainBroken(occ)) {
+      Object.assign(ov, await DayPlan.unchainPatch(occ));
+      U.toast('앞 일정보다 먼저라 이 날은 집에서 출발로 바꿨어요');
+    }
     b.overrides = b.overrides || {};
     if (Object.keys(ov).length) b.overrides[s.date] = ov; else delete b.overrides[s.date];
     Sheet.close();
