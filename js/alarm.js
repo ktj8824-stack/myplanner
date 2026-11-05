@@ -152,19 +152,24 @@ const Alarm = {
           preId: this.numId(a.sid + 'pre'), departId: this.numId(a.sid + 'depart')
         });
       }
-      const spec = Planner.recheckSpec(a.s, a.plan);
+      // 자가용·택시는 티맵 실시간, 서울 버스는 실시간 버스 위치로 '타는 시간'
+      const ride = Routes.proxy() ? Planner.rideSpec(a.s, a.plan) : null;
+      const spec = Planner.recheckSpec(a.s, a.plan) || ride;
       if (!spec) return;
-      const times = [spec.wakeMs - this.RECHECK_BEFORE_WAKE * 60000, spec.plannedDepartMs - this.RECHECK_BEFORE_DEPART * 60000];
-      if (times[1] - times[0] < 10 * 60000) times.pop(); // 두 시점이 너무 가까우면 한 번만
+      let times = [spec.wakeMs - this.RECHECK_BEFORE_WAKE * 60000, spec.plannedDepartMs - this.RECHECK_BEFORE_DEPART * 60000];
+      if (spec.type === 'ride') times = [spec.wakeMs - this.RECHECK_BEFORE_WAKE * 60000, spec.plannedDepartMs - 45 * 60000, spec.plannedDepartMs - 20 * 60000];
+      times = times.sort((x, y) => x - y).filter((t, i, arr) => i === 0 || t - arr[i - 1] >= 10 * 60000); // 너무 가까운 시점은 한 번만
       times.forEach((at, i) => {
         if (at <= now) return;
-        out.push({
+        const o = {
           id: this.numId(a.sid + 'chk' + i), at, occId: a.sid, title: a.s.title,
           anchor: spec.anchorMs, fixedMin: spec.fixedMin, travelMin: spec.travelMin,
           plannedDepart: spec.plannedDepartMs, wake: spec.wakeMs,
-          wakeId: this.numId(a.sid + 'wake'), preId: this.numId(a.sid + 'pre'), departId: this.numId(a.sid + 'depart'),
-          sx: spec.from.lng, sy: spec.from.lat, ex: spec.to.lng, ey: spec.to.lat
-        });
+          wakeId: this.numId(a.sid + 'wake'), preId: this.numId(a.sid + 'pre'), departId: this.numId(a.sid + 'depart')
+        };
+        if (spec.type === 'ride') Object.assign(o, { type: 'ride', busID: spec.busID, busLocalBlID: spec.busLocalBlID, fromArs: spec.fromArs, toArs: spec.toArs, stepIdx: Planner.rideLeg(a.s).stepIdx });
+        else Object.assign(o, { sx: spec.from.lng, sy: spec.from.lat, ex: spec.to.lng, ey: spec.to.lat });
+        out.push(o);
       });
     });
     return out;

@@ -54,6 +54,7 @@ const Timeline = {
 
       ${(() => { const n = State.byDate(s.date).length; return n > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${s.date}',from:'timeline:${U.esc(s.occId || s.id)}'})">🗓️ 이 날 일정 ${n}개 · 하루 동선 보기</button>` : ''; })()}
       ${plan.weather ? `<div class="note">${U.esc(Weather.label(plan))}</div>` : ''}
+      ${Planner.rideFor(s) ? `<div class="note live">🚌 ${U.esc(Live.rideLabel(s))}</div>` : (Planner.rideLeg(s) && Routes.proxy() && !s.alarmOff ? `<div class="note dim">🚌 출발 1시간 전부터 실시간 버스 위치로 타는 시간을 다시 계산해요</div>` : '')}
       ${plan.live ? `<div class="note live">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="note dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
       ${plan.warnings.map(w => `<div class="note">⚠️ ${U.esc(w)}</div>`).join('')}
       <div id="busCard"></div>

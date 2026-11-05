@@ -56,9 +56,18 @@ public final class Recheck {
             return;
         }
 
-        double sx = spec.optDouble("sx"), sy = spec.optDouble("sy"), ex = spec.optDouble("ex"), ey = spec.optDouble("ey");
-        int live = proxyUrl.isEmpty() ? tmapMinutes(key, sx, sy, ex, ey) : proxyMinutes(proxyUrl, proxyKey, sx, sy, ex, ey);
+        final boolean ride = "ride".equals(spec.optString("type"));
+        int live;
+        if (ride) {
+            // 서울 버스: 지금 오는 버스가 내릴 곳까지 몇 분 (서버 함수 + 서울시 버스 정보)
+            if (proxyUrl.isEmpty()) return;
+            live = proxyRide(proxyUrl, proxyKey, spec);
+        } else {
+            double sx = spec.optDouble("sx"), sy = spec.optDouble("sy"), ex = spec.optDouble("ex"), ey = spec.optDouble("ey");
+            live = proxyUrl.isEmpty() ? tmapMinutes(key, sx, sy, ex, ey) : proxyMinutes(proxyUrl, proxyKey, sx, sy, ex, ey);
+        }
         if (live <= 0) return;
+        final String src = ride ? "버스 실시간" : "티맵 실시간";
 
         long now = System.currentTimeMillis();
         int base = spec.optInt("travelMin");
@@ -72,11 +81,19 @@ public final class Recheck {
         if (rechecks == null || PlanStore.findById(rechecks, recheckId) == null) return; // 그새 일정이 바뀜
         JSONObject liveMap = plan.optJSONObject("live");
         if (liveMap == null) { liveMap = new JSONObject(); plan.put("live", liveMap); }
-        JSONObject lv = new JSONObject();
-        lv.put("travelMin", live);
-        lv.put("checkedAt", now);
-        lv.put("prevMin", base);
-        liveMap.put(occId, lv);
+        JSONObject lv = liveMap.optJSONObject(occId);
+        if (lv == null) { lv = new JSONObject(); liveMap.put(occId, lv); }
+        if (ride) {
+            JSONObject rd = new JSONObject();
+            rd.put("min", live);
+            rd.put("stepIdx", spec.optInt("stepIdx"));
+            rd.put("checkedAt", now);
+            lv.put("ride", rd);
+        } else {
+            lv.put("travelMin", live);
+            lv.put("checkedAt", now);
+            lv.put("prevMin", base);
+        }
 
         if (r.kind != RecheckMath.Kind.NONE) {
             String title = spec.optString("title");
@@ -86,14 +103,14 @@ public final class Recheck {
                 JSONObject dep = PlanStore.findById(alarms, spec.optInt("departId"));
                 if (dep != null) {
                     dep.put("at", r.newDepart);
-                    dep.put("body", (r.urgent ? "지금 바로 출발하세요" : hmDepart + " 출발") + " · 실시간 교통 " + live + "분 반영");
+                    dep.put("body", (r.urgent ? "지금 바로 출발하세요" : hmDepart + " 출발") + " · " + src + " " + live + "분 반영");
                 }
                 JSONObject pre = PlanStore.findById(alarms, spec.optInt("preId"));
                 if (pre != null) {
                     long preAt = r.newDepart - 10 * 60_000L;
                     if (preAt > now + RecheckMath.MIN_LEAD_MS) {
                         pre.put("at", preAt);
-                        pre.put("body", hmDepart + " 출발 · 실시간 교통 " + live + "분 반영");
+                        pre.put("body", hmDepart + " 출발 · " + src + " " + live + "분 반영");
                     } else {
                         pre.put("at", 0); // 이미 지났으면 울리지 않음
                     }
@@ -102,7 +119,7 @@ public final class Recheck {
                     JSONObject wake = PlanStore.findById(alarms, spec.optInt("wakeId"));
                     if (wake != null) {
                         wake.put("at", r.newWake);
-                        wake.put("body", "길이 막혀 " + (-r.deltaMin) + "분 일찍 깨웠어요. " + hmDepart + "에 출발하세요 (실시간 " + live + "분)");
+                        wake.put("body", "길이 막혀 " + (-r.deltaMin) + "분 일찍 깨웠어요. " + hmDepart + "에 출발하세요 (" + src + " " + live + "분)");
                     }
                 }
             }
@@ -119,12 +136,12 @@ public final class Recheck {
             {
                 String nTitle, nBody;
                 if (r.kind == RecheckMath.Kind.EARLIER) {
-                    nTitle = r.urgent ? "🚨 지금 바로 출발하세요 — " + title : "🚗 길이 막혀요 — " + (-r.deltaMin) + "분 일찍 출발하세요";
-                    nBody = title + " · 티맵 실시간 " + live + "분 (예상 " + base + "분). " + hmDepart + "에 출발하세요."
+                    nTitle = r.urgent ? "🚨 지금 바로 출발하세요 — " + title : (ride ? "🚌 버스가 막혀요 — " : "🚗 길이 막혀요 — ") + (-r.deltaMin) + "분 일찍 출발하세요";
+                    nBody = title + " · " + src + " " + live + "분 (예상 " + base + "분). " + hmDepart + "에 출발하세요."
                             + (r.moveWake ? " 기상 알람을 " + hm(r.newWake) + "로 당겼어요." : "");
                 } else {
-                    nTitle = "🙂 길이 한산해요 — " + hmDepart + "에 출발해도 돼요";
-                    nBody = title + " · 티맵 실시간 " + live + "분 (예상 " + base + "분). 출발 알람을 " + hmDepart + "로 미뤘어요.";
+                    nTitle = (ride ? "🙂 버스가 잘 달려요 — " : "🙂 길이 한산해요 — ") + hmDepart + "에 출발해도 돼요";
+                    nBody = title + " · " + src + " " + live + "분 (예상 " + base + "분). 출발 알람을 " + hmDepart + "로 미뤘어요.";
                 }
                 AlarmReceiver.postNote(ctx, recheckId, nTitle, nBody, occId);
                 for (int i = 0; i < rechecks.length(); i++) {
@@ -144,6 +161,43 @@ public final class Recheck {
         }
         });
         Log.d(TAG, "재계산 " + occId + ": 실시간 " + live + "분, 변화 " + r.deltaMin + "분 (" + r.kind + ")");
+    }
+
+    /** 서울 버스 '지금 타면 몇 분' (서버 함수 seoul_bus_ride). 실패·정보 없음이면 -1 */
+    static int proxyRide(String url, String anon, JSONObject spec) {
+        HttpURLConnection c = null;
+        try {
+            JSONObject body = new JSONObject();
+            body.put("service", "seoul_bus_ride");
+            body.put("busID", spec.optString("busID"));
+            body.put("busLocalBlID", spec.optString("busLocalBlID"));
+            body.put("fromArs", spec.optString("fromArs"));
+            body.put("toArs", spec.optString("toArs"));
+            c = (HttpURLConnection) new URL(url).openConnection();
+            c.setRequestMethod("POST");
+            c.setDoOutput(true);
+            c.setConnectTimeout(10_000);
+            c.setReadTimeout(15_000);
+            c.setRequestProperty("Content-Type", "application/json");
+            if (!anon.isEmpty()) {
+                c.setRequestProperty("Authorization", "Bearer " + anon);
+                c.setRequestProperty("apikey", anon);
+            }
+            c.getOutputStream().write(body.toString().getBytes("UTF-8"));
+            if (c.getResponseCode() != 200) return -1;
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            java.io.InputStream in = c.getInputStream();
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            JSONObject res = new JSONObject(out.toString("UTF-8"));
+            return res.isNull("ride") ? -1 : res.optInt("ride", -1);
+        } catch (Exception e) {
+            Log.w(TAG, "서울 버스 조회 실패", e);
+            return -1;
+        } finally {
+            if (c != null) c.disconnect();
+        }
     }
 
     /** Supabase 경로 함수를 통해 티맵 실시간 소요시간(분) — 키가 앱에 없음. 실패 시 -1 */

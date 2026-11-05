@@ -87,3 +87,28 @@ console.log('\n경로 서버 함수 확인 완료');
   assert.strictEqual(k.status, 503);
   console.log('✓ 카카오 장소 검색 (키는 서버에만, 없으면 503)');
 }
+
+// 서울 버스: 같은 차량이 탈 곳·내릴 곳에 도착하는 시간 차이 = 지금 타면 걸리는 시간
+{
+  const { arrSec, rideFromRoute } = await import('../supabase/functions/route/index.ts');
+  assert.strictEqual(arrSec('3분12초후[2번째 전]'), 192);
+  assert.strictEqual(arrSec('곧 도착'), 30);
+  assert.strictEqual(arrSec('운행종료'), null);
+  const items = [
+    { arsId: '14179', vehId1: 'X', arrmsg1: '1분후' },
+    { arsId: '14180', vehId1: 'A', arrmsg1: '3분12초후[2번째 전]', plainNo1: '서울74사1234', vehId2: 'B', arrmsg2: '11분후' },
+    { arsId: '22001', vehId1: 'Z', arrmsg1: '2분후', vehId2: 'A', arrmsg2: '49분12초후' }];
+  assert.deepStrictEqual(rideFromRoute(items, '14-180', '22001'), { ride: 46, boardSec: 192, plainNo: '서울74사1234' });
+  assert.strictEqual(rideFromRoute(items, '22001', '14180'), null);   // 반대 방향
+  const env2 = { ...env, SEOUL_BUS_KEY: 'SEOULKEY' }, sc = [];
+  const sf = async (url) => { sc.push(url);
+    if (url.includes('busLaneDetail')) return new Response(JSON.stringify({ result: { busLocalBlID: '100100118' } }));
+    return new Response(JSON.stringify({ msgBody: { itemList: items } })); };
+  let rr = await handle(req({ service: 'seoul_bus_ride', busID: '1234', fromArs: '14180', toArs: '22001' }, '9.9.9.1'), env2, sf, t + 2e6);
+  const body = await rr.json();
+  assert.strictEqual(body.ride, 46);
+  assert.ok(sc[1].includes('busRouteId=100100118') && sc[1].includes('SEOULKEY'));
+  rr = await handle(req({ service: 'seoul_bus_ride', busID: '1234', fromArs: '14180', toArs: '22001' }, '9.9.9.1'), env, sf, t + 2e6);
+  assert.strictEqual(rr.status, 503);                                  // 키 없으면 503 → 앱은 보정값 사용
+  console.log('✓ 서울 버스 실시간 타는 시간 (같은 차량 추적)');
+}

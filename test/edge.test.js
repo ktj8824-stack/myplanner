@@ -130,3 +130,30 @@ console.log('✓ 알람 순서');
   console.log('✓ 버스·걷기 시간 넉넉히 (출근길 더)');
 }
 console.log('까다로운 경우 테스트 완료');
+
+// 13) 서울 버스 실시간 '타는 시간': 키가 있으면 보정값 대신 실제 값
+{
+  const step = { type: 'bus', label: '740번 버스', min: 35, routeIds: ['1234'], fromArs: '14-180', toArs: '22-001' };
+  const r = { travelMin: 40, source: 'odsay', steps: [{ type: 'walk', label: '도보', min: 3 }, step, { type: 'walk', label: '도보', min: 2 }] };
+  const sb = base({ date: '2030-12-09', arriveBy: '09:00', route: r });
+  assert.strictEqual(Planner.rideLeg(sb).stepIdx, 1);
+  const at = h => Planner.at('2030-12-09', h).getTime();
+  // 출발 직전에 잰 50분 → 보정값(46분)보다 길면 언제든 반영
+  let p = Planner.compute({ ...sb, live: { '2030-12-09': { ride: { min: 50, stepIdx: 1, checkedAt: at('07:30') } } } });
+  assert.strictEqual(U.hm(p.departAt), '07:48');
+  assert.ok(p.items.some(i => /실시간 버스 위치 기준/.test(i.detail || '')));
+  // 새벽 6시에 잰 30분(한산) → 무시, 출발 1시간 안에 잰 30분 → 반영하되 기상은 그대로
+  const plain = Planner.compute(sb);
+  p = Planner.compute({ ...sb, live: { '2030-12-09': { ride: { min: 30, stepIdx: 1, checkedAt: at('05:50') } } } });
+  assert.strictEqual(U.hm(p.departAt), U.hm(plain.departAt));
+  p = Planner.compute({ ...sb, live: { '2030-12-09': { ride: { min: 30, stepIdx: 1, checkedAt: at('07:40') } } } });
+  assert.strictEqual(U.hm(p.departAt), '08:08');
+  assert.strictEqual(U.hm(p.wakeAt), U.hm(plain.wakeAt));
+  // 폰 백그라운드 재확인 정보: 출발 = anchor − fixed − 타는 시간
+  const spec = Planner.rideSpec(sb, plain);
+  assert.strictEqual(spec.type, 'ride');
+  assert.strictEqual(spec.travelMin, 46);
+  assert.strictEqual(spec.anchorMs - (spec.fixedMin + spec.travelMin) * 60000, plain.departAt.getTime());
+  console.log('✓ 서울 버스 실시간 타는 시간 반영 (짧은 값은 출발 가까울 때만, 기상은 그대로)');
+}
+console.log('서울 버스 실시간 테스트 완료');

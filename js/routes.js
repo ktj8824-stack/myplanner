@@ -229,6 +229,8 @@ const Routes = {
           // 실시간 버스 도착 조회용: ODsay 정류장 ID + 노선 ID(같은 정류장에서 타는 다른 노선 포함)
           ...(isSubway ? {} : {
             stationId: sp.startID, arsId: sp.startArsID,
+            // 서울 버스 실시간 '타는 시간' 계산용 (탈 곳·내릴 곳 정류장 번호, 지역 노선 id)
+            fromArs: sp.startArsID, toArs: sp.endArsID, busLocalBlID: lane.busLocalBlID, cityCode: lane.busCityCode,
             routeIds: (sp.lane || []).map(l => l.busID).filter(Boolean),
             routeNos: (sp.lane || []).map(l => l.busNo).filter(Boolean)
           })
@@ -270,6 +272,15 @@ const Routes = {
     return out.sort((x, y) => x.sec - y.sec);
   },
 
+  /** 서울 버스 '지금 타면 몇 분' (서버 함수 + 서울시 버스 정보). 못 구하면 null */
+  async busRide(step) {
+    if (!step || !this.proxy() || !step.fromArs || !step.toArs) return null;
+    const busID = (step.routeIds || [])[0];
+    if (!busID && !step.busLocalBlID) return null;
+    const d = await this.api('seoul_bus_ride', { busID: busID ? String(busID) : '', busLocalBlID: step.busLocalBlID ? String(step.busLocalBlID) : '', fromArs: step.fromArs, toArs: step.toArs });
+    return d && typeof d.ride === 'number' && d.ride > 0 ? d : null;
+  },
+
   /** 첫 버스 정류장의 실시간 도착 (해당 노선만). 실패하면 null */
   async busArrivals(step) {
     if (!step || !step.stationId || !this.can('odsay')) return null;
@@ -286,8 +297,10 @@ const Routes = {
   async healEstimates() {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
     const limit = Recur.shift(U.today(), 14);
+    // 예전에 저장한 버스 경로에는 서울 버스 실시간용 정류장 번호가 없음 → 같은 경로로 다시 받아 채움
+    const noArs = r => r && r.source === 'odsay' && !r.arsChecked && (r.steps || []).some(st => st.type === 'bus' && !st.fromArs);
     const list = State.schedules.filter(s => !s.demo && !s._shared && (Recur.isRepeating(s) || (s.date >= U.today() && s.date <= limit)))
-      .filter(s => (s.route && s.route.source === 'estimate') || (s.accessRoute && s.accessRoute.source === 'estimate')
+      .filter(s => noArs(s.route) || noArs(s.accessRoute) || (s.route && s.route.source === 'estimate') || (s.accessRoute && s.accessRoute.source === 'estimate')
         || (s.goHome && s.goHome.on && s.goHome.route && s.goHome.route.source === 'estimate'))
       .slice(0, 5);
     let changed = false;
@@ -299,6 +312,12 @@ const Routes = {
           const dep = s.trip.departTime ? Planner.at(s.date, s.trip.departTime) : null;
           const r = (await this.options(s.origin, s.trip.departStation, s.trip.accessMode || 'transit', dep))[0];
           if (r && r.source !== 'estimate') { s.accessRoute = r; mine = true; }
+        } else if (!isTrip && noArs(s.route) && s.dest) {
+          const sig = r => (r.steps || []).map(st => st.label).join('|');
+          const same = (await this.options(s.origin, s.dest, 'transit', null)).find(r => sig(r) === sig(s.route));
+          // 같은 경로를 못 찾았거나 번호를 안 주면 다시 묻지 않도록 표시
+          s.route = same && !noArs(same) ? same : { ...s.route, arsChecked: true };
+          mine = true;
         } else if (!isTrip && s.route && s.route.source === 'estimate' && s.dest) {
           const due = s.arriveBy ? Planner.at(s.date, s.arriveBy) : null;
           const r = (await this.options(s.origin, s.dest, s.mode, due))[0];

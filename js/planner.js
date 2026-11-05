@@ -70,7 +70,7 @@ const Planner = {
     if (st.from && st.to) parts.push(`${st.from} → ${st.to}`);
     else if (st.to) parts.push(`${st.to}까지`);
     if (st.stops) parts.push(`${st.stops}개 정류장`);
-    if (st.min) parts.push(st.baseMin != null && st.type === 'bus' ? `${st.min}분 (${st.rush ? '출퇴근길 막힘' : '도로 사정'} 반영, 시간표 ${st.baseMin}분)` : `${st.min}분`);
+    if (st.min) parts.push(st.live ? `${st.min}분 (실시간 버스 위치 기준, 시간표 ${st.baseMin}분)` : st.baseMin != null && st.type === 'bus' ? `${st.min}분 (${st.rush ? '출퇴근길 막힘' : '도로 사정'} 반영, 시간표 ${st.baseMin}분)` : `${st.min}분`);
     return parts.join(' · ');
   },
 
@@ -81,6 +81,16 @@ const Planner = {
   LIVE_MODES: ['car', 'taxi'],
 
   liveFor(s) { const v = s.live && s.live[s.date]; return v && v.travelMin ? v : null; },
+  /** 서울 버스 실시간 '타는 시간' { min, stepIdx, checkedAt } (그날만) */
+  rideFor(s) { const v = s.live && s.live[s.date]; return v && v.ride && v.ride.min ? v.ride : null; },
+  /** 실시간 재계산 대상 버스 구간 (서울 버스 번호·정류장 번호가 있는 첫 버스) */
+  rideLeg(s) {
+    if (this.isTrip(s.mode) ? (s.trip && s.trip.accessMode) !== 'transit' : s.mode !== 'transit') return null;
+    const route = this.isTrip(s.mode) ? s.accessRoute : s.route;
+    const steps = (route && route.steps) || [];
+    const i = steps.findIndex(st => st.type === 'bus' && st.fromArs && st.toArs && ((st.routeIds && st.routeIds.length) || st.busLocalBlID));
+    return i < 0 ? null : { key: this.isTrip(s.mode) ? 'accessRoute' : 'route', stepIdx: i, step: steps[i] };
+  },
   /** 폰이 버스 실시간 도착을 보고 당긴 출발 시각 (그날만) */
   busLeaveFor(s) { const v = s.live && s.live[s.date]; return v && v.busLeaveAt ? new Date(v.busLeaveAt) : null; },
   /** 실시간 값을 써도 되는지: 평소보다 빠른 값은 출발 1시간 안에 잰 것만 (이른 아침 한산한 길로 늦게 깨우지 않게) */
@@ -138,6 +148,29 @@ const Planner = {
       wakeMs: plan.wakeAt.getTime(), from: leg.from, to: leg.to, mode: leg.mode };
   },
 
+  /**
+   * 서울 버스 실시간 재확인 정보: 출발 = anchor − fixedMin − 버스 타는 시간
+   * 폰이 백그라운드에서 '지금 타면 몇 분'을 받아 같은 식으로 출발·기상 알람을 조정 (기상은 당기기만)
+   */
+  rideSpec(s, plan) {
+    const leg = this.rideLeg(s);
+    if (!leg || plan.invalid) return null;
+    const trip = this.isTrip(s.mode);
+    let anchor;
+    if (trip) {
+      const tdef = this.MODES[s.mode], t = s.trip;
+      const margin = Number(t.marginMin ?? (s.mode === 'flight' && t.international ? tdef.intlMarginMin : tdef.marginMin));
+      anchor = this.addMin(this.at(s.date, t.departTime), -margin);
+    } else anchor = this.at(s.date, s.arriveBy);
+    const route = this.transitAdjust(s[leg.key], anchor, s);
+    const rideMin = route.steps[leg.stepIdx].min;
+    const buffer = Number(s.bufferMin ?? 10);
+    const fixedMin = buffer + (this.MODES.transit.extraMin || 0) + (route.travelMin - rideMin) + (plan.weather ? plan.weather.extraMin : 0);
+    const st = leg.step;
+    return { type: 'ride', anchorMs: anchor.getTime(), fixedMin, travelMin: rideMin, plannedDepartMs: plan.departAt.getTime(), wakeMs: plan.wakeAt.getTime(),
+      busID: String((st.routeIds || [])[0] || ''), busLocalBlID: String(st.busLocalBlID || ''), fromArs: String(st.fromArs), toArs: String(st.toArs) };
+  },
+
   /* ---------- 버스·걷기 시간 보정 ----------
      ODsay 버스 시간은 시간표 기준이라 실제 도로 사정(특히 출퇴근길)보다 짧고,
      걷는 시간도 빠른 걸음 기준이라 실제(카카오맵 등)보다 짧게 나옴 → 늦지 않게 넉넉히.
@@ -149,14 +182,23 @@ const Planner = {
     return (m >= 6 * 60 + 30 && m <= 10 * 60) || (m >= 17 * 60 && m <= 20 * 60);
   },
   /** at: 도착(또는 역 도착) 기준 시각 → 그 시간대에 맞게 버스·걷기 분 늘림 */
-  transitAdjust(route, at) {
+  transitAdjust(route, at, s) {
     if (!route || !route.steps || !route.steps.length || route.adjusted || !at || isNaN(at)) return route;
     const rush = this.isRush(at);
+    // 서울 버스 실시간 타는 시간 (있으면 보정값 대신). 평소보다 짧은 값은 출발 1시간 안에 잰 것만
+    const ride = s && s._noLive !== true ? this.rideFor(s) : null;
+    const leg = ride ? this.rideLeg(s) : null;
     let changed = false;
-    const steps = route.steps.map(st => {
+    const steps = route.steps.map((st, i) => {
       const min = st.min || 0;
       let n = min;
-      if (st.type === 'bus') n = Math.ceil(min * (rush ? this.RUSH.bus : this.RUSH.busNormal));
+      if (st.type === 'bus' && leg && i === leg.stepIdx && route.steps === (s[leg.key] || {}).steps) {
+        const est = Math.ceil(min * (rush ? this.RUSH.bus : this.RUSH.busNormal));
+        const baseDepart = at.getTime() - (route.travelMin + 40) * 60000;
+        const ok = ride.min >= est || ride.checkedAt >= baseDepart - this.LIVE_EARLY_MIN * 60000;
+        n = ok ? ride.min : est;
+        if (ok) { changed = true; return { ...st, min: n, baseMin: min, live: true }; }
+      } else if (st.type === 'bus') n = Math.ceil(min * (rush ? this.RUSH.bus : this.RUSH.busNormal));
       else if (st.type === 'walk' && route.steps.length > 1) n = Math.max(min + 1, Math.ceil(min * this.RUSH.walk));
       if (n === min) return st;
       changed = true;
@@ -227,7 +269,7 @@ const Planner = {
 
       const accessMode = trip.accessMode || 'transit';
       const checkInAt = this.addMin(vehicleDep, -margin);
-      const accessRoute = this.transitAdjust(this.liveRoute(s, 'accessRoute', accessMode), checkInAt);
+      const accessRoute = this.transitAdjust(this.liveRoute(s, 'accessRoute', accessMode), checkInAt, s);
       const accessTotal = this.totalMin(accessRoute, accessMode);
       wx = this.weatherExtra(s, accessMode, accessRoute ? accessRoute.travelMin : 0);
       departAt = this.addMin(checkInAt, -(accessTotal + buffer + wx));
@@ -257,7 +299,7 @@ const Planner = {
       }
     } else {
       const due = this.at(s.date, s.arriveBy);
-      const route = this.transitAdjust(this.liveRoute(s, 'route', s.mode), due);
+      const route = this.transitAdjust(this.liveRoute(s, 'route', s.mode), due, s);
       const total = this.totalMin(route, s.mode);
       wx = this.weatherExtra(s, s.mode, route ? route.travelMin : 0);
       departAt = this.addMin(due, -(total + buffer + wx));
@@ -271,7 +313,7 @@ const Planner = {
     // 앞 일정 장소에서 바로 이어서 가는 일정(s.chained)은 기상·준비 없이 출발부터
     let wakeAt = chained ? departAt : this.addMin(departAt, -prep);
     // 실시간 교통이 평소보다 빨라도 기상은 늦추지 않음 (출발만 늦춤)
-    if (!chained && this.liveFor(s) && s._noLive !== true) {
+    if (!chained && (this.liveFor(s) || this.rideFor(s)) && s._noLive !== true) {
       const base = this.compute({ ...s, live: null, _noLive: true });
       if (base.wakeAt < wakeAt) wakeAt = base.wakeAt;
     }

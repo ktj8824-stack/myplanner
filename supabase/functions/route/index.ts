@@ -7,14 +7,16 @@
 //            | tmap_walk {sx,sy,ex,ey} | odsay_transit {sx,sy,ex,ey}
 //            | kakao_local {keyword}  (카카오 키워드 장소 검색 — 티맵 키가 없거나 결과가 없을 때)
 //            | bus_arrival {stationID, routeIDs?}  → { arrivals: [{ routeId, routeNm, sec, left }] } (정리된 형태)
+//            | seoul_bus_ride {busID, busLocalBlID?, fromArs, toArs}  → { ride, boardSec, plainNo } 서울 버스 '지금 타면 몇 분'
+//              (서울시 버스도착정보: 노선 모든 정류장의 도착 예정 → 같은 차량이 탈 곳·내릴 곳에 도착하는 시간 차이)
 // 응답: 원래 API의 JSON 그대로 (앱의 해석 코드가 같도록) — bus_arrival만 앱·폰이 바로 쓰기 쉽게 정리
 //
 // 배포: 버디플래너 Supabase 프로젝트에 함수 이름 myplanner-route 로 올라가 있음
 // 비밀값 (Supabase 대시보드 > Edge Functions > Secrets) — MYPLANNER_ 접두사가 먼저, 없으면 접두사 없는 이름:
-//   MYPLANNER_TMAP_APP_KEY, MYPLANNER_ODSAY_API_KEY, MYPLANNER_KAKAO_REST_KEY, (선택) MYPLANNER_ODSAY_REFERER = ODsay에 등록한 웹 주소
+//   MYPLANNER_TMAP_APP_KEY, MYPLANNER_ODSAY_API_KEY, MYPLANNER_KAKAO_REST_KEY, (선택) MYPLANNER_ODSAY_REFERER = ODsay에 등록한 웹 주소, (선택) MYPLANNER_SEOUL_BUS_KEY = 공공데이터포털 서울특별시_버스도착정보조회 인증키
 // =========================================
 
-type Env = { TMAP_APP_KEY?: string; ODSAY_API_KEY?: string; ODSAY_REFERER?: string; KAKAO_REST_KEY?: string };
+type Env = { TMAP_APP_KEY?: string; ODSAY_API_KEY?: string; ODSAY_REFERER?: string; KAKAO_REST_KEY?: string; SEOUL_BUS_KEY?: string };
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
 const CORS = {
@@ -72,6 +74,49 @@ export function normalizeBus(data: any) {
   return out.sort((x, y) => x.sec - y.sec);
 }
 
+/** '3분12초후[2번째 전]' · '곧 도착' → 초. 모르면 null */
+export function arrSec(msg: unknown, alt?: unknown): number | null {
+  const m = String(msg ?? "");
+  if (/곧\s*도착/.test(m)) return 30;
+  const a = m.match(/(\d+)\s*분\s*(?:(\d+)\s*초)?/);
+  if (a) return +a[1] * 60 + (a[2] ? +a[2] : 0);
+  const b = m.match(/(\d+)\s*초/);
+  if (b) return +b[1];
+  const n = Number(alt);
+  return Number.isFinite(n) && n > 0 && n < 4 * 3600 ? n : null;
+}
+
+const arsNorm = (v: unknown) => String(v ?? "").replace(/[^0-9]/g, "");
+
+/**
+ * 서울시 노선 전체 도착정보 → 탈 정류장에 다음에 오는 차량이 내릴 정류장까지 가는 시간(분)
+ * items: msgBody.itemList (정류장 순서대로)
+ */
+// deno-lint-ignore no-explicit-any
+export function rideFromRoute(items: any[], fromArs: string, toArs: string) {
+  const f = arsNorm(fromArs), t = arsNorm(toArs);
+  const bi = items.findIndex((x) => arsNorm(x.arsId) === f);
+  if (bi < 0) return null;
+  let ai = -1;
+  for (let i = bi + 1; i < items.length; i++) if (arsNorm(items[i].arsId) === t) { ai = i; break; }
+  if (ai < 0) return null;
+  const b = items[bi], a = items[ai];
+  for (const k of [1, 2]) {
+    const veh = b[`vehId${k}`];
+    if (!veh || veh === "0") continue;
+    const board = arrSec(b[`arrmsg${k}`], b[`exps${k}`]);
+    let alight: number | null = null;
+    for (const j of [1, 2]) if (a[`vehId${j}`] === veh) alight = arrSec(a[`arrmsg${j}`], a[`exps${j}`]);
+    if (board == null || alight == null || alight <= board) continue;
+    const ride = Math.ceil((alight - board) / 60);
+    if (ride < 1 || ride > 240) continue;
+    return { ride, boardSec: board, plainNo: String(b[`plainNo${k}`] || "") };
+  }
+  return null;
+}
+
+const blCache = new Map<string, { at: number; id: string }>();
+
 const GLOBAL_PER_MIN = 1500;      // 이 서버 전체 1분 최대 (주소를 바꿔 가며 부르는 남용 대비)
 let allReq = { n: 0, t: 0 };
 
@@ -126,6 +171,45 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
     if (!env.ODSAY_API_KEY) return json({ error: "ODsay 키가 설정되지 않음" }, 503);
     url = `https://api.odsay.com/v1/api/realtimeStation?lang=0&stationBase=0&stationID=${stationID}${routeIDs ? "&routeIDs=" + routeIDs : ""}&apiKey=${encodeURIComponent(env.ODSAY_API_KEY)}`;
     init = env.ODSAY_REFERER ? { headers: { Referer: env.ODSAY_REFERER } } : {};
+  } else if (service === "seoul_bus_ride") {
+    if (!env.SEOUL_BUS_KEY) return json({ error: "서울 버스 키가 설정되지 않음" }, 503);
+    const busID = String(p.busID || ""), fromArs = arsNorm(p.fromArs), toArs = arsNorm(p.toArs);
+    let bl = String(p.busLocalBlID || "");
+    if (!/^\d{1,12}$/.test(busID) && !/^\d{6,12}$/.test(bl)) return json({ error: "노선 정보가 올바르지 않음" }, 400);
+    if (!/^\d{3,6}$/.test(fromArs) || !/^\d{3,6}$/.test(toArs)) return json({ error: "정류장 번호가 올바르지 않음" }, 400);
+    try {
+      // ODsay 노선 id → 서울시 노선 id (하루 캐시)
+      if (!/^\d{6,12}$/.test(bl)) {
+        const hit = blCache.get(busID);
+        if (hit && now - hit.at < 86_400_000) bl = hit.id;
+        else {
+          if (!env.ODSAY_API_KEY) return json({ error: "ODsay 키가 설정되지 않음" }, 503);
+          const lr = await fetchFn(`https://api.odsay.com/v1/api/busLaneDetail?lang=0&busID=${busID}&apiKey=${encodeURIComponent(env.ODSAY_API_KEY)}`,
+            env.ODSAY_REFERER ? { headers: { Referer: env.ODSAY_REFERER } } : {});
+          const lj = await lr.json().catch(() => ({}));
+          bl = String(lj?.result?.busLocalBlID || "");
+          if (!/^\d{6,12}$/.test(bl)) return json({ error: "서울 노선을 찾지 못함" }, 404);
+          blCache.set(busID, { at: now, id: bl });
+          if (blCache.size > 2000) blCache.delete(blCache.keys().next().value as string);
+        }
+      }
+      const key = "ride|" + bl + "|" + fromArs + "|" + toArs;
+      const c0 = cache.get(key);
+      if (c0 && now - c0.at < 30_000) return json(c0.body, c0.status);
+      const res = await fetchFn(`http://ws.bus.go.kr/api/rest/arrive/getArrInfoByRouteAll?serviceKey=${/%[0-9A-F]{2}/i.test(env.SEOUL_BUS_KEY) ? env.SEOUL_BUS_KEY : encodeURIComponent(env.SEOUL_BUS_KEY)}&busRouteId=${bl}&resultType=json`);
+      const data = await res.json().catch(() => ({}));
+      const items = data?.msgBody?.itemList;
+      if (!Array.isArray(items)) {
+        console.warn(`[myplanner-route] seoul_bus upstream ${res.status}: ${JSON.stringify(data?.msgHeader || {}).slice(0, 200)}`);
+        return json({ error: "서울 버스 정보를 받지 못함" }, 502);
+      }
+      const r = rideFromRoute(items, fromArs, toArs);
+      const body = JSON.stringify(r ? { ...r, busRouteId: bl, source: "seoul" } : { ride: null, busRouteId: bl, source: "seoul" });
+      cache.set(key, { at: now, status: 200, body });
+      return json(body, 200);
+    } catch (_e) {
+      return json({ error: "서울 버스 정보에 연결하지 못함" }, 502);
+    }
   } else if (["tmap_route", "tmap_predict", "tmap_walk", "odsay_transit"].includes(service)) {
     const c = coords(p);
     if (!c) return json({ error: "좌표가 올바르지 않음" }, 400);
@@ -208,5 +292,6 @@ if (D && D.serve) {
     ODSAY_API_KEY: env("ODSAY_API_KEY"),
     ODSAY_REFERER: env("ODSAY_REFERER"),
     KAKAO_REST_KEY: env("KAKAO_REST_KEY"),
+    SEOUL_BUS_KEY: env("SEOUL_BUS_KEY"),
   }));
 }

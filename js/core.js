@@ -54,11 +54,14 @@ const U = {
       min: num(st.min, 0, 1440, 0), ...(st.stops != null ? { stops: num(st.stops, 0, 200, 0) } : {}), ...(st.way ? { way: str(st.way, 40) } : {}),
       ...(st.stationId != null ? { stationId: str(st.stationId, 20).replace(/[^0-9]/g, '') } : {}),
       ...(Array.isArray(st.routeIds) ? { routeIds: st.routeIds.slice(0, 10).map(x => str(x, 20).replace(/[^0-9]/g, '')) } : {}),
-      ...(Array.isArray(st.routeNos) ? { routeNos: st.routeNos.slice(0, 10).map(x => str(x, 20)) } : {})
+      ...(Array.isArray(st.routeNos) ? { routeNos: st.routeNos.slice(0, 10).map(x => str(x, 20)) } : {}),
+      ...(st.fromArs != null ? { fromArs: str(st.fromArs, 12).replace(/[^0-9-]/g, '') } : {}), ...(st.toArs != null ? { toArs: str(st.toArs, 12).replace(/[^0-9-]/g, '') } : {}),
+      ...(st.busLocalBlID != null ? { busLocalBlID: str(st.busLocalBlID, 12).replace(/[^0-9]/g, '') } : {}), ...(st.cityCode != null ? { cityCode: str(st.cityCode, 8).replace(/[^0-9]/g, '') } : {})
     } : null);
     const route = r => (r && typeof r === 'object' ? {
       travelMin: num(r.travelMin, 0, 1440, 0), source: word(r.source) || 'estimate', summary: str(r.summary, 100),
       steps: Array.isArray(r.steps) ? r.steps.slice(0, 30).map(step).filter(Boolean) : [],
+      ...(r.arsChecked ? { arsChecked: true } : {}),
       ...(r.fare != null ? { fare: num(r.fare, 0, 1e6, 0) } : {}), ...(r.transfers != null ? { transfers: num(r.transfers, 0, 20, 0) } : {})
     } : null);
     const date = ymd(o.date);
