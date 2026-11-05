@@ -604,3 +604,13 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .wk-ev .wk-ic { width: 26px; height: 26px; flex: none; }
 .wk-empty { align-self: flex-start; padding: 8px 2px; font-size: 13.5px; color: var(--muted); font-weight: 600; }
 .wk-day-link { align-self: flex-end; font-size: 12.5px; color: var(--blue); font-weight: 700; padding: 2px 4px; }
+
+/* ---------- 아이폰·노치 화면 가장자리 ---------- */
+/* 상태 표시줄(시간·배터리) 뒤로 내용이 비치지 않게 바탕색 띠 */
+body::before { content: ''; position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 40; pointer-events: none; }
+/* 아래 메뉴는 홈 막대 영역에 살짝 겹쳐 아래쪽에 붙게 (너무 떠 보이지 않게) */
+#nav { bottom: max(10px, calc(env(safe-area-inset-bottom) - 12px)); }
+/* 메뉴 아래로 내용이 비치지 않게 바탕을 깔아 줌 */
+body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bottom: 0; height: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 40px); background: linear-gradient(180deg, rgba(244, 245, 247, 0), var(--bg) 45%); z-index: 24; pointer-events: none; }
+#main { padding-bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 96px); }
+#toast { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 84px); }
