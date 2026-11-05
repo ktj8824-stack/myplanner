@@ -639,6 +639,6 @@ body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bott
 #sheet { inset: auto 0; top: var(--vvtop, 0px); height: var(--vvh, 100%); }
 .sheet-panel { max-height: min(88vh, calc(var(--vvh, 100vh) - env(safe-area-inset-top) - 12px)); }
 /* 장소 검색: 제목·검색칸은 고정, 결과만 스크롤 */
-.sheet-panel.pp-sheet { overflow: hidden; }
+.sheet-panel.pp-sheet { overflow: hidden; height: min(88vh, calc(var(--vvh, 100vh) - env(safe-area-inset-top) - 12px)); } /* 처음부터 다 펼친 크기로 (글자 칠 때 커지지 않게) */
 .sheet-panel.pp-sheet > * { flex: none; }
 .sheet-panel.pp-sheet > .pp-results { flex: 1 1 auto; min-height: 0; -webkit-overflow-scrolling: touch; }
