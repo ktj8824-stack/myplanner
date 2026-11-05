@@ -242,6 +242,7 @@ const Planner = {
   /** 앞 일정에서 바로 이어서 가는지 — 앞 일정이 지워졌거나 그날 건너뛰었으면 아님 */
   chainState(s) {
     if (s.startNow) return { chained: true, broken: false }; // 지금 있는 곳에서 바로 출발 (이미 밖)
+    if (s._chainPreview && s.chained) return { chained: true, broken: false }; // AI 카드: 아직 저장 전인 앞 카드에서 이어서
     if (!s.chained) return { chained: false, broken: false };
     if (typeof State === 'undefined' || !State.get || typeof Recur === 'undefined') return { chained: true, broken: false };
     const p = State.get(s.chained.from);

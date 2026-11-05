@@ -174,7 +174,7 @@ const Assistant = {
       upcoming: up.map(({ s, plan }, idx) => ({
         idx, title: String(s.title || '').slice(0, 60), date: s.date, weekday: U.DOW[Planner.at(s.date, '12:00').getDay()],
         kind: Planner.isTrip(s.mode) ? s.mode : 'event',
-        time: Planner.isTrip(s.mode) ? s.trip.departTime + ' 출발' : s.arriveBy + ' 도착',
+        time: Planner.isTrip(s.mode) ? s.trip.departTime + ' 출발' : s.arriveBy + ' 도착', end: s.endBy || undefined,
         wake: U.hm(plan.wakeAt), depart: U.hm(plan.departAt), mode: Planner.MODES[s.mode].label,
         to: s.dest ? s.dest.name : (s.trip && s.trip.departStation ? s.trip.departStation.name : ''),
         repeat: Recur.isRepeating(s) ? Recur.label(s) : undefined, weather: plan.weather ? plan.weather.label : undefined,
@@ -253,7 +253,7 @@ const Assistant = {
     this.redraw();
     if (this.speakOn) Voice.speak(text);
     const i = this.msgs.length - 1;
-    cards.forEach((c, j) => { if (c.state === 'pending') this.prepare(i, j); });
+    (async () => { for (let j = 0; j < cards.length; j++) if (cards[j].state === 'pending') await this.prepare(i, j); })();
   },
 
   redraw() {
@@ -335,7 +335,7 @@ const Assistant = {
     const d = c.draft || {
       id: U.uid(), title: a.title, date: a.date, arriveBy: isTrip ? '' : a.time, mode,
       origin: null, dest: null, prepMin: a.prep_min ?? st.prepMin ?? 60, bufferMin: a.buffer_min ?? st.bufferMin ?? 10,
-      route: null, accessRoute: null, egressRoute: null, memo: a.memo || '',
+      route: null, accessRoute: null, egressRoute: null, memo: a.memo || '', endBy: /^\d\d:\d\d$/.test(a.end_time || '') && !isTrip ? a.end_time : '',
       trip: { accessMode: isTrip ? (a.mode || 'transit') : 'transit', egressMode: 'transit', departTime: isTrip ? a.time : '08:00',
         arriveTime: a.arrive_time || '', number: a.number || '', international: !!a.international },
       repeat: { type: a.repeat && a.repeat !== 'none' ? a.repeat : 'none', days: a.repeat_days || [], until: '', skipHolidays: true },
@@ -361,6 +361,13 @@ const Assistant = {
         if (!p) { c.state = 'need'; c.need = { field: 'dest', q: this.normalizePlace(a.place), label: `'${a.place}'` }; return; }
         d.dest = p;
       }
+      // 같은 날 앞 약속(저장된 것 + 이번 대화의 앞 카드)이 끝나고 바로면 그 장소에서 출발
+      if (!c.chainChecked && (!a.origin || a.origin === 'home') && typeof DayPlan !== 'undefined') {
+        c.chainChecked = true;
+        const siblings = this.siblingDrafts(c);
+        const prev = DayPlan.applyAuto(d, siblings);
+        if (prev) c.chainNote = `'${prev.s.title}' 끝나고 ${prev.place.name}에서 바로 출발`;
+      }
       if (!d.route) d.route = (await Routes.options(d.origin, d.dest, d.mode, Planner.at(d.date, d.arriveBy)))[0] || null;
     }
     if (isTrip ? !d.accessRoute : !d.route) throw new Error('경로를 찾지 못했어요');
@@ -377,11 +384,22 @@ const Assistant = {
     if (!repeating && Planner.at(a.date, a.time).getTime() < Date.now()) return '이미 지난 시간이에요. 날짜나 시간을 다시 말씀해 주세요';
     ['prep_min', 'buffer_min'].forEach(k => { if (a[k] != null) a[k] = Math.max(0, Math.min(300, Math.round(+a[k] || 0))); });
     if (isTrip && a.arrive_time && !/^\d{2}:\d{2}$/.test(a.arrive_time)) a.arrive_time = '';
+    if (a.end_time && !/^\d{2}:\d{2}$/.test(a.end_time)) a.end_time = '';
     return '';
   },
 
+  /** 같은 답변의 다른 일정 카드 초안 (아직 저장 전) */
+  siblingDrafts(c) {
+    const msg = this.msgs.find(m => (m.cards || []).includes(c));
+    return msg ? msg.cards.filter(x => x !== c && x.kind === 'schedule' && x.draft && x.state !== 'dismissed' && !State.get(x.draft.id)).map(x => x.draft) : [];
+  },
+
   planSummary(d) {
-    const p = Planner.compute(d);
+    // 아직 저장 전인 앞 카드에서 이어서 가는 경우도 미리 '이어서 출발'로 계산
+    const p = Planner.compute(d.chained && !State.get(d.chained.from) ? { ...d, _chainPreview: true } : d);
+    if (p.chained) return { wake: '바로', chained: true, depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(p.arriveAt),
+      endLabel: Planner.isTrip(d.mode) ? '탑승' : '도착', warn: p.warnings.filter(w => !/어림|추정/.test(w))[0] || '', estimate: p.warnings.some(w => /어림|추정/.test(w)),
+      weather: p.weather ? `${p.weather.icon} ${p.weather.label} — ${p.weather.tip}` : '' };
     return { wake: U.hmRel(p.wakeAt, d.date), depart: U.hm(p.departAt), end: Planner.isTrip(d.mode) ? d.trip.departTime : U.hm(p.arriveAt),
       endLabel: Planner.isTrip(d.mode) ? '탑승' : '도착', warn: p.warnings.filter(w => !/추정한 시간/.test(w))[0] || '',
       estimate: p.warnings.some(w => /추정한 시간/.test(w)), weather: p.weather ? `${p.weather.icon} ${p.weather.label} — ${p.weather.tip}` : '' };
@@ -405,7 +423,11 @@ const Assistant = {
     const d = c.draft;
     if (State.get(d.id)) { c.savedId = d.id; c.state = 'saved'; this.paintCard(i, j); return U.toast('이미 저장한 일정이에요'); }
     c.state = 'saving'; this.paintCard(i, j);
+    if (!d.chained && (!c.action.origin || c.action.origin === 'home') && typeof DayPlan !== 'undefined' && DayPlan.applyAuto(d)) {
+      try { d.route = (await Routes.options(d.origin, d.dest, d.mode, Planner.at(d.date, d.arriveBy)))[0] || d.route; } catch (e) {}
+    }
     State.upsert(d);
+    if (typeof DayPlan !== 'undefined') { try { const n = await DayPlan.rechainNext(d); if (n) c.rechained = n; } catch (e) {} }
     try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
     await Alarm.rescheduleAll();
     const saved = Recur.isRepeating(d) ? (State.upcoming(14).find(x => x.s.baseId === d.id) || {}).s : d;
@@ -421,8 +443,18 @@ const Assistant = {
     }
     c.state = 'saved';
     this.paintCard(i, j);
-    const msg = `저장했어요. ${c.plan.wake.replace('전날 ', '전날 ')}에 깨워 드리고, ${c.plan.depart}에 출발 알람을 울려 드릴게요.` + (c.shared ? ` ${c.shared.join(', ')}님 폰에도 알람을 보냈어요.` : '');
+    const msg = (c.plan.chained ? `저장했어요. ${c.plan.depart}에 출발 알람을 울려 드릴게요.` : `저장했어요. ${c.plan.wake.replace('전날 ', '전날 ')}에 깨워 드리고, ${c.plan.depart}에 출발 알람을 울려 드릴게요.`)
+      + (c.rechained ? ` '${c.rechained}'도 여기서 바로 출발로 바꿨어요.` : '') + (c.shared ? ` ${c.shared.join(', ')}님 폰에도 알람을 보냈어요.` : '');
     if (this.speakOn) Voice.speak(msg);
+  },
+
+  /** 한 답변의 일정 여러 개를 시간 순서대로 저장 (앞 약속부터 → 뒤 약속이 앞 장소에서 출발) */
+  async saveAll(i) {
+    const m = this.msgs[i];
+    if (!m) return;
+    const order = m.cards.map((c, j) => ({ c, j })).filter(x => x.c.kind === 'schedule' && x.c.state === 'ready' && x.c.draft)
+      .sort((x, y) => (x.c.draft.date + (x.c.draft.arriveBy || x.c.draft.trip.departTime)).localeCompare(y.c.draft.date + (y.c.draft.arriveBy || y.c.draft.trip.departTime)));
+    for (const x of order) await this.save(i, x.j);
   },
 
   edit(i, j) {
@@ -454,7 +486,9 @@ const Assistant = {
     c.summary = { title: cur.title, date: next.date, rep, oldDate: cur.date,
       before: { wake: U.hm(before.wakeAt), depart: U.hm(before.departAt), time: Planner.isTrip(cur.mode) ? cur.trip.departTime : cur.arriveBy },
       after: { wake: U.hm(after.wakeAt), depart: U.hm(after.departAt), time: Planner.isTrip(next.mode) ? next.trip.departTime : next.arriveBy } };
-    c.change = { new_time: a.new_time, new_date: rep ? null : a.new_date, prep_min: a.prep_min, buffer_min: a.buffer_min };
+    c.change = { new_time: a.new_time, new_date: rep ? null : a.new_date, prep_min: a.prep_min, buffer_min: a.buffer_min,
+      end_time: /^\d\d:\d\d$/.test(a.new_end_time || '') ? a.new_end_time : '' };
+    if (c.change.end_time) c.summary.endTime = c.change.end_time;
     c.state = 'ready';
   },
 
@@ -471,15 +505,18 @@ const Assistant = {
       if (c.change.new_time) { if (Planner.isTrip(base.mode)) ov.trip = { ...base.trip, departTime: c.change.new_time }; else ov.arriveBy = c.change.new_time; }
       if (c.change.prep_min != null) ov.prepMin = c.change.prep_min;
       if (c.change.buffer_min != null) ov.bufferMin = c.change.buffer_min;
+      if (c.change.end_time) ov.endBy = c.change.end_time;
       base.overrides = { ...(base.overrides || {}), [cur.date]: ov };
     } else {
       if (c.change.new_time) { if (Planner.isTrip(base.mode)) base.trip.departTime = c.change.new_time; else base.arriveBy = c.change.new_time; }
       if (c.change.new_date) base.date = c.change.new_date;
       if (c.change.prep_min != null) base.prepMin = c.change.prep_min;
       if (c.change.buffer_min != null) base.bufferMin = c.change.buffer_min;
+      if (c.change.end_time) base.endBy = c.change.end_time;
       if (c.change.new_date || c.change.new_time) { base.live = {}; }
     }
     State.upsert(base);
+    if (c.change && c.change.end_time && typeof DayPlan !== 'undefined') { try { await DayPlan.rechainNext(Recur.resolve(c.occId) || base); } catch (e) {} }
     try { if (typeof Weather !== 'undefined') await Weather.refresh(); } catch (e) {}
     await Alarm.rescheduleAll();
     c.state = 'saved';
@@ -508,13 +545,17 @@ const Assistant = {
         <button class="btn primary big" onclick="Assistant.pickNeed(${i},${j})">📍 장소 고르기</button>
         <button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button>`;
       const p = c.plan;
-      const times = `<div class="ai-times"><div><small>기상</small><b>${p.wake}</b></div><div><small>출발</small><b>${p.depart}</b></div><div><small>${p.endLabel}</small><b>${p.end}</b></div></div>
+      const times = `${c.chainNote ? `<div class="ai-c-note">📍 ${U.esc(c.chainNote)}</div>` : ''}<div class="ai-times"><div><small>${p.chained ? '기상 없이' : '기상'}</small><b>${p.wake}</b></div><div><small>출발</small><b>${p.depart}</b></div><div><small>${p.endLabel}</small><b>${p.end}</b></div></div>
         ${p.weather ? `<div class="ai-c-note">${U.esc(p.weather)}</div>` : ''}${p.warn ? `<div class="ai-c-note warn">⚠️ ${U.esc(p.warn)}</div>` : ''}
         ${p.estimate ? `<div class="ai-c-note">거리로 추정한 시간이에요</div>` : ''}`;
-      if (c.state === 'saved') return head + times + `<div class="ai-c-done">✅ 저장했어요 · 알람을 맞췄어요${c.shared ? ` · ${U.esc(c.shared.join(', '))}님께도 보냈어요` : ''}</div>
-        <button class="btn ghost" onclick="App.navigate('timeline',{id:'${U.esc(c.savedId)}'})">일정 보기</button>`;
+      if (c.state === 'saved') return head + times + `<div class="ai-c-done">✅ 저장했어요 · 알람을 맞췄어요${c.rechained ? ` · '${U.esc(c.rechained)}'도 여기서 출발로 바꿨어요` : ''}${c.shared ? ` · ${U.esc(c.shared.join(', '))}님께도 보냈어요` : ''}</div>
+        <div class="ai-c-row"><button class="btn ghost" onclick="App.navigate('timeline',{id:'${U.esc(c.savedId)}'})">일정 보기</button>${State.byDate(a.date).length > 1 ? `<button class="btn ghost" onclick="App.navigate('day',{date:'${U.esc(a.date)}',from:'home'})">하루 동선 보기</button>` : ''}</div>`;
       const shareNote = (a.share_with || []).length ? `<div class="ai-c-note">👨‍👩‍👧 ${U.esc(a.share_with.join(', '))}님 폰에도 알람을 보내요</div>` : '';
-      return head + times + shareNote + `<button class="btn primary big" onclick="Assistant.save(${i},${j})">✓ 이대로 저장하고 알람 켜기</button>
+      const msgCards = (this.msgs[i] && this.msgs[i].cards) || [];
+      const readyN = msgCards.filter(x => x.kind === 'schedule' && x.state === 'ready').length;
+      const allBtn = readyN > 1 && msgCards.findIndex(x => x.kind === 'schedule' && x.state === 'ready') === j
+        ? `<button class="btn primary big" onclick="Assistant.saveAll(${i})">✓ ${readyN}개 일정 한 번에 저장</button>` : '';
+      return head + times + shareNote + allBtn + `<button class="btn ${allBtn ? 'ghost' : 'primary big'}" onclick="Assistant.save(${i},${j})">✓ ${allBtn ? '이것만 저장' : '이대로 저장하고 알람 켜기'}</button>
         <div class="ai-c-row"><button class="link" onclick="Assistant.edit(${i},${j})">고쳐서 저장</button><button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button></div>`;
     }
 
@@ -528,7 +569,7 @@ const Assistant = {
       }
       const row = (k, label) => s.before[k] !== s.after[k] ? `<div class="ai-diff"><span>${label}</span><s>${s.before[k]}</s> → <b>${s.after[k]}</b></div>` : '';
       return head + `${s.oldDate && s.date !== s.oldDate ? `<div class="ai-diff"><span>날짜</span><s>${U.dateLabel(s.oldDate).split(' · ')[0]}</s> → <b>${U.dateLabel(s.date).split(' · ')[0]}</b></div>` : ''}
-        ${row('time', '약속')}${row('wake', '기상')}${row('depart', '출발')}`
+        ${row('time', '약속')}${row('wake', '기상')}${row('depart', '출발')}${s.endTime ? `<div class="ai-diff"><span>끝나는 시간</span><b>${U.esc(s.endTime)}</b></div>` : ''}`
         + (c.state === 'saved' ? `<div class="ai-c-done">✅ 바꿨어요 · 알람도 다시 맞췄어요</div>`
           : `<button class="btn primary big" onclick="Assistant.applyUpdate(${i},${j})">✓ 이렇게 바꾸기</button><button class="link" onclick="Assistant.dismiss(${i},${j})">취소</button>`);
     }

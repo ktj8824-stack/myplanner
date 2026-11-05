@@ -4,7 +4,7 @@ global.U = { hm: d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMi
 global.Weather = undefined;
 const Planner = require('../js/planner.js'); global.Planner = Planner;
 const { DayPlan } = require('../js/day.js');
-const D = '2026-11-05';
+const D = '2030-11-05';
 const home = { name: '집', lat: 37.5446, lng: 126.9516 };
 const hosp = { name: '서울아산병원', lat: 37.5266, lng: 127.1081 };
 const office = { name: '회사', lat: 37.4979, lng: 127.0276 };

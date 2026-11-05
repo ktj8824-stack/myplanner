@@ -40,6 +40,7 @@ export const TOOLS = [
         date: { type: "string", description: "YYYY-MM-DD (반복이면 시작일)" },
         kind: { type: "string", enum: ["event", "train", "flight"], description: "event=약속·출근·병원 등 장소에 도착, train=기차, flight=비행기" },
         time: { type: "string", description: "HH:MM 24시간. event면 도착해야 하는 시각, train/flight면 출발(탑승) 시각" },
+        end_time: { type: "string", description: "event가 끝나는 시각 HH:MM (말한 경우만). 같은 날 다음 약속의 출발지·남는 시간 계산에 씀" },
         place: { type: "string", description: "event의 목적지 (검색할 장소명, 예: 서울아산병원, 강남역)" },
         origin: { type: "string", description: "출발지. 집이면 'home' (기본). 다른 곳이면 장소명" },
         mode: { type: "string", enum: ["transit", "car", "taxi", "walk"], description: "event 이동수단, train/flight는 역·공항까지 가는 수단. 말 안 하면 생략(사용자 기본값)" },
@@ -67,6 +68,7 @@ export const TOOLS = [
         idx: { type: "integer" },
         new_time: { type: "string", description: "HH:MM (도착 시각, 기차·비행기는 출발 시각)" },
         new_date: { type: "string", description: "YYYY-MM-DD (반복 일정에는 쓰지 않음)" },
+        new_end_time: { type: "string", description: "끝나는 시각 HH:MM (예: '점심 약속 3시에 끝나')" },
         prep_min: { type: "integer" },
         buffer_min: { type: "integer" },
         skip: { type: "boolean", description: "반복 일정의 그날 하루만 건너뛰기" },
@@ -118,7 +120,10 @@ export function systemPrompt(ctx: Json): string {
 - 변경("11시로 미뤄 줘", "내일은 출근 안 해")은 propose_update로 제안합니다.
 - 저장은 사용자가 카드 버튼을 눌러야 됩니다. "등록했어요"가 아니라 "아래 카드에서 확인해 주세요"라고 말합니다.
 - 기상·출발 시각은 앱이 경로를 찾아 계산합니다. 새 일정의 기상·출발 시각을 미리 말하지 마세요.
-- 한 번에 여러 일정을 말하면("10시 병원 갔다가 2시에 회사") 일정마다 propose_schedule을 따로 씁니다.
+- 한 번에 여러 일정을 말하면("10시 병원 갔다가 2시에 회사") 일정마다 propose_schedule을 따로, 시간 순서대로 씁니다.
+- "몇 시에 끝나"를 말하면 end_time에 넣습니다. 같은 날 앞 약속이 끝나고 다음 약속이 있으면 앱이 알아서 '앞 약속 장소에서 바로 출발'로 계산하므로 origin은 비워 둡니다(집에 들렀다 간다고 하면 origin:"home").
+- 이미 있는 두 약속 사이에 끼워 넣는 말("3시에 끝나고 4시에 성수 카페 들렀다 가")은 새 약속만 propose_schedule로 제안합니다. 앞 약속의 끝나는 시간을 처음 말하면(목록에 끝 시간이 없으면) 그 약속에 propose_update {new_end_time}도 함께 제안합니다. 앱이 뒤 약속의 출발지를 새 약속 장소로 자동으로 바꿉니다.
+- 사이에 남는 시간을 물으면("6시 약속 전에 얼마나 비어?") 목록의 끝 시간·다음 약속 출발 시각으로 답합니다.
 - 장소는 사용자가 쓴 말 그대로 넣습니다. "회사", "엄마 집"처럼 자주 가는 곳 목록에 있는 이름이면 그 이름을 그대로 쓰면 앱이 알아서 찾습니다.
 - "엄마 폰에도 알려 줘"처럼 가족에게 알람을 보내 달라고 하면 share_with에 가족 이름을 넣습니다. 가족 목록에 없는 사람이면 그렇다고 말합니다.
 - 일정·이동·하루 계획과 무관한 요청(투자, 정치, 숙제, 코딩 등)은 "저는 일정과 이동을 돕는 비서라서요"처럼 정중히 짧게 돌려 말합니다. 가벼운 인사는 받아 줍니다.
@@ -144,6 +149,8 @@ export function systemPrompt(ctx: Json): string {
 - "병원 11시로 미뤄 줘" → 목록의 병원 idx로 propose_update {new_time:"11:00"}
 - "내일 몇 시에 일어나?" → 목록의 내일 일정 기상 시각으로 답 (도구 없음)
 - "3시에 약속 있어" → 어디인지 모르므로 "어디로 가시나요?"라고 한 가지만 물음
+- "내일 12시 강남 점심 3시에 끝나고 6시에 일산 저녁" → propose_schedule {title:"강남 점심", time:"12:00", end_time:"15:00", place:"강남"} + propose_schedule {title:"일산 저녁", time:"18:00", place:"일산"}
+- (목록에 내일 강남 점심 12~15시, 일산 저녁 18시가 있을 때) "점심 끝나고 4시에 성수 카페 들렀다 가, 5시까지 있을 거야" → propose_schedule {title:"성수 카페", date:내일, time:"16:00", end_time:"17:00", place:"성수 카페"}
 
 [사용자 정보]
 - 지금: ${ctx.today || ""} (${ctx.weekday || ""}) ${ctx.now || ""}
@@ -215,6 +222,7 @@ export function checkAction(name: string, input: Json, ctx: Json): string | null
     if (input.kind === "event" && !input.place) return "event에는 place(목적지)가 필요합니다. 모르면 사용자에게 물어보세요";
     if ((input.kind === "train" || input.kind === "flight") && !input.from_station) return "출발역·공항(from_station)이 필요합니다. 모르면 물어보세요";
     if (input.arrive_time && !HM.test(input.arrive_time)) return "arrive_time은 HH:MM";
+    if (input.end_time && !HM.test(input.end_time)) return "end_time은 HH:MM";
     if (YMD.test(ctx.today || "") && input.date < ctx.today) return `${input.date}는 이미 지난 날짜입니다. 날짜표에서 다시 고르세요`;
     if ((!input.repeat || input.repeat === "none") && input.date === ctx.today && HM.test(ctx.now || "") && input.time <= ctx.now)
       return `오늘 ${input.time}은 이미 지났습니다(지금 ${ctx.now}). 내일인지 사용자에게 확인하세요`;
@@ -226,10 +234,11 @@ export function checkAction(name: string, input: Json, ctx: Json): string | null
     const n = Array.isArray(ctx.upcoming) ? ctx.upcoming.length : 0;
     if (!Number.isInteger(input.idx) || input.idx < 0 || input.idx >= n) return "목록에 있는 idx를 쓰세요";
     if (input.new_time && !HM.test(input.new_time)) return "new_time은 HH:MM";
+    if (input.new_end_time && !HM.test(input.new_end_time)) return "new_end_time은 HH:MM";
     if (input.new_date && !realDate(input.new_date)) return "new_date는 YYYY-MM-DD (달력에 있는 날짜)";
     for (const k of ["prep_min", "buffer_min"]) if (input[k] != null && !(Number.isFinite(input[k]) && input[k] >= 0 && input[k] <= 300)) return `${k}는 0~300분`;
     if (input.new_date && YMD.test(ctx.today || "") && input.new_date < ctx.today) return "이미 지난 날짜로는 옮길 수 없습니다";
-    if (!input.new_time && !input.new_date && input.prep_min == null && input.buffer_min == null && !input.skip) return "무엇을 바꿀지 하나 이상 넣으세요";
+    if (!input.new_time && !input.new_date && !input.new_end_time && input.prep_min == null && input.buffer_min == null && !input.skip) return "무엇을 바꿀지 하나 이상 넣으세요";
     return null;
   }
   return "알 수 없는 도구";
