@@ -1,6 +1,9 @@
 import UIKit
 import WebKit
 import Capacitor
+#if canImport(KakaoSDKAuth)
+import KakaoSDKAuth
+#endif
 
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     var window: UIWindow?
@@ -20,6 +23,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     // Capacitor에 URL·링크 전달 (이 Capacitor 버전에는 SceneDelegateProxy가 없어 직접 넘김)
     private func openURL(_ url: URL) {
+        #if canImport(KakaoSDKAuth)
+        // 카카오톡 앱으로 로그인하고 돌아온 경우 (카카오 공식 안내: SceneDelegate에서 처리)
+        if AuthApi.isKakaoTalkLoginUrl(url) { _ = AuthController.handleOpenUrl(url: url); return }
+        #endif
         _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
     }
 
