@@ -218,7 +218,7 @@ const Register = {
     const r = this.recentPlaces();
     if (!r.length) return '';
     return `<div class="recent"><div class="recent-lbl">지난번에 간 곳</div>${r.map(s => `
-      <button class="recent-btn" onclick="Register.useRecent('${s.id}')">${U.modeIcon(s.mode)}<span><b>${U.esc(s.dest.name)}</b><small>${U.esc(Planner.MODES[s.mode] ? Planner.MODES[s.mode].label : '')} · 준비 ${U.durLabel(+s.prepMin || 0)}${s.title && s.title !== s.dest.name ? ' · ' + U.esc(s.title) : ''}</small></span></button>`).join('')}</div>`;
+      <button class="recent-btn" onclick="Register.useRecent('${s.id}')">${U.modeIcon(s.mode)}<span><b>${U.esc(s.dest.name)}</b><small>${U.esc(Planner.MODES[s.mode] ? Planner.MODES[s.mode].label : '')} · ${+s.prepMin ? '준비 ' + U.durLabel(+s.prepMin) : '준비 없이 출발'}${s.title && s.title !== s.dest.name ? ' · ' + U.esc(s.title) : ''}</small></span></button>`).join('')}</div>`;
   },
 
   /** 지난번 그대로: 목적지·교통·준비 시간(+여유) 채우고 경로 다시 */
