@@ -425,6 +425,8 @@ const Register = {
   },
 
   set(k, v) {
+    // 아이폰 날짜칸의 '지우기'로 빈 날짜가 들어오면 이전 날짜를 그대로 둠 (빈 날짜로 저장되면 알람이 모두 사라짐)
+    if (k === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(v || '')) { U.toast('날짜를 골라 주세요.'); return this.draw(); }
     this.d[k] = v;
     if (k === 'mode') {
       this.opts = []; this.accessOpts = []; this.d.route = null; this.d.accessRoute = null;
@@ -548,6 +550,7 @@ const Register = {
     const d = this.d;
     d.title = (d.title || '').trim();
     if (!d.title) return U.toast('일정 이름을 적어 주세요.');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date || '')) return U.toast('날짜를 골라 주세요.');
     if (!d.origin) return U.toast('출발지를 골라 주세요.');
     if (Planner.isTrip(d.mode)) {
       if (!d.trip.departStation || !d.trip.departTime) return U.toast('출발 역·공항과 시각을 넣어 주세요.');
