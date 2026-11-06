@@ -215,14 +215,13 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 
 /* ── 홈 ── */
 .acts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-.act { background: var(--surface); border-radius: 20px; padding: 16px 12px; box-shadow: var(--shadow); text-align: left;
-  display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; align-content: center; } /* 아이콘 왼쪽, 글씨 오른쪽 */
+.act { background: var(--surface); border-radius: 20px; padding: 16px; box-shadow: var(--shadow); text-align: left; }
 .act:active, .mini button:active { transform: scale(.98); }
-.act .ic-box { grid-row: 1 / span 2; width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; }
+.act .ic-box { width: 46px; height: 46px; border-radius: 14px; display: grid; place-items: center; }
 .act .ic-box img { width: 32px; height: 32px; object-fit: contain; }
-.act b { display: block; font-size: 16px; font-weight: 800; letter-spacing: -.02em; line-height: 1.35; align-self: end; white-space: nowrap; }
-.act small { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; align-self: start; margin-top: 2px; }
-.act .pro { display: inline-block; font-size: 13px; font-weight: 800; color: var(--navy); background: var(--yellow); border-radius: 6px; padding: 1px 5px; margin-left: 4px; vertical-align: 2px; }
+.act b { display: block; font-size: 16px; font-weight: 800; margin-top: 10px; letter-spacing: -.02em; }
+.act small { font-size: 13px; color: var(--muted); }
+.act .pro { display: inline-block; font-size: 13px; font-weight: 800; color: var(--navy); background: var(--yellow); border-radius: 6px; padding: 1px 5px; margin-left: 5px; vertical-align: 2px; }
 .bg-blue { background: var(--blue-soft); } .bg-yellow { background: #FFF4D6; } .bg-purple { background: #F3EEFF; } .bg-green { background: #E6F7EE; } .bg-cyan { background: #E3F7FA; } .bg-orange { background: #FFF0E3; } .bg-gray { background: var(--fill); }
 .mini { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; padding: 14px 6px; }
 .mini button { font-size: 13px; font-weight: 700; color: var(--ink-2); }
@@ -738,5 +737,3 @@ body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bott
 .rep-nav button, .cal-head button { min-width: 44px !important; min-height: 44px !important; }
 .go { min-height: 44px; }
 p.center a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
-/* 글씨를 키우면 두 칸에 글씨가 한 글자씩 꺾여서, 한 줄에 하나씩 */
-html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-columns: 1fr; }
