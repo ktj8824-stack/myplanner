@@ -33,10 +33,10 @@ const Home = {
       <div class="acts">
         <button class="act" onclick="App.navigate('register')"><span class="ic-box bg-blue"><img src="img/icons/register.png" alt=""></span><b>일정 추가</b><small>도착 시간만 넣으면 끝</small></button>
         <button class="act" onclick="App.navigate('assistant')"><span class="ic-box bg-yellow"><img src="img/icons/community.png" alt=""></span><b>AI 비서<span class="pro">PRO</span></b><small>말로 일정 등록</small></button>
-        <button class="act" onclick="App.navigate('register',{paste:true})"><span class="ic-box bg-purple"><img src="img/icons/message.png" alt=""></span><b>받은 문자</b><small>예약 문자로 바로 등록</small></button>
-        <button class="act" onclick="App.navigate('calendar')"><span class="ic-box bg-green"><img src="img/icons/calendar.png" alt=""></span><b>캘린더</b><small>날짜별로 일정 보기</small></button>
       </div>
-      <div class="card mini mini-2">
+      <div class="card mini">
+        <button onclick="App.navigate('register',{paste:true})"><span class="ic-box bg-purple"><img src="img/icons/message.png" alt=""></span>받은 문자</button>
+        <button onclick="App.navigate('calendar')"><span class="ic-box bg-green"><img src="img/icons/calendar.png" alt=""></span>캘린더</button>
         <button onclick="App.navigate('market')"><span class="ic-box bg-cyan"><img src="img/icons/market.png" alt=""></span>마켓</button>
         <button onclick="App.navigate('settings')"><span class="ic-box bg-orange"><img src="img/icons/group.png" alt=""></span>가족 공유</button>
       </div>
