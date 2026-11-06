@@ -4,7 +4,6 @@
 
 const Home = {
   render() {
-    if (State.settings.easy) return this.renderEasy();
     const name = State.settings.name;
     const h = new Date().getHours();
     const greet = h < 5 ? '늦은 밤이에요' : h < 11 ? '좋은 아침이에요' : h < 17 ? '좋은 오후예요' : '좋은 저녁이에요';
@@ -37,6 +36,7 @@ const Home = {
       </div>
       <div class="card mini">
         <button onclick="App.navigate('register',{paste:true})"><span class="ic-box bg-purple"><img src="img/icons/message.png" alt=""></span>받은 문자</button>
+        <button onclick="App.navigate('calendar')"><span class="ic-box bg-green"><img src="img/icons/calendar.png" alt=""></span>캘린더</button>
         <button onclick="App.navigate('market')"><span class="ic-box bg-cyan"><img src="img/icons/market.png" alt=""></span>마켓</button>
         <button onclick="App.navigate('settings')"><span class="ic-box bg-orange"><img src="img/icons/group.png" alt=""></span>가족 공유</button>
       </div>
@@ -48,30 +48,6 @@ const Home = {
 
       ${this.week()}
       ${Briefing.card()}
-    `);
-    this.checkPermission();
-    if (next) Bus.renderInto('heroBus', next.s, next.plan);
-  },
-
-  /** 쉬운 화면 홈: 다음 일정 카드 + 큰 버튼 2개 */
-  renderEasy() {
-    const name = State.settings.name;
-    let up = State.upcoming();
-    if (!up.length) up = State.upcoming(365);
-    const next = up[0];
-    const today = new Date();
-    App.setMain(`
-      <header class="hello">
-        <div><small>${today.getMonth() + 1}월 ${today.getDate()}일 ${U.DOW[today.getDay()]}요일</small><b>${name ? U.esc(name) + '님, ' : ''}안녕하세요</b></div>
-        <button class="avatar" onclick="App.navigate('settings')" aria-label="마이">${name ? U.esc(name.length >= 3 ? name.slice(-2) : name) : '🙂'}</button>
-      </header>
-      ${Demo.bar()}
-      ${next ? this.nextCard(next) : this.emptyCard()}
-      <div id="permNotice"></div>
-      <div class="ez-home">
-        <button class="ez-home-btn pri" onclick="App.navigate('register')"><span>＋</span>일정 추가</button>
-        <button class="ez-home-btn" onclick="App.navigate('calendar')"><span>${Icons.svg('calendar')}</span>내 일정 보기</button>
-      </div>
     `);
     this.checkPermission();
     if (next) Bus.renderInto('heroBus', next.s, next.plan);

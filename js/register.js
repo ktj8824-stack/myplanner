@@ -15,10 +15,6 @@ const Register = {
     this._seq = (this._seq || 0) + 1; // 이전 화면에서 찾던 경로 결과는 버림
     this.loading = false;
     this.backTo = params.back || null;  // 수정 화면을 연 곳 (반복 일정의 그 회차 등)
-    if (!params.keep) { this.err = null; this.more = false; this.alarmOpen = false; }
-    // 쉬운 화면: 새 일정은 ① 어디 ② 몇 시 ③ 확인, 세 화면으로 (수정·받은 문자·끼워 넣기는 기존 화면)
-    this.easy = !!(State.settings.easy && !params.id && !params.draft && !params.paste && !params.insert && !params.chainFrom && !params.full && !params.keep);
-    if (this.easy) EasyAdd.step = 1;
     if (params.id && State.get(params.id) && State.get(params.id)._shared) {
       U.toast('가족이 공유한 일정은 보낸 사람만 고칠 수 있어요');
       return App.navigate('timeline', { id: params.id });
@@ -64,16 +60,14 @@ const Register = {
     if (params.chainFrom && this.d) { this.applyChain(params.chainFrom.place, params.chainFrom.from); U.toast('앞 일정 장소에서 출발하도록 바꿨어요. 경로를 확인하고 저장하세요'); }
     this.draw();
     if (params.id) this.fetchRoutes({ keep: true }); // 수정: 고른 경로는 그대로 두고 후보만 채움
-    else this.autoOrigin();
     if (params.paste) PasteImport.open(params.text || '');
   },
 
   draw() {
-    if (this.easy) return EasyAdd.draw();
     const d = this.d, isTrip = Planner.isTrip(d.mode);
     const placeBtn = (field, title, emptyText, icon) => {
       const p = d[field];
-      return `<button class="input place-btn ${p ? '' : 'empty'} ${this.badCls(field)}" id="f-${field}" onclick="Register.pick('${field}','${title}')">${U.icon(icon)} ${p ? U.esc(p.name) : emptyText}</button>${this.errLine(field)}`;
+      return `<button class="input place-btn ${p ? '' : 'empty'}" onclick="Register.pick('${field}','${title}')">${U.icon(icon)} ${p ? U.esc(p.name) : emptyText}</button>`;
     };
     App.setMain(`
       <header class="subhead"><button class="back" onclick="Register.back()" aria-label="뒤로"></button><h1>${this.editing ? '일정 수정' : '새 일정'}</h1><span></span></header>
@@ -84,12 +78,17 @@ const Register = {
       <div class="card">
         <div class="q">${isTrip ? '언제 어디로 가세요?' : '어디에 몇 시까지 가세요?'}</div>
         ${isTrip ? '' : placeBtn('dest', '목적지', '병원, 회사, 역 이름으로 검색', 'pin')}
-        ${isTrip || this.editing ? '' : this.recentChips()}
-        ${isTrip ? this.tripForm() : ''}
         <div class="grid2 mt">
-          <div><label class="lbl" for="f-date">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" id="f-date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
-          ${isTrip ? '' : `<div><label class="lbl" for="f-arriveBy">도착 시간</label><input type="time" id="f-arriveBy" class="input ${this.badCls('arriveBy')}" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)">${this.errLine('arriveBy')}</div>`}
+          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
+          <div><label class="lbl">${isTrip ? '목적지 도착 희망 (선택)' : '도착 시간'}</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
         </div>
+        ${isTrip ? '' : `<div class="grid2 mt">
+          <div><label class="lbl">끝나는 시간 (선택)</label><input type="time" class="input" value="${d.endBy || ''}" onchange="Register.setEnd(this.value)"></div>
+          <div class="end-hint">다음 일정·귀가 시간을<br>계산할 때 써요</div>
+        </div>`}
+        <label class="lbl">일정 이름</label>
+        <input class="input" id="rTitle" placeholder="예: 강남 거래처 미팅" value="${U.esc(d.title)}" oninput="Register.d.title=this.value">
+        <div class="chips">${this.QUICK.map(q => `<button class="chip" onclick="Register.quick('${q}')">${q}</button>`).join('')}</div>
         <label class="lbl">출발할 곳${d.chained ? ' · 앞 일정에서 바로 출발' : ''}</label>
         ${placeBtn('origin', '출발지', '출발지 검색', 'home')}
         ${isTrip ? '' : d.startNow
@@ -97,155 +96,38 @@ const Register = {
           : `<button class="now-btn" onclick="Register.startNow()">📍 지금 위치에서 바로 출발 <small>이미 밖이에요</small></button>`}
         ${d.startNow ? '' : this.chainChips()}
         ${d.chained && !d.startNow ? `<button class="link" style="padding:8px 2px 0" onclick="Register.homeFirst()">🏠 집에 들렀다 가요 (집에서 출발로)</button>` : ''}
-        <div id="loadLine">${this.loadLine()}</div>
+        ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label>${placeBtn('dest', '목적지', '목적지 검색', 'pin')}` : ''}
+      </div>
+
+      <div class="card">
+        <div class="q">어떻게 가세요?</div>
+        <div class="modes">${Object.entries(Planner.MODES).map(([k, m]) =>
+          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k)}${m.label}</button>`).join('')}</div>
+        ${isTrip ? this.tripForm() : ''}
+        <div id="routeBox">${this.routeBox()}</div>
         <div id="preview">${this.preview()}</div>
-        ${this.errLine('route')}
       </div>
 
-      <div class="card more-card ${this.more ? 'open' : ''}">
-        <button class="more-head" id="moreHead" aria-expanded="${this.more ? 'true' : 'false'}" onclick="Register.toggleMore()">
-          <span><b>자세히 설정</b><small>${U.esc(this.summary())}</small></span><span class="more-chev">${this.more ? '∧' : '∨'}</span>
-        </button>
-        ${this.more ? this.moreBody() : ''}
+      <div class="card">
+        <div class="q">준비는 얼마나 걸려요?</div>
+        <div class="seg">${(d.chained || d.startNow ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
+        <label class="lbl">약속보다 일찍 도착 (여유)</label>
+        <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
+        ${this.repeatForm()}
       </div>
 
-      ${this.more ? this.goHomeForm() : ''}
+      ${this.goHomeForm()}
+
+      <div class="card">
+        <div class="q">알림</div>
+        ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람'], ['preDepart', '출발 10분 전 알림'], ['depart', '출발 알람']].map(([k, label]) => `
+          <label class="toggle-row"><span>${label}</span><input type="checkbox" ${d.alarm[k] ? 'checked' : ''} onchange="Register.d.alarm['${k}']=this.checked"></label>`).join('')}
+        <label class="lbl">메모</label>
+        <textarea class="input" rows="2" placeholder="챙길 것, 참고할 내용" oninput="Register.d.memo=this.value">${U.esc(d.memo || '')}</textarea>
+      </div>
 
       <div class="cta-bar"><button class="btn primary big" id="regSave" onclick="Register.save()">⏰ 저장하고 알람 켜기</button></div>
     `);
-  },
-
-  /** 접힌 '자세히 설정' 한 줄 요약: 버스·지하철 · 준비 1시간 · 알림 4개 */
-  summary() {
-    const d = this.d, on = this.ALARMS.filter(([k]) => d.alarm && d.alarm[k]).length;
-    const parts = [Planner.MODES[d.mode] ? Planner.MODES[d.mode].label : '버스·지하철'];
-    parts.push(d.chained || d.startNow ? '준비 없이 출발' : `준비 ${U.durLabel(+d.prepMin || 0)}`);
-    if (+d.bufferMin) parts.push(`${d.bufferMin}분 일찍 도착`);
-    if (Recur.isRepeating(d)) parts.push(Recur.label(d));
-    parts.push(on ? `알림 ${on}개` : '알림 꺼짐');
-    if (d.endBy) parts.push(`${d.endBy}에 끝남`);
-    return parts.join(' · ');
-  },
-
-  ALARMS: [['nightBefore', '전날 밤 9시 미리 안내', '전날 밤'], ['wake', '기상 알람', '기상'], ['preDepart', '출발 10분 전 알림', '출발 10분 전'], ['depart', '출발 알람', '출발']],
-
-  toggleMore() { this.more = !this.more; this.draw(); },
-
-  moreBody() {
-    const d = this.d, isTrip = Planner.isTrip(d.mode);
-    const on = this.ALARMS.filter(([k]) => d.alarm[k]);
-    return `
-      <div class="more-body">
-        <label class="lbl" for="rTitle">일정 이름 <small class="muted">비워 두면 목적지 이름으로 저장해요</small></label>
-        <input class="input" id="rTitle" placeholder="${U.esc(this.autoTitle() || '예: 강남 거래처 미팅')}" value="${U.esc(d.title)}" oninput="Register.d.title=this.value">
-        <div class="chips">${this.QUICK.map(q => `<button class="chip" onclick="Register.quick('${q}')">${q}</button>`).join('')}</div>
-        ${isTrip ? `<label class="lbl" for="f-arriveBy">목적지 도착 희망 (선택)</label><input type="time" id="f-arriveBy" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)">` : `
-        <div class="grid2 mt">
-          <div><label class="lbl" for="f-endBy">끝나는 시간 (선택)</label><input type="time" id="f-endBy" class="input" value="${d.endBy || ''}" onchange="Register.setEnd(this.value)"></div>
-          <div class="end-hint">다음 일정·귀가 시간을<br>계산할 때 써요</div>
-        </div>`}
-        ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label><button class="input place-btn ${d.dest ? '' : 'empty'}" onclick="Register.pick('dest','목적지')">${U.icon('pin')} ${d.dest ? U.esc(d.dest.name) : '목적지 검색'}</button>` : ''}
-
-        <div class="more-sec">어떻게 가세요?</div>
-        <div class="modes">${Object.entries(Planner.MODES).map(([k, m]) =>
-          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k)}${m.label}</button>`).join('')}</div>
-        <div id="routeBox">${this.routeBox()}</div>
-
-        <div class="more-sec">준비는 얼마나 걸려요?</div>
-        <div class="seg">${(d.chained || d.startNow ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
-        <label class="lbl">약속보다 몇 분 일찍 도착할까요?</label>
-        <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
-        <div id="f-repeat" class="${this.badCls('repeat') ? 'bad-box' : ''}">${this.repeatForm()}${this.errLine('repeat')}</div>
-
-        <div class="more-sec">알림</div>
-        ${this.alarmOpen
-          ? this.ALARMS.map(([k, label]) => `<label class="toggle-row"><span>${label}</span><input type="checkbox" ${d.alarm[k] ? 'checked' : ''} onchange="Register.d.alarm['${k}']=this.checked;Register.refreshSummary()"></label>`).join('')
-            + `<button class="link" onclick="Register.alarmOpen=false;Register.draw()">접기</button>`
-          : `<div class="alarm-sum"><span>알림: ${on.length ? on.map(x => x[2]).join(' · ') : '모두 꺼짐'}</span><button class="link" onclick="Register.alarmOpen=true;Register.draw()">바꾸기</button></div>`}
-
-        <label class="lbl" for="rMemo">메모</label>
-        <textarea class="input" id="rMemo" rows="2" placeholder="챙길 것, 참고할 내용" oninput="Register.d.memo=this.value">${U.esc(d.memo || '')}</textarea>
-      </div>`;
-  },
-
-  refreshSummary() {
-    const el = document.querySelector('#moreHead small');
-    if (el) el.textContent = this.summary();
-  },
-
-  /* ---------- 빠진 칸 표시: 화면을 그 칸으로 옮기고 빨간 테두리 + 설명 한 줄 ---------- */
-  badCls(field) { return this.err && this.err.field === field ? 'bad' : ''; },
-  errLine(field) { return this.err && this.err.field === field ? `<div class="field-err" role="alert">${U.esc(this.err.msg)}</div>` : ''; },
-  fail(field, msg, inMore) {
-    this.err = { field, msg };
-    if (inMore) this.more = true;
-    if (this.easy) EasyAdd.step = EasyAdd.stepFor(field);
-    this.draw();
-    const el = document.getElementById('f-' + field) || document.querySelector('.field-err');
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      if (el.tagName === 'INPUT') setTimeout(() => { try { el.focus({ preventScroll: true }); } catch (e) {} }, 350);
-    }
-  },
-  clearErr(field) { if (this.err && (!field || this.err.field === field)) this.err = null; },
-
-  /** 이름이 비었을 때 쓸 이름: 목적지 이름 (기차·비행기는 도착역 + 수단) */
-  autoTitle() {
-    const d = this.d;
-    if (Planner.isTrip(d.mode)) {
-      const st = d.trip.arriveStation || d.dest || d.trip.departStation;
-      const w = d.mode === 'flight' ? '비행기' : '기차';
-      return st ? `${st.name} ${w}` : w;
-    }
-    return d.dest ? d.dest.name : '';
-  },
-
-  /* ---------- 지난번에 간 곳 3개 ---------- */
-  recentPlaces() {
-    const seen = new Set(), out = [];
-    const list = State.schedules.filter(s => s.dest && !s._shared && !Planner.isTrip(s.mode))
-      .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    for (const s of list) {
-      const key = s.dest.name + '|' + Math.round(s.dest.lat * 1000) + '|' + Math.round(s.dest.lng * 1000);
-      if (seen.has(key)) continue;
-      seen.add(key); out.push(s);
-      if (out.length >= 3) break;
-    }
-    return out;
-  },
-
-  recentChips() {
-    const r = this.recentPlaces();
-    if (!r.length) return '';
-    return `<div class="recent"><div class="recent-lbl">지난번에 간 곳</div>${r.map(s => `
-      <button class="recent-btn" onclick="Register.useRecent('${s.id}')">${U.modeIcon(s.mode)}<span><b>${U.esc(s.dest.name)}</b><small>${U.esc(Planner.MODES[s.mode] ? Planner.MODES[s.mode].label : '')} · 준비 ${U.durLabel(+s.prepMin || 0)}${s.title && s.title !== s.dest.name ? ' · ' + U.esc(s.title) : ''}</small></span></button>`).join('')}</div>`;
-  },
-
-  /** 지난번 그대로: 목적지·교통·준비 시간(+여유) 채우고 경로 다시 */
-  useRecent(id) {
-    const s = State.get(id);
-    if (!s) return;
-    const d = this.d;
-    d.dest = { ...s.dest };
-    d.mode = s.mode;
-    if (!d.chained && !d.startNow) d.prepMin = s.prepMin;
-    d.bufferMin = s.bufferMin;
-    if (!d.title && s.title) d.title = s.title;
-    d.route = null; this.opts = [];
-    this.clearErr('dest');
-    this.draw(); this.fetchRoutes();
-  },
-
-  /** 출발지 자동: 집이 없으면 지금 위치 (새 일정만) */
-  autoOrigin() {
-    const d = this.d;
-    if (d.origin || this.editing || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(pos => {
-      if (d !== this.d || d.origin) return;
-      d.origin = { name: '지금 위치', address: '', lat: pos.coords.latitude, lng: pos.coords.longitude };
-      this.clearErr('origin');
-      this.draw(); this.fetchRoutes();
-    }, () => {}, { enableHighAccuracy: false, timeout: 8000, maximumAge: 300000 });
   },
 
   /* ---------- 끝나고 집에 가는 길 · 막차 ---------- */
@@ -427,7 +309,6 @@ const Register = {
   },
 
   setRepeat(k, v) {
-    this.clearErr('repeat');
     const r = this.d.repeat;
     r[k] = v;
     if (k === 'type' && v === 'weekly' && !(r.days || []).length) r.days = [Planner.at(this.d.date, '12:00').getDay()];
@@ -435,7 +316,6 @@ const Register = {
   },
 
   toggleDay(i) {
-    this.clearErr('repeat');
     const r = this.d.repeat;
     r.days = (r.days || []).includes(i) ? r.days.filter(x => x !== i) : [...(r.days || []), i];
     this.draw();
@@ -450,8 +330,8 @@ const Register = {
         <input class="input" placeholder="${isFlight ? '예: KE1203' : '예: KTX 101'}" value="${U.esc(t.number || '')}" oninput="Register.d.trip.number=this.value">
         <div class="grid2">
           <div><label class="lbl">출발 ${word}</label>
-            <button class="input place-btn ${this.badCls('departStation')}" id="f-departStation" onclick="Register.pickTrip('departStation','출발 ${word}')">${t.departStation ? U.esc(t.departStation.name) : word + ' 검색'}</button>${this.errLine('departStation')}</div>
-          <div><label class="lbl" for="f-departTime">출발 시각</label><input type="time" id="f-departTime" class="input ${this.badCls('departTime')}" value="${t.departTime || ''}" onchange="Register.setTrip('departTime',this.value)">${this.errLine('departTime')}</div>
+            <button class="input place-btn" onclick="Register.pickTrip('departStation','출발 ${word}')">${t.departStation ? U.esc(t.departStation.name) : word + ' 검색'}</button></div>
+          <div><label class="lbl">출발 시각</label><input type="time" class="input" value="${t.departTime || ''}" onchange="Register.setTrip('departTime',this.value)"></div>
           <div><label class="lbl">도착 ${word}</label>
             <button class="input place-btn" onclick="Register.pickTrip('arriveStation','도착 ${word}')">${t.arriveStation ? U.esc(t.arriveStation.name) : word + ' 검색'}</button></div>
           <div><label class="lbl">도착 시각</label><input type="time" class="input" value="${t.arriveTime || ''}" onchange="Register.setTrip('arriveTime',this.value)"></div>
@@ -528,21 +408,10 @@ const Register = {
     return d.origin && d.dest && d.arriveBy && d.route;
   },
 
-  loadLine() {
-    const d = this.d, isTrip = Planner.isTrip(d.mode);
-    if (this.loading) return '<div class="muted pad">🔎 경로를 찾는 중…</div>';
-    const from = d.origin, to = isTrip ? d.trip.departStation : d.dest;
-    if (from && to && !this.ready()) return `<button class="btn ghost" onclick="Register.fetchRoutes()">🔎 경로 다시 찾기</button>`;
-    return '';
-  },
-
   refreshParts() {
-    if (this.easy) return EasyAdd.refresh();
-    const rb = document.getElementById('routeBox'), pv = document.getElementById('preview'), ll = document.getElementById('loadLine');
+    const rb = document.getElementById('routeBox'), pv = document.getElementById('preview');
     if (rb) rb.innerHTML = this.routeBox();
     if (pv) pv.innerHTML = this.preview();
-    if (ll) ll.innerHTML = this.loadLine();
-    this.refreshSummary();
   },
 
   quick(q) {
@@ -557,7 +426,6 @@ const Register = {
 
   set(k, v) {
     this.d[k] = v;
-    this.clearErr(k);
     if (k === 'mode') {
       this.opts = []; this.accessOpts = []; this.d.route = null; this.d.accessRoute = null;
       // 기차·비행기는 탑승 시각이 기준이라 '도착 희망'은 비워 둠 (넣으면 늦을 때 경고)
@@ -586,7 +454,6 @@ const Register = {
 
   setTrip(k, v) {
     this.d.trip[k] = v;
-    this.clearErr(k);
     if (k === 'accessMode' || k === 'departTime') { this.d.accessRoute = null; this.accessOpts = []; this.draw(); return this.fetchRoutes(); }
     this.draw();
   },
@@ -594,7 +461,6 @@ const Register = {
   pick(field, title) {
     PlacePicker.open(title, p => {
       this.d[field] = p;
-      this.clearErr(field); this.clearErr('route');
       this.d.route = null; this.d.accessRoute = null; this.opts = []; this.accessOpts = []; // 장소가 바뀌면 경로 새로
       if (field === 'origin') this.unchain();
       this.draw(); this.fetchRoutes();
@@ -604,7 +470,6 @@ const Register = {
   pickTrip(field, title) {
     PlacePicker.open(title, p => {
       this.d.trip[field] = p;
-      this.clearErr(field);
       if (field === 'departStation') { this.d.accessRoute = null; this.accessOpts = []; } else this.d.egressRoute = null;
       this.draw(); this.fetchRoutes();
     }, { allowHome: false });
@@ -681,27 +546,24 @@ const Register = {
 
   async _save() {
     const d = this.d;
-    this.err = null;
     d.title = (d.title || '').trim();
+    if (!d.title) return U.toast('일정 이름을 적어 주세요.');
+    if (!d.origin) return U.toast('출발지를 골라 주세요.');
     if (Planner.isTrip(d.mode)) {
-      if (!d.trip.departStation) return this.fail('departStation', `출발 ${d.mode === 'flight' ? '공항' : '역'}을 골라 주세요.`);
-      if (!d.trip.departTime) return this.fail('departTime', '출발 시각을 넣어 주세요.');
+      if (!d.trip.departStation || !d.trip.departTime) return U.toast('출발 역·공항과 시각을 넣어 주세요.');
     } else {
-      if (!d.dest) return this.fail('dest', '어디로 가는지 골라 주세요. 위 칸을 누르면 검색할 수 있어요.');
-      if (!d.arriveBy) return this.fail('arriveBy', '몇 시까지 도착해야 하는지 넣어 주세요.');
+      if (!d.dest) return U.toast('목적지를 골라 주세요.');
+      if (!d.arriveBy) return U.toast('도착 시간을 넣어 주세요.');
     }
-    if (!d.origin) return this.fail('origin', '어디서 출발하는지 골라 주세요. 집 주소를 등록해 두면 자동으로 들어가요.');
-    if (d.repeat.type === 'weekly' && !(d.repeat.days || []).length) return this.fail('repeat', '반복할 요일을 하나 이상 골라 주세요.', true);
-    if (d.repeat.until && d.repeat.until < d.date) return this.fail('repeat', '반복 종료일이 시작일보다 빨라요. 날짜를 다시 골라 주세요.', true);
-    // 이름이 비면 목적지 이름으로 (빠진 칸 검사를 다 통과한 뒤에만)
-    if (!d.title) d.title = this.autoTitle() || '일정';
+    if (d.repeat.type === 'weekly' && !(d.repeat.days || []).length) return U.toast('반복할 요일을 골라 주세요.');
+    if (d.repeat.until && d.repeat.until < d.date) return U.toast('반복 종료일이 시작일보다 빨라요.');
     // 반복이 아닌데 약속(탑승) 시각이 이미 지났으면 한 번 확인
     if (!Recur.isRepeating(d) && !d.startNow) {
       const at = Planner.at(d.date, Planner.isTrip(d.mode) ? d.trip.departTime : d.arriveBy);
       if (at.getTime() < Date.now() && !confirm('이미 지난 시간이에요. 알람은 울리지 않아요. 그래도 저장할까요?')) return;
     }
     if (!this.ready()) await this.fetchRoutes();
-    if (!this.ready()) return this.fail('route', '경로를 찾지 못했어요. 인터넷 연결을 확인하고 아래 \'경로 다시 찾기\'를 눌러 주세요.');
+    if (!this.ready()) return U.toast('경로를 먼저 찾아 주세요.');
     // 지금 위치에서 출발인데 원래 출발 시각이 이미 지났으면: 지금 나서는 것으로 기록 (화면·도착 예상이 지금 기준)
     if (d.startNow) {
       delete d.leftAt;
@@ -713,16 +575,21 @@ const Register = {
     await U.quickWeather();
     const list = await Alarm.rescheduleAll();
     const mine = list.filter(a => (a.s.baseId || a.s.id) === d.id);
-    // 반복 일정이면 가장 가까운 회차로 이동
-    const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;
-    const goId = next ? next.s.occId : d.id;
-    Saved.show(d, mine, () => App.navigate('timeline', { id: goId }));
+    const firstWake = mine.find(a => a.key === 'wake');
+    const dep = mine.find(a => a.key === 'depart');
+    if (d.startNow) U.toast(d.leftAt ? `지금 출발하면 ${U.hm(Planner.compute(d).arriveAt)}쯤 도착해요. 길안내를 눌러 보세요.`
+      : dep ? `${U.hm(dep.at)}에 출발 알람을 울려 드릴게요.` : '지금 바로 출발하세요! 길안내를 눌러 보세요.');
+    else U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
+      : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
     // 사이에 끼워 넣은 일정이면 다음 약속도 여기서 출발로 (기다리지 않음)
     if (typeof DayPlan !== 'undefined') DayPlan.rechainNext(d).then(async name => {
       if (!name) return;
       try { await Alarm.rescheduleAll(); } catch (e) {}
       U.toast(`다음 약속 '${name}'도 여기서 바로 출발로 바꿨어요`);
     }).catch(() => {});
+    // 반복 일정이면 가장 가까운 회차로 이동
+    const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;
+    App.navigate('timeline', { id: next ? next.s.occId : d.id });
   }
 };
 
@@ -815,11 +682,6 @@ const PasteImport = {
       }
     }
     Register.opts = []; Register.accessOpts = [];
-    if (Register.easy) {
-      // 쉬운 화면: 기차·비행기는 자세한 화면으로, 나머지는 채워진 만큼 다음 단계로
-      if (Planner.isTrip(d.mode)) Register.easy = false;
-      else EasyAdd.step = d.dest && d.arriveBy ? 3 : d.dest ? 2 : 1;
-    }
     Register.draw();
     Register.fetchRoutes();
 
