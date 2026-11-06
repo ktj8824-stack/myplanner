@@ -196,6 +196,8 @@ const Routes = {
 
   /* ---------- 버스·지하철 (ODsay) — 여러 경로 후보를 돌려줌 ---------- */
   async transitOptions(origin, dest) {
+    // 700m 안쪽은 ODsay가 경로를 주지 않음 → 부르지 않고 바로 도보로
+    if (this.distanceKm(origin, dest) < 0.7) return [{ ...await this.walk(origin, dest), summary: '가까운 거리 — 도보 추천' }];
     if (this.can('odsay')) {
       const data = await this.api('odsay_transit', this.coords(origin, dest));
       if (data && data.error) {
@@ -364,6 +366,8 @@ const Routes = {
 
   /* ---------- 도보 (티맵 보행자 경로) ---------- */
   async walk(origin, dest) {
+    // 150m 안쪽은 티맵이 '너무 가깝다'며 거절함 → 서버를 부르지 않고 바로 계산
+    if (this.distanceKm(origin, dest) < 0.15) return { ...this.estimate(origin, dest, 'walk'), summary: '바로 옆 — 도보 1~2분' };
     if (this.can('tmap')) {
       const data = await this.api('tmap_walk', this.coords(origin, dest));
       const p = data?.features?.[0]?.properties;
