@@ -646,3 +646,4 @@ body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bott
 
 /* 글씨를 키우면 두 칸에 글씨가 꺾여서, 한 줄에 하나씩 */
 html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-columns: 1fr; }
+.mini.mini-2 { grid-template-columns: repeat(2, 1fr); } /* 마켓·가족 공유 두 칸 */
