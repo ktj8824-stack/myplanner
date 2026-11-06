@@ -257,7 +257,9 @@ const Alarm = {
     if (!LN) return;
     try {
       const pending = await LN.getPending();
-      if (pending.notifications.length) await LN.cancel({ notifications: pending.notifications.map(n => ({ id: n.id })) });
+      const keep = this._snooze && this._snooze.at > Date.now() ? this._snooze.id : null; // 5분 뒤 다시 알림은 남김
+      const ids = pending.notifications.filter(n => n.id !== keep).map(n => ({ id: n.id }));
+      if (ids.length) await LN.cancel({ notifications: ids });
     } catch (e) {}
   },
 
@@ -290,9 +292,16 @@ const Alarm = {
     const at = new Date(Date.now() + 5 * 60000);
     const s = Recur.resolve(id);
     const title = '⏰ 다시 알림' + (s ? ` — ${s.title}` : '');
-    const N = this.native();
+    const N = this.native(), LN = this.ln();
     if (N) {
       try { await N.snooze({ id: this.numId('snooze' + id), at: at.getTime(), title, body: '5분이 지났어요.', scheduleId: id }); } catch (e) {}
+    } else if (LN) {
+      // 아이폰 앱(전체 화면 알람 플러그인 없음): 앱을 닫거나 화면을 꺼도 울리도록 폰 알림으로 예약
+      try {
+        this._snooze = { id: this.numId('snooze' + id), at: at.getTime() }; // 알람 다시 맞추기(clearLocal)에서 지우지 않게
+        await LN.schedule({ notifications: [{ id: this.numId('snooze' + id), title, body: '5분이 지났어요.', schedule: { at, allowWhileIdle: true },
+          channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { scheduleId: id, alarm: true } }] });
+      } catch (e) { setTimeout(() => this.showRinging(title, '5분이 지났어요.', id), 5 * 60000); }
     } else {
       setTimeout(() => this.showRinging(title, '5분이 지났어요.', id), 5 * 60000);
     }
