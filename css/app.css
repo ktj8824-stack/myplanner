@@ -646,3 +646,20 @@ body:not(.no-nav)::after { content: ''; position: fixed; left: 0; right: 0; bott
 
 /* 글씨를 키우면 두 칸에 글씨가 꺾여서, 한 줄에 하나씩 */
 html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-columns: 1fr; }
+
+/* 로그인 화면 (처음 한 번) */
+.start { min-height: calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 48px); display: flex; flex-direction: column; justify-content: space-between; text-align: center; padding: 4vh 4px 4px; }
+.start-top { display: flex; flex-direction: column; align-items: center; }
+.start-logo { width: 96px; height: 96px; border-radius: 26px; overflow: hidden; box-shadow: var(--shadow-up); }
+.start-logo img { width: 100%; height: 100%; display: block; }
+.start h1 { font-size: 32px; font-weight: 800; letter-spacing: -.04em; margin: 22px 0 8px; }
+.start-top p { margin: 0; color: var(--ink-2); font-size: 17px; line-height: 1.6; }
+.start-bottom { padding-top: 28px; }
+.start-perks { list-style: none; margin: 0 auto 22px; padding: 0; display: inline-flex; flex-direction: column; gap: 10px; text-align: left; }
+.start-perks li { display: flex; align-items: center; gap: 10px; font-size: 15.5px; font-weight: 700; color: var(--ink-2); }
+.start-perks img { width: 28px; height: 28px; object-fit: contain; }
+.kakao-btn { width: 100%; height: 56px; border-radius: 14px; background: #FEE500; color: rgba(0, 0, 0, .85); font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.kakao-btn svg { width: 20px; height: 20px; fill: #000; }
+.kakao-btn:active { filter: brightness(.96); }
+.start-skip { width: 100%; height: 52px; margin-top: 8px; border-radius: 14px; font-size: 16px; font-weight: 700; color: var(--ink-2); }
+.start-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55; }

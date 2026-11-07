@@ -5,7 +5,7 @@
 const App = {
   current: null,
   params: {},
-  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, assistant: () => Assistant, market: () => MarketView, day: () => DayView },
+  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView },
 
   async init() {
     State.load();
@@ -14,7 +14,10 @@ const App = {
     Cloud.init();
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
-    this.navigate(first ? 'welcome' : 'home');
+    // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)
+    let seen = false;
+    try { seen = !!localStorage.getItem('mp_start_seen'); } catch (e) {}
+    this.navigate(first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : 'home');
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
     await Alarm.init();
     if (this.current === 'home') Home.render();
@@ -44,11 +47,11 @@ const App = {
     this.current = name;
     this.params = params;
     const view = this.screens[name]();
-    document.getElementById('nav').style.display = name === 'welcome' ? 'none' : '';
+    document.getElementById('nav').style.display = ['welcome', 'start'].includes(name) ? 'none' : '';
     document.querySelectorAll('#nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
     const b = document.body.classList;
-    b.toggle('no-nav', name === 'welcome' || name === 'assistant');
-    document.getElementById('nav').style.display = ['welcome', 'register'].includes(name) ? 'none' : '';
+    b.toggle('no-nav', ['welcome', 'start', 'assistant'].includes(name));
+    document.getElementById('nav').style.display = ['welcome', 'start', 'register'].includes(name) ? 'none' : '';
     const main = document.getElementById('main');
     main.scrollTop = 0;
     window.scrollTo(0, 0);
@@ -181,6 +184,40 @@ const PlacePicker = {
 };
 
 /* ---------- 첫 실행 안내 ---------- */
+/* ---------- 로그인 화면: 처음 켤 때 한 번 ---------- */
+const StartScreen = {
+  render() {
+    App.setMain(`
+      <div class="start">
+        <div class="start-top">
+          <div class="start-logo"><img src="icon-192.png" alt=""></div>
+          <h1>마이플래너</h1>
+          <p>도착 시간만 정하면<br>언제 일어나고 언제 나갈지 깨워 드려요</p>
+        </div>
+        <div class="start-bottom">
+          <ul class="start-perks" aria-label="로그인하면 쓸 수 있는 것">
+            <li><img src="img/icons/community.png" alt="">AI 비서에게 말로 일정 등록</li>
+            <li><img src="img/icons/register.png" alt="">폰을 바꿔도 일정 그대로</li>
+            <li><img src="img/icons/group.png" alt="">가족에게 알람 보내기</li>
+          </ul>
+          <button class="kakao-btn" onclick="StartScreen.kakao()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.48 3 2 6.58 2 11c0 2.83 1.84 5.31 4.6 6.73l-.93 3.43c-.08.3.25.54.51.37l4.08-2.7c.57.08 1.15.12 1.74.12 5.52 0 10-3.58 10-8S17.52 3 12 3z"/></svg>
+            카카오로 시작하기</button>
+          <button class="start-skip" onclick="StartScreen.skip()">로그인 없이 시작하기</button>
+          <p class="start-note">로그인 없이도 일정·알람은 모두 쓸 수 있어요.<br>나중에 마이 화면에서 언제든 로그인할 수 있어요.</p>
+        </div>
+      </div>`);
+  },
+  seen() { try { localStorage.setItem('mp_start_seen', '1'); } catch (e) {} },
+  async kakao() {
+    this.seen();
+    // 웹은 카카오 화면으로 갔다가 돌아오면 시작 화면부터, 앱은 그 자리에서 로그인 후 시작 화면으로
+    await Cloud.signInKakao();
+    if (Cloud.isSignedIn()) App.navigate('welcome'); // 실패하면 이 화면에 남아 다시 누르거나 '로그인 없이' 고를 수 있게
+  },
+  skip() { this.seen(); App.navigate('welcome'); }
+};
+
 const Welcome = {
   render() {
     const st = State.settings;
