@@ -1,6 +1,6 @@
 // AI 비서 서버 함수 확인 (가짜 Claude·Supabase): node --no-warnings test/ai-function.test.mjs
 import assert from 'node:assert';
-import { handle, checkAction, calendarTable, systemPrompt, stripLeak, hasLeak } from '../supabase/functions/ai/index.ts';
+import { handle, checkAction, calendarTable, systemPrompt, stripLeak, hasLeak, claimsCard } from '../supabase/functions/ai/index.ts';
 
 const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk' };
 const ctx = { today: '2026-11-03', weekday: '화', upcoming: [{ idx: 0, title: '판교 출근', date: '2026-11-04' }] };
@@ -159,3 +159,8 @@ console.log('✓ 한자·[Note] 메모가 사용자에게 보이지 않음');
 const sp = systemPrompt(ctx);
 assert.ok(sp.includes('그건 아직 제가 못 해요') && sp.includes('어느 어린이집인가요?') && sp.includes('[Note'));
 console.log('✓ 지시문: 지우기 부탁은 한 문장 답, 일반 장소 이름은 되묻기');
+
+// 2026-11-08 점검: 교통카드·신용카드 같은 말은 '카드를 만들었다'로 보지 않음, 호환 한자도 걸러냄
+assert.ok(!claimsCard('교통카드 챙기세요') && !claimsCard('신용카드로 결제') && claimsCard('아래 카드에서 확인해 주세요') && claimsCard('카드를 만들었어요'));
+assert.ok(hasLeak('豈') && hasLeak('㐀') && !hasLeak('내일 9시 출발'));
+console.log('✓ 카드 말 판정·한자 범위 (2026-11-08)');

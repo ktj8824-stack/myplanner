@@ -188,7 +188,7 @@ export function systemBlocks(ctx: Json): Json[] {
 /** tools 마지막 항목에 캐시 표시 */
 export const TOOLS_CACHED = TOOLS.map((t, i) => i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t);
 
-const HAN = /[\u4E00-\u9FFF]/;
+const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/;   // 한자 (확장 A·호환 한자 포함)
 const NOTE = /\[\s*note/i;
 /** 사용자에게 보이면 안 되는 것: 한자, AI 내부 메모 */
 export function hasLeak(t: string): boolean { return HAN.test(t) || NOTE.test(t); }
@@ -197,7 +197,9 @@ export function stripLeak(t: string): string {
   return t.split("\n").filter((l) => !hasLeak(l)).join("\n").trim();
 }
 /** 카드를 만들었다고 말하는지 */
-export function claimsCard(t: string): boolean { return /카드/.test(t); }
+/** 교통카드·신용카드처럼 '확인 카드'가 아닌 말은 빼고 봄 */
+const OTHER_CARD = /(교통|신용|체크|하이패스|티머니|기프트|멤버십|포인트|버스|지하철|주차|출입|보험|건강보험|의료보험|명|탑승)\s*카드/g;
+export function claimsCard(t: string): boolean { return /카드/.test(String(t || "").replace(OTHER_CARD, "")); }
 
 async function getUser(env: Env, auth: string, f: Fetch) {
   const res = await f(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: auth, apikey: env.SUPABASE_ANON_KEY || "" } });
