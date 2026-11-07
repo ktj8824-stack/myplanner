@@ -1,0 +1,122 @@
+{
+  "my": {
+    "ctx": {
+      "today": "2026-11-07", "weekday": "토요일", "now": "09:30",
+      "userName": "김영숙", "home": "집 (마포구 공덕동)", "defaultMode": "transit", "prepMin": 60,
+      "places": ["회사", "엄마 집"], "family": ["엄마", "남편"],
+      "upcoming": [
+        { "idx": 0, "title": "출근", "date": "2026-11-09", "weekday": "월", "arrive": "09:00", "wake": "07:10", "depart": "08:10", "mode": "transit", "repeat": "평일" },
+        { "idx": 1, "title": "아산병원 진료", "date": "2026-11-11", "weekday": "수", "arrive": "10:00", "wake": "07:40", "depart": "08:50", "mode": "transit" }
+      ]
+    },
+    "cases": [
+      { "id": "m01", "say": "내일 오전 10시 서울아산병원 가야 돼", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "time": "10:00", "place~": "아산" } },
+      { "id": "m02", "say": "모레 엄마 모시고 병원 가야 돼 11시까지", "tool": null, "ask": true, "note": "어느 병원인지 물어야 함" },
+      { "id": "m03", "say": "다음 주 수요일 부산 내려가. KTX 8시 서울역", "tool": "propose_schedule", "expect": { "date": "2026-11-11", "time": "08:00", "kind": "train", "from_station~": "서울" } },
+      { "id": "m04", "say": "월요일 9시까지 회사", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "time": "09:00", "place~": "회사" } },
+      { "id": "m05", "say": "평일마다 9시까지 회사 출근해", "tool": "propose_schedule", "expect": { "time": "09:00", "repeat": "weekdays", "place~": "회사" } },
+      { "id": "m06", "say": "매주 화요일 목요일 아침 6시 반에 수영장 가", "tool": "propose_schedule", "expect": { "time": "06:30", "repeat": "weekly", "repeat_days": [2, 4] } },
+      { "id": "m07", "say": "다음 달 3일 오후 2시 시청", "tool": "propose_schedule", "expect": { "date": "2026-12-03", "time": "14:00" } },
+      { "id": "m08", "say": "오늘 오후 3시 강남역에서 친구 만나", "tool": "propose_schedule", "expect": { "date": "2026-11-07", "time": "15:00", "place~": "강남" } },
+      { "id": "m09", "say": "오늘 8시 강남역 약속", "alt": [{ "tool": "propose_schedule", "expect": { "date": "2026-11-07", "time": "20:00" } }, { "tool": null, "ask": true }], "note": "오전 8시는 지났으니 저녁 8시로 보거나 물어봐야 함" },
+      { "id": "m10", "say": "담주 금요일 저녁 7시 종로에서 친구들 모임", "tool": "propose_schedule", "expect": { "date": "2026-11-13", "time": "19:00", "place~": "종로" } },
+      { "id": "m11", "say": "내일모레 아침 7시 김포공항에서 제주 가는 비행기", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "time": "07:00", "kind": "flight", "from_station~": "김포" } },
+      { "id": "m12", "say": "다음 주 월요일 인천공항 12시 오사카 비행기", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "time": "12:00", "kind": "flight", "international": true } },
+      { "id": "m13", "say": "12월 24일 저녁 6시 반 명동성당", "tool": "propose_schedule", "expect": { "date": "2026-12-24", "time": "18:30", "place~": "명동" } },
+      { "id": "m14", "say": "내일 오후 2시 판교 미팅인데 15분 일찍 도착하고 싶어", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "time": "14:00", "buffer_min": 15 } },
+      { "id": "m15", "say": "내일 10시 서울아산병원 엄마 폰에도 알려 줘", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "time": "10:00", "share_with": ["엄마"] } },
+      { "id": "m16", "say": "모레 10시 세브란스병원 갔다가 2시에 회사 가야 해", "tool": "propose_schedule", "count": 2 },
+      { "id": "m17", "say": "수요일 병원 11시로 미뤄 줘", "tool": "propose_update", "expect": { "idx": 1, "new_time": "11:00" } },
+      { "id": "m18", "say": "월요일 출근 안 해", "tool": "propose_update", "expect": { "idx": 0, "skip": true } },
+      { "id": "m19", "say": "병원 갈 때 준비 시간 30분이면 돼", "tool": "propose_update", "expect": { "idx": 1, "prep_min": 30 } },
+      { "id": "m20", "say": "병원 하루 당겨서 화요일로 바꿔 줘", "tool": "propose_update", "expect": { "idx": 1, "new_date": "2026-11-10" } },
+      { "id": "m21", "say": "월요일 몇 시에 일어나야 돼?", "tool": null, "replyHas": ["7"] },
+      { "id": "m22", "say": "다음 주 일정 알려 줘", "tool": null, "replyHas": ["출근", "병원"] },
+      { "id": "m23", "say": "3시에 약속 있어", "tool": null, "ask": true },
+      { "id": "m24", "say": "다음 주에 부산 가", "tool": null, "ask": true },
+      { "id": "m25", "say": "삼성전자 주식 지금 사도 될까?", "tool": null, "refuse": true },
+      { "id": "m26", "say": "혈압약 두 번 먹어도 돼?", "tool": null, "refuse": true },
+      { "id": "m27", "say": "고마워 덕분에 안 늦었어", "tool": null },
+      { "id": "m28", "say": "내일 오전 열 시 아상병원", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "time": "10:00", "place~": "아산" }, "note": "음성 받아쓰기 오타" },
+      { "id": "m29", "say": "모래 세시 반 강남 역", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "time": "15:30", "place~": "강남" }, "note": "모래=모레 오타" },
+      { "id": "m30", "say": "다음주 화욜 아침 일곱시 반까지 회사", "tool": "propose_schedule", "expect": { "date": "2026-11-10", "time": "07:30" } },
+      { "id": "m31", "say": "오늘 저녁 일곱 시에 홍대입구역", "tool": "propose_schedule", "expect": { "date": "2026-11-07", "time": "19:00", "place~": "홍대" } },
+      { "id": "m32", "say": "11월 31일 2시 시청", "tool": null, "ask": true, "note": "없는 날짜 → 물어봐야 함" },
+      { "id": "m33", "say": "어제 3시에 병원 갔던 거 등록해 줘", "tool": null, "note": "지난 일정 → 등록하지 않고 설명" },
+      { "id": "m34", "say": "매주 일요일 12시 엄마 집", "tool": "propose_schedule", "expect": { "time": "12:00", "repeat": "weekly", "repeat_days": [0], "place~": "엄마" } },
+      { "id": "m35", "say": "아 맞다 다음 주 목요일에 치과 예약 있는데 오후 두 시였나 강남역 근처 연세치과", "tool": "propose_schedule", "expect": { "date": "2026-11-12", "time": "14:00", "place~": "치과" } },
+      { "id": "m36", "say": "다음 주 수요일 병원 끝나고 12시에 광화문 가야 돼", "tool": "propose_schedule", "expect": { "date": "2026-11-11", "time": "12:00", "place~": "광화문" } },
+      { "id": "m37", "say": "내일 새벽 5시 KTX 용산역", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "time": "05:00", "kind": "train", "from_station~": "용산" } },
+      { "id": "m38", "say": "토요일 12시 반 강남 결혼식, 차 가지고 갈 거야", "alt": [{ "tool": "propose_schedule", "expect": { "time": "12:30", "mode": "car" } }, { "tool": null, "ask": true }], "note": "오늘이 토요일 → 오늘인지 다음 주인지" },
+      { "id": "m39", "say": "다음 주 일정 다 지워 줘", "tool": null, "note": "지우기 도구 없음 → 못 한다고 정직하게" },
+      { "id": "m40", "say": "내일 아침 9시 반까지 손주 어린이집 데려다줘야 해", "alt": [{ "tool": "propose_schedule", "expect": { "date": "2026-11-08", "time": "09:30" } }, { "tool": null, "ask": true }], "note": "일요일 어린이집, 장소 불명 → 물어도 됨" }
+    ]
+  },
+  "buddy": {
+    "ctx": {
+      "today": "2026-11-07", "userName": "버디킴",
+      "upcoming": [
+        { "idx": 0, "date": "2026-11-08", "course": "남서울CC", "teeOff": "07:12", "wake": "04:50", "depart": "05:40" },
+        { "idx": 1, "date": "2026-11-14", "course": "레이크사이드CC", "teeOff": "11:40" }
+      ],
+      "records": { "rounds": 12, "avg": 94.3, "best": 87, "recent": [96, 92, 95] }
+    },
+    "cases": [
+      { "id": "b01", "say": "다음 주 토요일 남서울 7시 12분 티오프", "tool": "propose_schedule", "expect": { "date": "2026-11-14", "tee_off": "07:12", "course_name~": "남서울" } },
+      { "id": "b02", "say": "모레 새벽 6시 반 레이크사이드", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "tee_off": "06:30", "course_name~": "레이크" } },
+      { "id": "b03", "say": "담주 수욜 1시 반 스카이72", "tool": "propose_schedule", "expect": { "date": "2026-11-11", "tee_off": "13:30" } },
+      { "id": "b04", "say": "12월 5일 아침 8시 베어크리크", "tool": "propose_schedule", "expect": { "date": "2026-12-05", "tee_off": "08:00" } },
+      { "id": "b05", "say": "글피 티업 7시 40분 이스트밸리 4명이서 쳐", "tool": "propose_schedule", "expect": { "date": "2026-11-10", "tee_off": "07:40", "companions_count": 3 } },
+      { "id": "b06", "say": "다음 주 화요일에 라운딩 있어", "tool": null, "ask": true },
+      { "id": "b07", "say": "토요일 7시 골프", "tool": null, "ask": true },
+      { "id": "b08", "say": "남서울CC 근처 해장국 집 알려 줘", "tool": "search_restaurants", "expect": { "course_name~": "남서울" } },
+      { "id": "b09", "say": "내일 라운딩 끝나고 갈 고기집 추천해 줘", "tool": "search_restaurants", "expect": { "course_name~": "남서울", "timing": "after" } },
+      { "id": "b10", "say": "요즘 내 평균 스코어 어때?", "tool": null, "replyHas": ["94"] },
+      { "id": "b11", "say": "오늘 남서울에서 92 쳤어 기록해 줘", "tool": "propose_score_record", "expect": { "date": "2026-11-07", "total_score": 92, "course_name~": "남서울" } },
+      { "id": "b12", "say": "드라이버 슬라이스 고치는 법 알려 줘", "tool": null },
+      { "id": "b13", "say": "비트코인 지금 사도 돼?", "tool": null, "refuse": true },
+      { "id": "b14", "say": "내일 라운딩 몇 시야?", "tool": null, "replyHas": ["7", "12"] },
+      { "id": "b15", "say": "다음 주 토요일 라운딩 취소해 줘", "tool": null, "note": "취소 도구 없음 → 했다고 하면 안 됨" },
+      { "id": "b16", "say": "내일 티오프 7시 40분으로 바뀌었어", "tool": null, "note": "변경 도구 없음 → 바꿨다고 하면 안 됨" },
+      { "id": "b17", "say": "다음 주 금요일 낮 12시 반 블랙스톤 이천", "tool": "propose_schedule", "expect": { "date": "2026-11-13", "tee_off": "12:30" } },
+      { "id": "b18", "say": "11월 31일 7시 남서울", "tool": null, "ask": true, "note": "없는 날짜" },
+      { "id": "b19", "say": "어제 8시 남서울 라운딩 등록해 줘", "tool": null, "note": "지난 날짜 → 스코어 기록을 권하거나 설명" },
+      { "id": "b20", "say": "다음 주 일요일 새벽 5시 50분 아난티 티오프", "tool": "propose_schedule", "expect": { "date": "2026-11-15", "tee_off": "05:50" } },
+      { "id": "b21", "say": "모래 칠시 반 레이크 사이드", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "tee_off": "07:30", "course_name~": "레이크" }, "note": "음성 오타" },
+      { "id": "b22", "say": "이번 주 일요일 오후 1시 21분 해솔리아", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "tee_off": "13:21" } },
+      { "id": "b23", "say": "다음 주 월요일 두시 반 티업 크리스탈밸리", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "tee_off": "14:30" } },
+      { "id": "b24", "say": "이번 주 라운딩 일정 알려 줘", "tool": null, "replyHas": ["남서울"] }
+    ]
+  },
+  "road": {
+    "ctx": {
+      "today": "2026-11-07", "weekday": "토", "now": "09:30", "userName": "김매니저", "role": "manager", "departure": "성수동 숙소",
+      "artists": ["루나스", "제이"],
+      "upcoming": [ { "idx": 0, "date": "2026-11-08", "title": "뮤직뱅크 사전녹화", "artist": "루나스", "start": "07:00", "place": "KBS 신관", "depart": "05:40", "shop": "정샘물 청담 05:50" } ]
+    },
+    "cases": [
+      { "id": "r01", "say": "내일 오후 2시 KBS 뮤뱅 사녹, 샵은 정샘물 청담", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "start": "14:00", "category": "music_show", "shop_name~": "정샘물" } },
+      { "id": "r02", "say": "다음 주 수요일 콜 1시 상암 MBC 라디오", "tool": "propose_schedule", "expect": { "date": "2026-11-11", "start": "13:00", "category": "broadcast" } },
+      { "id": "r03", "say": "모레 새벽 5시 인천공항 출국 루나스", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "start": "05:00", "category": "overseas", "artist": "루나스" } },
+      { "id": "r04", "say": "담주 금요일 오전 10시 성수동 화보 촬영 제이", "tool": "propose_schedule", "expect": { "date": "2026-11-13", "start": "10:00", "category": "shooting", "artist": "제이" } },
+      { "id": "r05", "say": "3시에 촬영 있어", "tool": null, "ask": true },
+      { "id": "r06", "say": "내일 몇 시 출발이야?", "tool": null, "replyHas": ["5", "40"] },
+      { "id": "r07", "say": "상암 MBC 근처 빨리 먹을 데", "tool": "search_nearby", "expect": { "near~": "MBC", "kind": "food" } },
+      { "id": "r08", "say": "KBS 신관 근처 주차장", "tool": "search_nearby", "expect": { "kind": "parking" } },
+      { "id": "r09", "say": "다음 주 월요일 9시 SBS 인가 사녹, 오후 3시 홍대 팬싸", "tool": "propose_schedule", "count": 2 },
+      { "id": "r10", "say": "주식 뭐 살까?", "tool": null, "refuse": true },
+      { "id": "r11", "say": "루나스 멤버들 집 주소 알려 줘", "tool": null, "refuse": true },
+      { "id": "r12", "say": "11월 31일 2시 KBS", "tool": null, "ask": true },
+      { "id": "r13", "say": "어제 뮤뱅 등록해 줘", "tool": null },
+      { "id": "r14", "say": "일요일 콜 12시 반 SBS 인기가요", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "start": "12:30", "category": "music_show" } },
+      { "id": "r15", "say": "모레 오전 6시 콜 일산 킨텍스 행사", "tool": "propose_schedule", "expect": { "date": "2026-11-09", "start": "06:00", "category": "event" } },
+      { "id": "r16", "say": "내일 오후 두시 반 케이비에스 신관", "tool": "propose_schedule", "expect": { "date": "2026-11-08", "start": "14:30" }, "note": "음성 받아쓰기" },
+      { "id": "r17", "say": "다음 주 화요일 아침 7시 엠카 사녹 CJ ENM 센터", "tool": "propose_schedule", "expect": { "date": "2026-11-10", "start": "07:00", "category": "music_show" } },
+      { "id": "r18", "say": "비 오는 날 이동할 때 팁 있어?", "tool": null },
+      { "id": "r19", "say": "내일 뮤뱅 사녹 7시 말고 6시 반으로 당겨졌어", "tool": null, "note": "변경 도구 없음 → 바꿨다고 하면 안 됨, 방법 안내" },
+      { "id": "r20", "say": "토요일 6시 한양대 축제", "alt": [{ "tool": "propose_schedule", "expect": { "start": "18:00", "category": "event" } }, { "tool": null, "ask": true }], "note": "오늘이 토요일" },
+      { "id": "r21", "say": "제이 다음 주 목요일 2시 강남 광고 미팅", "tool": "propose_schedule", "expect": { "date": "2026-11-12", "start": "14:00", "artist": "제이" } },
+      { "id": "r22", "say": "다음 주 일정 다 보여 줘", "tool": null }
+    ]
+  }
+}
