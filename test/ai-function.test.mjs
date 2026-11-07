@@ -1,6 +1,6 @@
 // AI 비서 서버 함수 확인 (가짜 Claude·Supabase): node --no-warnings test/ai-function.test.mjs
 import assert from 'node:assert';
-import { handle, checkAction, calendarTable, systemPrompt } from '../supabase/functions/ai/index.ts';
+import { handle, checkAction, calendarTable, systemPrompt, stripLeak, hasLeak } from '../supabase/functions/ai/index.ts';
 
 const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk' };
 const ctx = { today: '2026-11-03', weekday: '화', upcoming: [{ idx: 0, title: '판교 출근', date: '2026-11-04' }] };
@@ -32,7 +32,14 @@ let j = await r.json();
 assert.strictEqual(r.status, 200);
 assert.deepStrictEqual(j.actions.map(a => [a.type, a.title, a.time, a.buffer_min]), [['schedule', '아산병원 진료', '10:00', 15]]);
 assert.strictEqual(j.reply, '아래 카드에서 확인해 주세요.');
-assert.ok(claudeCalls[0].system.includes('2026-11-03') && claudeCalls[0].system.includes('판교 출근'));
+const sys0 = JSON.stringify(claudeCalls[0].system);
+assert.ok(sys0.includes('2026-11-03') && sys0.includes('판교 출근'));
+// 프롬프트 캐시: 규칙 블록과 도구 마지막 항목에 표시, 사용자 정보 블록엔 없음
+assert.deepStrictEqual(claudeCalls[0].system[0].cache_control, { type: 'ephemeral' });
+assert.ok(!claudeCalls[0].system[1].cache_control && claudeCalls[0].system[1].text.includes('판교 출근'));
+assert.ok(!claudeCalls[0].system[0].text.includes('판교 출근'));
+assert.deepStrictEqual(claudeCalls[0].tools.at(-1).cache_control, { type: 'ephemeral' });
+assert.ok(!claudeCalls[0].tools[0].cache_control || claudeCalls[0].tools.length === 1);
 assert.strictEqual(j.pro, false); assert.strictEqual(j.remaining, 4);
 console.log('✓ 말 한마디 → 일정 제안 카드 (무료 남은 횟수 4)');
 
@@ -107,3 +114,48 @@ console.log('✓ 지난 날짜·요일 없는 매주 반복 거절');
   console.log('✓ 오늘 지난 시각·없는 날짜·이상한 분 거절');
 }
 console.log('\nAI 비서 서버 함수 확인 완료');
+
+
+// 7) 도구 없이 '카드를 만들었어요' → 한 번 더 부르고, 그때 도구를 쓰면 카드가 생김
+script = [
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '준비 시간을 30분으로 바꾼 카드를 만들었어요.' }] },
+  { stop_reason: 'tool_use', content: [{ type: 'tool_use', id: 'u7', name: 'propose_update', input: { idx: 0, prep_min: 30 } }] },
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '아래 카드에서 확인해 주세요.' }] },
+];
+claudeCalls = []; usage = 0;
+j = await (await handle(req({ message: '병원 갈 때 준비 시간 30분이면 돼', context: ctx }), env, fake())).json();
+assert.deepStrictEqual(j.actions.map(a => [a.type, a.prep_min]), [['update', 30]]);
+assert.strictEqual(claudeCalls.length, 3);
+assert.ok(JSON.stringify(claudeCalls[1].messages).includes('도구로 제안하세요'));
+// 두 번째에도 도구 없이 카드 얘기만 하면 → '다시 한 번 말씀해 주시겠어요?'
+script = [
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '카드를 만들었어요.' }] },
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '카드로 보여 드렸어요.' }] },
+];
+j = await (await handle(req({ message: '병원 갈 때 준비 시간 30분이면 돼', context: ctx }), env, fake())).json();
+assert.strictEqual(j.actions.length, 0);
+assert.strictEqual(j.reply, '다시 한 번 말씀해 주시겠어요?');
+console.log('✓ 하지 않은 카드를 만들었다고 말하면 다시 부르고, 그래도 없으면 되묻기');
+
+// 8) 한자·내부 메모 → 한 번 다시 받고(글만), 그래도 있으면 그 줄을 지움
+script = [
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '8시 出발이에요.\n[Note: I should not use Chinese characters. Rewrite.]' }] },
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '내일 오전 8시에 출발하시면 돼요.' }] },
+];
+claudeCalls = [];
+j = await (await handle(req({ message: '내일 몇 시에 나가?', context: ctx }), env, fake())).json();
+assert.strictEqual(j.reply, '내일 오전 8시에 출발하시면 돼요.');
+assert.deepStrictEqual(claudeCalls[1].tool_choice, { type: 'none' });
+script = [
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '8시 出발이에요.\n내일 오전 8시에 나가시면 돼요.' }] },
+  { stop_reason: 'end_turn', content: [{ type: 'text', text: '8시 出발.\n[Note: rewrite]\n내일 오전 8시에 나가시면 돼요.' }] },
+];
+j = await (await handle(req({ message: '내일 몇 시에 나가?', context: ctx }), env, fake())).json();
+assert.strictEqual(j.reply, '내일 오전 8시에 나가시면 돼요.');
+assert.ok(!hasLeak(j.reply) && hasLeak('出') && hasLeak('[Note: x]') && stripLeak('a\n[Note: b]') === 'a');
+console.log('✓ 한자·[Note] 메모가 사용자에게 보이지 않음');
+
+// 9) 지시문: 못 하는 부탁·일반 장소 되묻기·한국어만
+const sp = systemPrompt(ctx);
+assert.ok(sp.includes('그건 아직 제가 못 해요') && sp.includes('어느 어린이집인가요?') && sp.includes('[Note'));
+console.log('✓ 지시문: 지우기 부탁은 한 문장 답, 일반 장소 이름은 되묻기');

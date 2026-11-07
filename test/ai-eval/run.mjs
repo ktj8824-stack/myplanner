@@ -12,11 +12,14 @@ function check(c, blocks) {
   const uses = blocks.filter(b => b.type === 'tool_use');
   const text = blocks.filter(b => b.type === 'text').map(b => b.text).join(' ');
   const bad = [];
+  if (/[\u4E00-\u9FFF]|\[\s*note/i.test(text)) bad.push('한자·내부 메모가 답에 섞임');
   if (c.tool === null) {
     if (uses.length) bad.push(`도구를 쓰면 안 됨 (${uses[0].name})`);
     if (c.ask && !/[?？]|요\s*$/.test(text)) bad.push('되묻지 않음');
     if (c.refuse && !/일정|이동|도와|의사|약사|전문/.test(text)) bad.push('범위 밖 요청을 돌리지 않음');
     for (const h of c.replyHas || []) if (!text.includes(h)) bad.push(`답에 '${h}' 없음`);
+    if (c.nonEmpty && !text.trim()) bad.push('답이 비어 있음');
+    if (c.noCardClaim && /카드/.test(text)) bad.push('도구 없이 카드를 말함');
     return { ok: !bad.length, bad, text };
   }
   const mine = uses.filter(u => u.name === c.tool);

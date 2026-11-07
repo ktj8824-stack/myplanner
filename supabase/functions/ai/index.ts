@@ -104,7 +104,8 @@ export function calendarTable(today: string): string {
   return lines.join("\n");
 }
 
-export function systemPrompt(ctx: Json): string {
+/** 바뀌지 않는 규칙 (프롬프트 캐시 대상) */
+export function systemRules(): string {
   return `당신은 일정·이동 알람 앱 '마이플래너'의 AI 비서입니다. 사용자는 40~60대가 많습니다.
 
 [말투]
@@ -126,6 +127,10 @@ export function systemPrompt(ctx: Json): string {
 - 사이에 남는 시간을 물으면("6시 약속 전에 얼마나 비어?") 목록의 끝 시간·다음 약속 출발 시각으로 답합니다.
 - 장소는 사용자가 쓴 말 그대로 넣습니다. "회사", "엄마 집"처럼 자주 가는 곳 목록에 있는 이름이면 그 이름을 그대로 쓰면 앱이 알아서 찾습니다.
 - "엄마 폰에도 알려 줘"처럼 가족에게 알람을 보내 달라고 하면 share_with에 가족 이름을 넣습니다. 가족 목록에 없는 사람이면 그렇다고 말합니다.
+- 지우기·삭제처럼 도구가 없는 부탁은 "그건 아직 제가 못 해요. 일정 화면에서 해 주세요"처럼 한 문장으로 답합니다. 답을 비워 두지 않습니다.
+- 도구를 쓰지 않았으면 "카드를 만들었어요", "아래 카드에서 확인해 주세요"라고 말하지 않습니다. 바꾸거나 등록할 게 있으면 말로만 하지 말고 반드시 도구로 제안합니다.
+- 장소가 "어린이집", "학교", "병원", "은행", "학원", "마트", "약국"처럼 일반 이름뿐이고 자주 가는 곳 목록에도 없으면, place를 지어내거나 그대로 넣지 말고 "어느 어린이집인가요?"처럼 이름을 한 가지만 물어봅니다. (예: "손주 어린이집", "애 학원" → 어느 곳인지 물음)
+- 답은 한국어로만 씁니다. 한자·영어 메모·괄호 속 혼잣말([Note: …] 같은 것)을 절대 쓰지 않습니다.
 - 일정·이동·하루 계획과 무관한 요청(투자, 정치, 숙제, 코딩 등)은 "저는 일정과 이동을 돕는 비서라서요"처럼 정중히 짧게 돌려 말합니다. 가벼운 인사는 받아 줍니다.
 - 건강·의료 판단은 하지 않습니다.
 
@@ -151,8 +156,12 @@ export function systemPrompt(ctx: Json): string {
 - "3시에 약속 있어" → 어디인지 모르므로 "어디로 가시나요?"라고 한 가지만 물음
 - "내일 12시 강남 점심 3시에 끝나고 6시에 일산 저녁" → propose_schedule {title:"강남 점심", time:"12:00", end_time:"15:00", place:"강남"} + propose_schedule {title:"일산 저녁", time:"18:00", place:"일산"}
 - (목록에 내일 강남 점심 12~15시, 일산 저녁 18시가 있을 때) "점심 끝나고 4시에 성수 카페 들렀다 가, 5시까지 있을 거야" → propose_schedule {title:"성수 카페", date:내일, time:"16:00", end_time:"17:00", place:"성수 카페"}
+`;
+}
 
-[사용자 정보]
+/** 사용자마다·날마다 바뀌는 부분 (캐시하지 않음) */
+export function systemContext(ctx: Json): string {
+  return `[사용자 정보]
 - 지금: ${ctx.today || ""} (${ctx.weekday || ""}) ${ctx.now || ""}
 - 이름: ${ctx.userName || ""} / 집: ${ctx.home || "미등록"} / 기본 이동수단: ${ctx.defaultMode || ""} / 기본 준비 시간: ${ctx.prepMin || 60}분
 - 자주 가는 곳: ${JSON.stringify(ctx.places || [])}
@@ -162,6 +171,33 @@ export function systemPrompt(ctx: Json): string {
 [날짜표] (오늘부터 3주, 주는 월~일)
 ${calendarTable(ctx.today)}`;
 }
+
+/** 평가·테스트용: 규칙 + 사용자 정보를 한 글로 */
+export function systemPrompt(ctx: Json): string {
+  return systemRules() + "\n\n" + systemContext(ctx);
+}
+
+/** Claude에 보낼 system: 규칙 블록에 캐시 표시 (tools 끝 + 규칙까지가 한 번에 캐시됨) */
+export function systemBlocks(ctx: Json): Json[] {
+  return [
+    { type: "text", text: systemRules(), cache_control: { type: "ephemeral" } },
+    { type: "text", text: systemContext(ctx) },
+  ];
+}
+
+/** tools 마지막 항목에 캐시 표시 */
+export const TOOLS_CACHED = TOOLS.map((t, i) => i === TOOLS.length - 1 ? { ...t, cache_control: { type: "ephemeral" } } : t);
+
+const HAN = /[\u4E00-\u9FFF]/;
+const NOTE = /\[\s*note/i;
+/** 사용자에게 보이면 안 되는 것: 한자, AI 내부 메모 */
+export function hasLeak(t: string): boolean { return HAN.test(t) || NOTE.test(t); }
+/** 그래도 남으면 그 줄을 지움 */
+export function stripLeak(t: string): string {
+  return t.split("\n").filter((l) => !hasLeak(l)).join("\n").trim();
+}
+/** 카드를 만들었다고 말하는지 */
+export function claimsCard(t: string): boolean { return /카드/.test(t); }
 
 async function getUser(env: Env, auth: string, f: Fetch) {
   const res = await f(`${env.SUPABASE_URL}/auth/v1/user`, { headers: { Authorization: auth, apikey: env.SUPABASE_ANON_KEY || "" } });
@@ -296,12 +332,18 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
   };
   const actions: Json[] = [];
   let reply = "";
-  try {
+  const system = systemBlocks(ctx);
+
+  /** 도구 제안을 받을 때까지 몇 번 주고받기 (tool_choice none이면 글만) */
+  const run = async (toolChoice?: Json) => {
+    let said = "";
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      const resp = await callClaude(env, { model: MODEL, max_tokens: 700, system: systemPrompt(ctx), tools: TOOLS, messages }, f);
+      const req: Json = { model: MODEL, max_tokens: 700, system, tools: TOOLS_CACHED, messages };
+      if (toolChoice) req.tool_choice = toolChoice;
+      const resp = await callClaude(env, req, f);
       const blocks: Json[] = resp.content || [];
-      const said = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
-      if (said) reply = said;
+      const t = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
+      if (t) said = t;
       const uses = blocks.filter((b) => b.type === "tool_use");
       if (resp.stop_reason !== "tool_use" || !uses.length) break;
       messages.push({ role: "assistant", content: blocks });
@@ -315,6 +357,33 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
         }
       }
       messages.push({ role: "user", content: results });
+    }
+    return said;
+  };
+  /** 한 번 더 묻기: 방금 답을 대화에 넣고 고칠 점을 말해 줌 */
+  const again = async (prev: string, fix: string, toolChoice?: Json) => {
+    if (prev) messages.push({ role: "assistant", content: prev });
+    const last = messages[messages.length - 1];
+    if (last && last.role === "user") {
+      // 사용자 말이 연달아 오지 않게 앞 메시지에 붙임
+      last.content = Array.isArray(last.content) ? [...last.content, { type: "text", text: fix }] : last.content + "\n" + fix;
+    } else messages.push({ role: "user", content: fix });
+    return await run(toolChoice);
+  };
+
+  try {
+    reply = await run();
+    // 1) 도구 없이 "카드를 만들었어요"라고 말한 경우 → 도구로 제안하라고 한 번 더
+    if (!actions.length && claimsCard(reply)) {
+      const r2 = await again(reply, "(앱 안내) 방금 확인 카드는 만들어지지 않았어요. 말로만 하지 말고 propose_schedule이나 propose_update 도구로 제안하세요. 제안할 게 없으면 카드를 말하지 말고 짧게 답하세요.");
+      reply = r2 || reply;
+      if (!actions.length && claimsCard(reply)) reply = "다시 한 번 말씀해 주시겠어요?";
+    }
+    // 2) 한자나 내부 메모가 섞인 경우 → 한 번 다시 받고, 그래도 있으면 그 줄을 지움
+    if (hasLeak(reply)) {
+      const r2 = await again(reply, "(앱 안내) 방금 답에 한자나 메모가 섞였어요. 같은 내용을 한국어로만, 메모 없이 다시 써 주세요. 도구는 다시 쓰지 마세요.", { type: "none" });
+      if (r2) reply = r2;
+      if (hasLeak(reply)) reply = stripLeak(reply);
     }
   } catch (e) {
     console.error("ai failed", (e as Error).message);
