@@ -77,6 +77,15 @@ const Cloud = {
     return data;
   },
 
+  async _kakaoLogin(idToken) {
+    const { url, key } = this.cfg();
+    const res = await U.fetchT(`${url}/functions/v1/myplanner-kakao-login`, { method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id_token: idToken }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `로그인 실패 (${res.status})`);
+    return data;
+  },
+
   /** 카카오 로그인: 앱은 카카오 SDK → ID 토큰, 웹은 카카오 로그인 페이지로 이동 */
   async signInKakao() {
     if (!this.isConfigured()) return U.toast('서버 설정이 없어요 (설정 > 개발자 설정)');
@@ -90,7 +99,8 @@ const Cloud = {
         }
         const r = await K.login();
         if (!r || !r.idToken) throw new Error('카카오 ID 토큰이 없어요 (카카오 디벨로퍼스에서 OpenID Connect를 켜 주세요)');
-        const data = await this._auth('token?grant_type=id_token', { provider: 'kakao', id_token: r.idToken });
+        // 마이플래너 앱 키로 받은 토큰은 전용 서버 함수가 확인 (Supabase 카카오 설정 칸은 버디플래너 키 하나만 받음)
+        const data = await this._kakaoLogin(r.idToken);
         this._save(data);
         this.status = 'synced';
         U.toast('로그인했어요');
