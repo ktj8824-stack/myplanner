@@ -8,7 +8,7 @@
 // 비밀값: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY (Supabase가 자동으로 넣어 줌)
 //         (선택) MYPLANNER_KAKAO_AUDS = 받을 카카오 앱 키 목록, 쉼표로 구분
 
-export const DEFAULT_AUDS = ["a33bc63b10bc25a96b8f266cedde3680"];
+export const DEFAULT_AUDS = ["76014afcf1968e5e75b1976ada2896de", "a33bc63b10bc25a96b8f266cedde3680"]; // 마이플래너 카카오 앱 키, (예전) 버디플래너 앱 안의 마이플래너 키
 export const ISS = "https://kauth.kakao.com";
 const JWKS_URL = "https://kauth.kakao.com/.well-known/jwks.json";
 
