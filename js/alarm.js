@@ -28,9 +28,14 @@ const Alarm = {
       try {
         await LN.createChannel({ id: this.CHANNEL, name: '일정 알림', description: '전날 안내·출발 전 알림',
           importance: 4, visibility: 1, vibration: true });
-        LN.addListener('localNotificationActionPerformed', ev => this.openSchedule(ev?.notification?.extra?.scheduleId));
+        LN.addListener('localNotificationActionPerformed', ev => {
+          const n = ev && ev.notification, x = (n && n.extra) || {};
+          // 기상 알람을 울린 지 얼마 안 돼서 눌렀으면 기상 화면을 보여 줌 (소리는 다시 내지 않음)
+          if (x.kind === 'wake' && x.at && Date.now() - x.at < 20 * 60000) return this.showRinging(n.title, n.body, x.scheduleId, 'wake', true);
+          this.openSchedule(x.scheduleId);
+        });
         LN.addListener('localNotificationReceived', n => {
-          if (n && n.extra && n.extra.alarm) this.showRinging(n.title, n.body, n.extra.scheduleId);
+          if (n && n.extra && n.extra.alarm) this.showRinging(n.title, n.body, n.extra.scheduleId, n.extra.kind);
         });
       } catch (e) { console.warn('알림 채널 생성 실패', e); }
     }
@@ -228,7 +233,7 @@ const Alarm = {
           let notes = list.map(a => ({
             id: this.numId(a.sid + a.key), title: a.title, body: a.body, largeBody: a.body,
             schedule: { at: a.at, allowWhileIdle: true }, channelId: this.CHANNEL,
-            extra: { scheduleId: a.sid, alarm: !!a.alarm }
+            extra: { scheduleId: a.sid, alarm: !!a.alarm, kind: a.key, at: a.at.getTime() }
           }));
           if (this.isIOS()) {
             notes.forEach(n => { if (n.extra.alarm) n.sound = 'mp_alarm.caf'; }); // 30초 알람 음악 (AppDelegate가 Library/Sounds로 복사)
@@ -236,7 +241,7 @@ const Alarm = {
             const more = [];
             list.forEach(a => { if (a.alarm) this.IOS_REPEAT.forEach(m => more.push({
               id: this.numId(a.sid + a.key + 'r' + m), title: a.title, body: `${m}분 지났어요. ${a.body}`,
-              schedule: { at: new Date(a.at.getTime() + m * 60000) }, sound: 'mp_alarm.caf', extra: { scheduleId: a.sid, alarm: true } })); });
+              schedule: { at: new Date(a.at.getTime() + m * 60000) }, sound: 'mp_alarm.caf', extra: { scheduleId: a.sid, alarm: true, kind: a.key, at: a.at.getTime() + m * 60000 } })); });
             notes = notes.concat(more).sort((x, y) => x.schedule.at - y.schedule.at).slice(0, this.IOS_MAX);
           }
           await LN.schedule({ notifications: notes });
@@ -252,7 +257,7 @@ const Alarm = {
       if (delay > 0 && delay < 2147483000) {
         this.webTimers.push(setTimeout(() => {
           try { if ('Notification' in window && Notification.permission === 'granted') new Notification(a.title, { body: a.body, icon: 'icon-192.png' }); } catch (e) {}
-          if (a.alarm) this.showRinging(a.title, a.body, a.sid);
+          if (a.alarm) this.showRinging(a.title, a.body, a.sid, a.key);
           else U.toast(a.title);
         }, delay));
       }
@@ -272,10 +277,77 @@ const Alarm = {
   },
 
   /* ---------- 화면 알람 (웹 / 앱이 열려 있을 때 대체용) ---------- */
-  showRinging(title, body, scheduleId) {
+  SNOOZE_MAX: 3,   // 기상 알람 '5분 뒤 다시'는 3번까지
+
+  /** 같은 기상 알람에서 '5분 뒤 다시'를 몇 번 눌렀는지 (앱을 다시 켜도 이어지게 저장) */
+  snoozeCount(id) {
+    try { const v = JSON.parse(localStorage.getItem('mp_snooze') || '{}'); return v.id === id && v.day === U.today() ? v.n || 0 : 0; } catch (e) { return 0; }
+  },
+  setSnoozeCount(id, n) { try { localStorage.setItem('mp_snooze', JSON.stringify({ id, n, day: U.today() })); } catch (e) {} },
+
+  /** 기상 알람 전체 화면: 일정·출발·날씨·교통을 한눈에 */
+  wakeHTML(s, id) {
+    const plan = Planner.compute(s);
+    const now = new Date(), hm = d => U.hm(d), DOW = ['일', '월', '화', '수', '목', '금', '토'];
+    const isTrip = Planner.isTrip(s.mode), m = Planner.MODES[s.mode] || {};
+    const place = isTrip ? ((s.trip && s.trip.departStation && s.trip.departStation.name) || '') : ((s.dest && s.dest.name) || '');
+    const go = isTrip
+      ? `<b>${hm(plan.departAt)}</b>에 나가면 <b>${U.esc((s.trip && s.trip.departTime) || '')}</b> ${U.esc(m.label || '')} 탈 수 있어요`
+      : `<b>${hm(plan.departAt)}</b>에 나가면 <b>${U.esc(s.arriveBy || hm(plan.arriveAt))}</b> 전에 도착해요`;
+    const svg = (p) => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+    const umbrella = svg('<path d="M3 12a9 9 0 0 1 18 0Z"/><path d="M12 12v6a2 2 0 0 0 4 0"/><path d="M12 3v0"/>');
+    const car = svg('<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v2H3z"/><circle cx="7.5" cy="13.5" r=".8"/><circle cx="16.5" cy="13.5" r=".8"/>');
+    const lines = [];
+    if (plan.weather) lines.push(`<div class="wa-line wx">${umbrella}<span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
+    const base = s.route && s.route.travelMin, live = plan.live && plan.live.travelMin;
+    if (base && live && Math.abs(live - base) >= 3) {
+      const d = live - base;
+      lines.push(`<div class="wa-line">${car}<span>${d > 0 ? `길이 평소보다 ${d}분 막혀요` : `길이 평소보다 ${-d}분 빨라요`} · 이미 반영했어요</span></div>`);
+    }
+    const left = this.SNOOZE_MAX - this.snoozeCount(id);
+    const next = Planner.alarms(s, plan).find(a => (a.key === 'pre' || a.key === 'depart') && a.at > now);
+    const foot = [left > 0 ? `다시 울림까지 ${left}번 남았어요` : '다시 울림을 모두 썼어요',
+      next ? `${hm(next.at)}에 ${next.key === 'pre' ? '출발 10분 전' : '출발'} 알림` : ''].filter(Boolean).join(' · ');
+    return `
+      <div class="wa">
+        <div class="wa-top">
+          <div class="wa-date">${now.getMonth() + 1}월 ${now.getDate()}일 (${DOW[now.getDay()]}) · 기상 알람</div>
+          <div class="wa-time">${hm(now)}</div>
+          <div class="wa-msg">일어날 시간이에요</div>
+        </div>
+        <div class="wa-card">
+          <div class="wa-title">${U.esc(s.title || '일정')}${place ? ' · ' + U.esc(place) : ''}</div>
+          <div class="wa-go">${go}</div>
+          ${lines.join('')}
+        </div>
+        <div class="wa-bottom">
+          <button class="wa-up" onclick="Alarm.awake()">일어났어요</button>
+          <div class="wa-row">
+            <button class="wa-sub" onclick="Alarm.snooze()" ${left > 0 ? '' : 'disabled'}>5분 뒤 다시</button>
+            <button class="wa-sub" onclick="Alarm.stop(true)">일정 보기</button>
+          </div>
+          <div class="wa-foot">${foot}</div>
+        </div>
+      </div>`;
+  },
+
+  showRinging(title, body, scheduleId, kind, quiet) {
     const el = document.getElementById('ringing');
     if (!el) return;
     this._ringId = scheduleId || '';
+    this._ringKind = kind || '';
+    const s = kind === 'wake' && scheduleId ? Recur.resolve(scheduleId) : null;
+    let html = '';
+    if (s) { try { html = this.wakeHTML(s, scheduleId); } catch (e) { html = ''; } }
+    el.classList.toggle('wake', !!html);
+    if (html) {
+      el.innerHTML = html;
+      el.classList.add('show');
+      if (!quiet) this.beep(true);
+      clearInterval(this._clockTimer);
+      this._clockTimer = setInterval(() => { const t = el.querySelector('.wa-time'); if (t) t.textContent = U.hm(new Date()); }, 15000);
+      return;
+    }
     el.innerHTML = `
       <div class="ring-box">
         <div class="ring-time">${U.hm(new Date())}</div>
@@ -291,6 +363,18 @@ const Alarm = {
     this._clockTimer = setInterval(() => { const t = el.querySelector('.ring-time'); if (t) t.textContent = U.hm(new Date()); }, 15000);
   },
 
+  /** '일어났어요': 소리 끄고, 아이폰이 1·2분 뒤 다시 울리려고 예약해 둔 알림도 지움 */
+  async awake() {
+    const id = this._ringId;
+    this.stop(false);
+    this.setSnoozeCount(id, 0);
+    const LN = this.ln();
+    if (LN && id) {
+      try { await LN.cancel({ notifications: this.IOS_REPEAT.map(m => ({ id: this.numId(id + 'wake' + 'r' + m) })) }); } catch (e) {}
+    }
+    U.toast('좋은 아침이에요. 출발 전에 다시 알려 드릴게요');
+  },
+
   stop(open) {
     clearInterval(this._clockTimer);
     this.beep(false);
@@ -299,7 +383,12 @@ const Alarm = {
   },
 
   async snooze() {
-    const id = this._ringId;
+    const id = this._ringId, kind = this._ringKind;
+    if (kind === 'wake') {
+      const n = this.snoozeCount(id);
+      if (n >= this.SNOOZE_MAX) return U.toast('다시 울림을 모두 썼어요. 이제 일어나실 시간이에요');
+      this.setSnoozeCount(id, n + 1);
+    }
     this.stop(false);
     const at = new Date(Date.now() + 5 * 60000);
     const s = Recur.resolve(id);
@@ -312,10 +401,12 @@ const Alarm = {
       try {
         this._snooze = { id: this.numId('snooze' + id), at: at.getTime() }; // 알람 다시 맞추기(clearLocal)에서 지우지 않게
         await LN.schedule({ notifications: [{ id: this.numId('snooze' + id), title, body: '5분이 지났어요.', schedule: { at, allowWhileIdle: true },
-          channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { scheduleId: id, alarm: true } }] });
-      } catch (e) { setTimeout(() => this.showRinging(title, '5분이 지났어요.', id), 5 * 60000); }
+          channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { scheduleId: id, alarm: true, kind, at: at.getTime() } }] });
+        // 기상 알람을 미뤘으면 1·2분 뒤 다시 울림 예약은 지움 (5분 뒤에 한 번만)
+        if (kind === 'wake') await LN.cancel({ notifications: this.IOS_REPEAT.map(m => ({ id: this.numId(id + 'wake' + 'r' + m) })) });
+      } catch (e) { setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000); }
     } else {
-      setTimeout(() => this.showRinging(title, '5분이 지났어요.', id), 5 * 60000);
+      setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000);
     }
     U.toast('5분 뒤에 다시 알려 드릴게요.');
   },

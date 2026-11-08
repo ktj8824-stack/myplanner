@@ -669,3 +669,27 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .kakao-btn:active { filter: brightness(.96); }
 .start-skip { width: 100%; height: 52px; margin-top: 8px; border-radius: 14px; font-size: 16px; font-weight: 700; color: var(--ink-2); }
 .start-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
+
+/* 기상 알람 전체 화면 */
+#ringing.wake.show { display: block; }
+.wa { box-sizing: border-box; height: 100%; max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px;
+  padding: calc(env(safe-area-inset-top, 0px) + 56px) 22px calc(env(safe-area-inset-bottom, 0px) + 22px); overflow-y: auto; }
+.wa-top { text-align: center; }
+.wa-date { font-size: 15px; color: var(--on-navy); font-weight: 500; }
+.wa-time { font-size: 92px; line-height: 1.05; font-weight: 800; color: #F5A623; letter-spacing: -2px; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+.wa-msg { font-size: 22px; font-weight: 800; color: #fff; }
+.wa-card { background: rgba(255, 255, 255, .07); border-radius: 18px; padding: 18px 18px 16px; display: flex; flex-direction: column; gap: 10px; }
+.wa-title { font-size: 17px; font-weight: 800; color: #fff; }
+.wa-go { font-size: 15px; color: #fff; font-weight: 600; }
+.wa-go b { font-weight: 800; }
+.wa-line { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--on-navy); }
+.wa-line svg { flex: none; }
+.wa-line.wx { color: #F5A623; }
+.wa-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.wa-up { width: 100%; min-height: 64px; border-radius: 18px; background: #F5A623; color: #1F2A44; font-size: 19px; font-weight: 800; }
+.wa-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wa-sub { min-height: 52px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .22); background: transparent; color: #fff; font-size: 16px; font-weight: 700; }
+.wa-sub:disabled { opacity: .4; }
+.wa-foot { text-align: center; font-size: 12.5px; color: var(--on-navy); margin-top: 2px; }
+@media (max-height: 700px) {.wa { gap: 18px; padding-top: calc(env(safe-area-inset-top, 0px) + 28px); }.wa-time { font-size: 76px; } }
+@media (prefers-reduced-motion: reduce) {.wa-time { animation: none; } }
