@@ -111,11 +111,19 @@ const Cloud = {
     // 웹: Supabase가 카카오 로그인 후 이 주소로 돌려보냄 (Supabase 대시보드에 주소 등록 필요)
     const { url } = this.cfg();
     const back = location.origin + location.pathname;
+    // 로그인하고 돌아오면 누른 화면(예: AI 비서)으로 바로 돌아가게
+    try { if (typeof App !== 'undefined' && App.current && !['start', 'welcome'].includes(App.current)) sessionStorage.setItem('mp_after_login', App.current); } catch (e) {}
     location.href = `${url}/auth/v1/authorize?provider=kakao&redirect_to=${encodeURIComponent(back)}`;
   },
 
   _consumeRedirect() {
     const h = location.hash || '';
+    if (/[#&]error=/.test(h)) { // 카카오·서버 로그인 실패로 돌아온 경우: 말없이 넘어가지 않고 로그인 화면으로
+      history.replaceState(null, document.title, location.pathname + location.search);
+      try { localStorage.removeItem('mp_start_seen'); } catch (e) {}
+      setTimeout(() => U.toast('카카오 로그인이 안 됐어요. 다시 눌러 주세요.'), 300);
+      return false;
+    }
     if (h.indexOf('access_token=') < 0) return false;
     const p = new URLSearchParams(h.slice(1));
     try {

@@ -379,6 +379,10 @@ const Planner = {
     if (hasTime && !chained && (wakeAt.getHours() < 4 || wakeAt.toDateString() !== this.at(s.date, '12:00').toDateString())) {
       warnings.push('기상 시간이 새벽이거나 전날이에요. 준비 시간·여유 시간을 확인해 주세요.');
     }
+    if (s.mode === 'walk' && s.route && s.route.travelMin > 90) {
+      const h = Math.floor(s.route.travelMin / 60), m = s.route.travelMin % 60;
+      warnings.push(`걸어서 ${h}시간${m ? ' ' + m + '분' : ''} 걸려요. 다른 이동수단을 골라 보세요.`);
+    }
     if (s.route && s.route.source === 'estimate' || s.accessRoute && s.accessRoute.source === 'estimate') {
       warnings.push('경로를 찾지 못해 거리로 어림한 시간이에요 (넉넉하게 잡았어요). 인터넷이 될 때 일정 수정에서 [다시 찾기]를 눌러 주세요.');
     }

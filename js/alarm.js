@@ -89,8 +89,16 @@ const Alarm = {
   /** 실제 전체 화면 알람을 sec초 뒤에 울려 봄 (앱에서만) */
   async testNative(sec = 60) {
     const N = this.native();
-    if (!N || !N.testAlarm) return false;
-    try { await N.testAlarm({ seconds: sec }); return true; } catch (e) { return false; }
+    if (N && N.testAlarm) { try { await N.testAlarm({ seconds: sec }); return true; } catch (e) { return false; } }
+    // 아이폰 앱: 폰 알림으로 sec초 뒤 알람 소리 한 번 (앱을 닫거나 화면을 꺼도 울림)
+    const LN = this.ln();
+    if (!LN) return false;
+    try {
+      const at = new Date(Date.now() + sec * 1000);
+      await LN.schedule({ notifications: [{ id: this.numId('test-alarm'), title: '⏰ 알람 시험', body: '이 소리가 들리면 준비 완료예요.', schedule: { at, allowWhileIdle: true },
+        channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { alarm: true } }] });
+      return true;
+    } catch (e) { return false; }
   },
   /** 점검 결과 → 문제 목록 (화면과 무관, test/alarmcheck.test.js) */
   problems(perm, ns) {
@@ -278,9 +286,13 @@ const Alarm = {
       </div>`;
     el.classList.add('show');
     this.beep(true);
+    // 울리는 동안 큰 시계 숫자도 흘러가게
+    clearInterval(this._clockTimer);
+    this._clockTimer = setInterval(() => { const t = el.querySelector('.ring-time'); if (t) t.textContent = U.hm(new Date()); }, 15000);
   },
 
   stop(open) {
+    clearInterval(this._clockTimer);
     this.beep(false);
     document.getElementById('ringing').classList.remove('show');
     if (open) this.openSchedule(this._ringId);

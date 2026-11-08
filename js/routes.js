@@ -173,11 +173,11 @@ const Routes = {
     return 2 * R * Math.asin(Math.sqrt(h));
   },
 
-  NEAR_KM: 0.7,
+  NEAR_KM: 0.4, // 400m 안쪽만 직선거리로 (그 너머는 강·철길을 피해 가는 실제 걷기 경로)
   /** 아주 가까운 곳: 직선거리 기준 걷는 시간 (어림값이 아니라 '가까움'으로 저장 → 다시 조회하지 않음) */
   nearWalk(origin, dest) {
     const e = this.estimate(origin, dest, 'walk');
-    return { ...e, source: 'near', summary: `가까운 거리 — 도보 ${e.travelMin}분` };
+    return { ...e, source: 'near', summary: `가까운 거리 — 도보 약 ${e.travelMin}분 (직선거리 기준)` };
   },
 
   estimate(origin, dest, mode) {

@@ -92,6 +92,8 @@ body.has-cta #main { padding-bottom: calc(env(safe-area-inset-bottom) + 110px); 
 .ct { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
 .ct b { font-size: 18px; font-weight: 800; letter-spacing: -.02em; }
 .ct button, .ct span { font-size: 14px; color: var(--muted); font-weight: 600; }
+.ct button { position: relative; }
+.ct button::after { content: ''; position: absolute; inset: -12px -8px; } /* '전체보기' 누르는 범위 넓히기 */
 .sec { font-size: 18px; font-weight: 800; margin: 22px 4px 10px; letter-spacing: -.02em; }
 .sec-row { display: flex; align-items: center; justify-content: space-between; }
 .sec-row .sec { margin-bottom: 10px; }
@@ -532,6 +534,10 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .pk-name small { margin-left: 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); background: var(--fill); border-radius: 6px; padding: 1px 6px; vertical-align: 2px; }
 .pk-row.done .pk-name { color: var(--faint); text-decoration: line-through; }
 .pk-del { width: 30px; height: 30px; border-radius: 50%; color: var(--faint); font-size: 13px; flex: none; }
+/* 보이는 크기는 그대로, 누르는 범위만 44px 이상으로 */
+.pk-check, .pk-del, .x { position: relative; }
+.pk-check::after, .pk-del::after, .x::after { content: ''; position: absolute; inset: -9px; }
+.x::after { inset: -4px; }
 .pk-add { display: flex; gap: 8px; margin-top: 10px; }
 .pk-add .input { flex: 1; height: 46px; }
 .pk-add .btn { height: 46px; flex: none; }
@@ -572,9 +578,9 @@ html[data-text="large"] body, html[data-text="xlarge"] body { zoom: var(--zoom);
 .cal-grid.month .cal-day.sel .n { background: var(--navy); color: #fff; }
 .cal-grid.month .cal-day.gone { opacity: .55; }
 .cal-grid.month .cal-day.sel.gone { opacity: 1; }
-.cal-day em { font-style: normal; display: block; width: 100%; font-size: 10.5px; font-weight: 600; line-height: 1.35; padding: 1px 3px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: clip; text-align: left; color: var(--ink); letter-spacing: -.03em; }
+.cal-day em { font-style: normal; display: block; width: 100%; font-size: 11px; font-weight: 600; line-height: 1.35; padding: 1px 3px; border-radius: 5px; white-space: nowrap; overflow: hidden; text-overflow: clip; text-align: left; color: var(--ink); letter-spacing: -.03em; }
 .cal-day em.ev { background: var(--blue-soft); color: #1B64DA; }
-.cal-day em.ev.car, .cal-day em.ev.taxi { background: #FFF1DB; color: #B26A00; }
+.cal-day em.ev.car, .cal-day em.ev.taxi { background: #FFF1DB; color: #8A5200; }
 .cal-day em.ev.train, .cal-day em.ev.flight { background: #E8EAF2; color: var(--navy); }
 .cal-day em.hol { color: var(--red); background: none; padding: 0 3px; font-size: 10px; }
 .cal-day em.more { color: var(--muted); background: none; padding: 0 3px; font-size: 10px; }

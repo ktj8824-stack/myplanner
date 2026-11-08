@@ -14,6 +14,7 @@ const Register = {
   render(params = {}) {
     this._seq = (this._seq || 0) + 1; // 이전 화면에서 찾던 경로 결과는 버림
     this.loading = false;
+    this._keepArrive = null;
     this.backTo = params.back || null;  // 수정 화면을 연 곳 (반복 일정의 그 회차 등)
     if (params.id && State.get(params.id) && State.get(params.id)._shared) {
       U.toast('가족이 공유한 일정은 보낸 사람만 고칠 수 있어요');
@@ -209,6 +210,8 @@ const Register = {
   },
 
   back() {
+    // 새 일정을 쓰다가 뒤로 가면 한 번 묻기 (입력이 말없이 사라지지 않게)
+    if (!this.editing && this.d && (this.d.dest || (this.d.title || '').trim()) && !confirm('작성 중인 일정을 버릴까요?')) return;
     const to = this.backTo;
     if (to && to.screen) return App.navigate(to.screen, to.params || {});
     if (this.editing && this.d) return App.navigate('timeline', { id: this.d.id });
@@ -431,8 +434,9 @@ const Register = {
     if (k === 'mode') {
       this.opts = []; this.accessOpts = []; this.d.route = null; this.d.accessRoute = null;
       // 기차·비행기는 탑승 시각이 기준이라 '도착 희망'은 비워 둠 (넣으면 늦을 때 경고)
-      if (Planner.isTrip(v) && !this.editing) this.d.arriveBy = '';
-      else if (!Planner.isTrip(v) && !this.d.arriveBy) this.d.arriveBy = '09:00';
+      // 기차·비행기로 바꿀 때 지운 도착 시간은 기억해 두었다가 일반 수단으로 돌아오면 되살림 (말없이 09:00으로 바뀌지 않게)
+      if (Planner.isTrip(v) && !this.editing) { if (this.d.arriveBy) this._keepArrive = this.d.arriveBy; this.d.arriveBy = ''; }
+      else if (!Planner.isTrip(v) && !this.d.arriveBy) this.d.arriveBy = this._keepArrive || '09:00';
       this.draw();
       this.fetchRoutes();
       return;
@@ -446,6 +450,11 @@ const Register = {
       U.toast('앞 일정보다 먼저라 집에서 출발로 바꿨어요');
       this.draw();
       return this.fetchRoutes();
+    }
+    if ((k === 'date' || k === 'arriveBy') && !this.editing && !this.d.chained && this.d.dest && typeof DayPlan !== 'undefined') {
+      // 목적지를 먼저 고르고 시간을 나중에 넣어도, 같은 날 앞 약속 바로 뒤면 '이어서 출발'로 자동 연결
+      const prev = DayPlan.applyAuto(this.d);
+      if (prev) { this.opts = []; U.toast(`'${prev.s.title}' 끝나고 ${prev.place.name}에서 바로 출발로 맞췄어요`); this.draw(); return this.fetchRoutes(); }
     }
     if (k === 'date' || k === 'arriveBy') {
       // 자가용·택시는 도착 시각 기준 예측이라 다시 조회
@@ -603,7 +612,7 @@ const PasteImport = {
   open(text = '') {
     Sheet.open(`
       <div class="sheet-head"><b>받은 문자로 채우기</b><button class="x" onclick="Sheet.close()">✕</button></div>
-      <textarea id="pasteText" class="input paste-area" rows="6" placeholder="예) [코레일] 11월 5일 KTX 101열차 서울(08:00)→부산(10:40)&#10;예) [OO병원] 11월 6일 오후 2시 30분 진료 예약&#10;예) 내일 오전 10시 판교역 2번 출구에서 미팅"
+      <textarea id="pasteText" class="input paste-area" rows="3" placeholder="예) [코레일] 11월 5일 KTX 101열차 서울(08:00)→부산(10:40)&#10;예) [OO병원] 11월 6일 오후 2시 30분 진료 예약&#10;예) 내일 오전 10시 판교역 2번 출구에서 미팅"
         oninput="PasteImport.preview()">${U.esc(text)}</textarea>
       <div class="paste-row">
         <button class="btn" onclick="PasteImport.fromClipboard()">📋 복사한 내용 붙여넣기</button>

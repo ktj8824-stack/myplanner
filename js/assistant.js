@@ -549,7 +549,7 @@ const Assistant = {
     if (c.kind === 'schedule') {
       const d = c.draft || {}, a = c.action, m = Planner.MODES[d.mode || 'transit'];
       const head = `<div class="ai-c-title">${U.esc(a.title)}</div>
-        <div class="ai-c-sub">${U.dateLabel(a.date)} · ${m.emoji} ${m.label}${d.repeat && d.repeat.type !== 'none' ? ' · 🔁 ' + U.esc(Recur.label(d)) : ''}</div>
+        <div class="ai-c-sub">${U.dateLabel(a.date)} · ${m.label}${d.repeat && d.repeat.type !== 'none' ? ' · 🔁 ' + U.esc(Recur.label(d)) : ''}</div>
         <div class="ai-c-sub">${U.modeIcon(d.mode)} ${d.origin ? U.esc(d.origin.name) : ''}${d.dest ? ' → ' + U.esc(d.dest.name) : d.trip && d.trip.departStation ? ' → ' + U.esc(d.trip.departStation.name) : ''}</div>`;
       if (c.state === 'need') return head + `<div class="ai-c-body">${U.esc(c.need.label)}이(가) 어디인지 골라 주세요.</div>
         <button class="btn primary big" onclick="Assistant.pickNeed(${i},${j})">📍 장소 고르기</button>

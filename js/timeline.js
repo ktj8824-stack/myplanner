@@ -528,7 +528,7 @@ const Settings = {
     el.innerHTML = `
       <label class="lbl">계정</label>
       <div class="row-between"><div class="grow"><b>${U.esc(Cloud.myName())}</b> <small class="muted">카카오</small><br><small class="muted">${st}${last ? ' · ' + U.hm(new Date(last)) : ''}</small></div>
-        <button class="btn small" onclick="Cloud.sync().catch(e=>U.toast(e.message))">지금 맞추기</button></div>
+        <button class="btn small" onclick="Cloud.sync().catch(()=>U.toast('지금은 맞추지 못했어요. 잠시 뒤 다시 눌러 주세요.'))">지금 맞추기</button></div>
       <label class="lbl">가족</label>
       ${fams.length ? fams.map(f => `
         <div class="fam">
@@ -548,13 +548,13 @@ const Settings = {
     const name = prompt('가족 이름 (예: 우리 집, 부모님)', '우리 가족');
     if (name == null) return;
     try { const r = await Cloud.createFamily(name); U.toast(`가족을 만들었어요. 초대 코드 ${r.invite_code}`); this.cloudCard(); }
-    catch (e) { U.toast('만들지 못했어요: ' + e.message); }
+    catch (e) { U.toast('가족을 만들지 못했어요. 잠시 뒤 다시 해 주세요.'); }
   },
   async joinFamily() {
     const code = prompt('받은 초대 코드 6자리');
     if (!code) return;
     try { const r = await Cloud.joinFamily(code.trim()); U.toast(`'${r.name}' 가족에 참여했어요`); this.cloudCard(); }
-    catch (e) { U.toast(e.message.includes('찾을 수') ? '초대 코드를 찾을 수 없어요' : '참여하지 못했어요: ' + e.message); }
+    catch (e) { U.toast(e.message.includes('찾을 수') ? '초대 코드를 찾을 수 없어요' : '참여하지 못했어요. 잠시 뒤 다시 해 주세요.'); }
   },
   async leaveFamily(id) {
     if (!confirm('이 가족에서 나갈까요? 서로 공유한 일정도 끊겨요.')) return;
@@ -603,6 +603,9 @@ const Settings = {
       html += `<button class="btn primary" style="width:100%;margin:10px 0 4px" onclick="Settings.testReal()">⏰ 1분 뒤 진짜 알람 울려 보기</button>
         <p class="muted small" style="margin-top:4px">누른 뒤 화면을 끄고 기다려 보세요. 잠금 화면 위로 알람이 뜨고 소리가 나면 준비 완료예요.</p>`;
       html += `<p class="muted small">앞으로 ${Alarm.NATIVE_DAYS}일 알림 ${ns.planned ?? 0}개를 폰에 맡겨 두었어요 (지금 예약 ${ns.scheduled}개, 매일 새벽 자동 보충). 앱을 오래 열지 않아도 이어서 울려요. 삼성 휴대폰은 '배터리 > 백그라운드 사용 제한'에서 마이플래너를 제외하면 더 안정적이에요.</p>`;
+    } else if (Alarm.ln() && perm === 'granted') {
+      html += `<button class="btn primary" style="width:100%;margin:10px 0 4px" onclick="Settings.testReal()">⏰ 1분 뒤 진짜 알람 울려 보기</button>
+        <p class="muted small" style="margin-top:4px">누른 뒤 화면을 끄고 기다려 보세요. 알림과 함께 알람 소리가 나면 준비 완료예요. (무음 모드면 진동만 울려요)</p>`;
     } else if (perm !== 'unsupported') {
       html += `<p class="muted small">웹에서는 이 화면을 열어 둔 동안만 알람이 울려요. 앱을 설치하면 잠금 화면에서도 깨워 드려요.</p>`;
     }

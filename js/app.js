@@ -17,7 +17,9 @@ const App = {
     // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)
     let seen = false;
     try { seen = !!localStorage.getItem('mp_start_seen'); } catch (e) {}
-    this.navigate(first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : 'home');
+    let after = null;
+    try { after = sessionStorage.getItem('mp_after_login'); sessionStorage.removeItem('mp_after_login'); } catch (e) {}
+    this.navigate(first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
     await Alarm.init();
     if (this.current === 'home') Home.render();
@@ -161,8 +163,11 @@ const PlacePicker = {
       ? `<div class="pp-note">장소 검색 서버에 연결하지 못했어요. 인터넷 연결을 확인하고 다시 검색해 주세요. (지금은 주요 역·공항만 찾을 수 있어요)</div>`
       : Routes.lastSource === 'sample'
       ? `<div class="pp-note">지금은 장소 검색 서버가 준비 중이라 주요 역·공항만 찾을 수 있어요. 곧 모든 장소가 검색돼요.</div>` : '';
+    const offline = Routes.lastSource === 'offline' || navigator.onLine === false;
     if (!this.results.length) {
-      box.innerHTML = `<div class="muted pad">‘${U.esc(q.trim())}’ 검색 결과가 없어요. 다른 이름이나 주소로 찾아 보세요.</div>${sampleNote}`;
+      box.innerHTML = offline
+        ? `<div class="pp-note">장소 검색이 잠시 안 돼요. 인터넷을 확인하고 다시 검색해 주세요. (지금은 주요 역·공항만 찾을 수 있어요)</div>`
+        : `<div class="muted pad">‘${U.esc(q.trim())}’ 검색 결과가 없어요. 다른 이름이나 주소로 찾아 보세요.</div>${sampleNote}`;
       return;
     }
     box.innerHTML = this.results.map((p, i) => `
@@ -210,6 +215,7 @@ const StartScreen = {
   },
   seen() { try { localStorage.setItem('mp_start_seen', '1'); } catch (e) {} },
   async kakao() {
+    if (navigator.onLine === false) return U.toast('인터넷에 연결된 뒤 다시 눌러 주세요.');
     this.seen();
     // 웹은 카카오 화면으로 갔다가 돌아오면 시작 화면부터, 앱은 그 자리에서 로그인 후 시작 화면으로
     await Cloud.signInKakao();
@@ -247,7 +253,7 @@ const Welcome = {
         </div>
 
         <button class="btn primary big" onclick="Welcome.finish('register')">첫 일정 만들기</button>
-        <button class="btn ghost big" onclick="Welcome.finish('demo')">✨ 예시 일정으로 먼저 둘러보기</button>
+        <button class="btn ghost big" onclick="Welcome.finish('demo')">예시 일정으로 먼저 둘러보기</button>
         <p class="muted small center" style="margin-top:14px">알람을 받으려면 다음에 나오는 알림 허용을 눌러 주세요.</p>
       </div>`);
   },
