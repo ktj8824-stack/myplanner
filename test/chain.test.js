@@ -38,6 +38,13 @@ const mk = (id, title, arriveBy, endBy, dest, extra = {}) => ({ id, title, date:
   State.schedules = [mk('a', '강남 점심', '12:00', '15:00', P.gangnam)];
   assert.strictEqual(DayPlan.applyAuto(mk('b', 'x', '18:00', '', P.ilsan, { homeFirst: true })), null);
   console.log('✓ 끝 시간 모름·오래 빔·집에서 출발 선택은 그대로');
+  // 2-1) 반복 일정은 첫날 앞 약속이 있어도 자동 연결하지 않음 (매일 그 장소에서 출발로 바뀌면 안 됨)
+  State.schedules = [mk('a', '치과', '08:00', '09:00', P.gangnam)];
+  const rep = mk('r', '출근', '10:00', '', P.ilsan, { repeat: { type: 'weekdays', days: [] } });
+  assert.strictEqual(DayPlan.applyAuto(rep), null);
+  assert.strictEqual(rep.origin.name, '집');
+  assert.strictEqual(rep.alarm.wake, true);
+  console.log('✓ 반복 일정은 자동 연결 안 함');
 
   // 3) 사이에 끼워 넣기: 12~15 강남, 18 일산(강남에서 출발) 사이에 16~17 성수 카페 → 일산은 카페에서 출발로 바뀜
   const b2 = mk('b', '일산 저녁', '18:00', '', P.ilsan); DayPlan.applyAuto(b2); b2.route = { travelMin: 50, source: 'odsay', steps: [] };

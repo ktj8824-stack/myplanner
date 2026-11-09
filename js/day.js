@@ -114,7 +114,8 @@ const DayPlan = {
    * 사용자가 '집에서 출발'을 고른 일정(homeFirst)·지금 위치 출발·이미 연결된 일정은 그대로. 바뀌면 앞 약속을 돌려줌
    */
   applyAuto(d, extra = []) {
-    if (!d || d.startNow || d.homeFirst || d.chained || Planner.isTrip(d.mode)) return null;
+    // 반복 일정은 첫날 앞 약속 하나 때문에 매일 그 장소에서 출발로 바뀌면 안 됨 (수동 연결 버튼도 반복은 뺌)
+    if (!d || d.startNow || d.homeFirst || d.chained || Planner.isTrip(d.mode) || (typeof Recur !== 'undefined' && Recur.isRepeating(d))) return null;
     const prev = this.prevFor(d, extra);
     if (!prev) return null;
     const start = this.startOfDraft(d);

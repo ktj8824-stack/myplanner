@@ -29,6 +29,7 @@ const App = {
     if (capApp) {
       capApp.addListener('backButton', () => {
         if (Sheet.isOpen()) return Sheet.close();
+        if (this.current === 'register' && typeof Register !== 'undefined') return Register.back(); // 쓰던 새 일정을 묻지 않고 버리지 않게
         if (this.current === 'home') return capApp.exitApp();
         this.navigate('home');
       });
