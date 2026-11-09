@@ -52,4 +52,21 @@ await assert.rejects(verifyKakao(await token(good), ['other'], fake()));
 r = await handle(post({ id_token: await token({ ...good, aud: 'newkey' }) }), { ...env, MYPLANNER_KAKAO_AUDS: 'newkey, x' }, fake());
 assert.strictEqual(r.status, 200);
 console.log('✓ 다른 앱 키 · 가짜 발급처 · 만료 · 서명 위조 거절, 키 목록 교체 가능');
+// 5) 웹: code → (서버가 카카오에 바꿔 받은) ID 토큰 → 같은 계정. REST 키가 aud
+_resetJwks();
+const webTok = await token({ ...good, aud: 'restkey', nonce: 'n1' });
+const webFake = (opts = {}) => { const base = fake(opts); return async (url, init = {}) => {
+  if (url === 'https://kauth.kakao.com/oauth/token') {
+    const f = new URLSearchParams(init.body); assert.strictEqual(f.get('client_id'), 'restkey'); assert.strictEqual(f.get('client_secret'), 'sec');
+    return new Response(JSON.stringify(f.get('code') === 'good' ? { id_token: webTok } : { error: 'invalid_grant', error_description: 'bad code' }), { status: f.get('code') === 'good' ? 200 : 400 });
+  }
+  return base(url, init); }; };
+const wenv = { ...env, MYPLANNER_KAKAO_REST_KEY: 'restkey', MYPLANNER_KAKAO_CLIENT_SECRET: 'sec' };
+const back = 'https://ktj8824-stack.github.io/myplanner/';
+r = await handle(post({ code: 'good', redirect_uri: back, nonce: 'n1' }), wenv, webFake()); assert.strictEqual(r.status, 200);
+r = await handle(post({ code: 'good', redirect_uri: back, nonce: 'other' }), wenv, webFake()); assert.strictEqual(r.status, 401); // nonce 다름
+r = await handle(post({ code: 'bad', redirect_uri: back }), wenv, webFake()); assert.strictEqual(r.status, 401);
+r = await handle(post({ code: 'good', redirect_uri: 'https://evil.example/' }), wenv, webFake()); assert.strictEqual(r.status, 401); // 남의 주소
+r = await handle(post({ code: 'good', redirect_uri: back }), env, webFake()); assert.strictEqual(r.status, 401); // 웹 설정 없음
+console.log('✓ 웹: code → ID 토큰 → 같은 계정 · nonce·주소·잘못된 code 거절');
 console.log('카카오 로그인 함수 테스트 완료');

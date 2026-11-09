@@ -11,7 +11,7 @@ const App = {
     State.load();
     this.trackViewport();
     this.applyTextSize();
-    Cloud.init();
+    await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)

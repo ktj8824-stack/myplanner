@@ -42,14 +42,18 @@ State.schedules = [
   assert.strictEqual(calls, 1);
   assert.strictEqual(resched, 1);
   assert.ok(!JSON.parse(localStorage.getItem('mp_heal_fail')).a); // 성공하면 실패 기록 지움
-  // 2-1) 700m 안쪽은 경로 API 없이 걷는 시간 (가까움으로 저장 → 다시 조회 대상 아님)
-  const R2 = load('routes.js', 'Routes'); let api = 0; R2.api = async () => { api++; return null; };
+  // 2-1) 400m 안쪽: 버스·지하철은 안 찾고 걷기 경로를 한 번 찾음. 못 받으면 직선거리 + '찾아봤음' 표시
+  const R2 = load('routes.js', 'Routes'); let api = [];
+  R2.can = () => true; R2.api = async (kind) => { api.push(kind); return null; };
   const near = { name: '옆 건물', lat: 37.5009, lng: 126.9 }; // 약 100m
-  const w = (await R2.options(home, near, 'transit'))[0], w2 = (await R2.options(home, near, 'walk'))[0];
-  assert.strictEqual(api, 0);
-  assert.strictEqual(w.source, 'near'); assert.ok(w.travelMin >= 1 && w.travelMin <= 3); assert.ok(w.summary.includes('가까운 거리'));
-  assert.strictEqual(w2.source, 'near');
-  console.log('✓ 700m 안쪽은 경로 API를 부르지 않음 · 실패한 일정은 6시간 뒤에 다시');
+  const w = (await R2.options(home, near, 'transit'))[0];
+  assert.deepStrictEqual(api, ['tmap_walk']); // ODsay는 부르지 않음
+  assert.strictEqual(w.source, 'near'); assert.strictEqual(w.tried, true); assert.ok(w.travelMin >= 1 && w.travelMin <= 3); assert.ok(w.summary.includes('가까운 거리'));
+  // 돌아가는 길이면 티맵 걷기 시간 그대로 (직선 4분 → 실제 12분)
+  R2.api = async () => ({ features: [{ properties: { totalTime: 720, totalDistance: 900 } }] });
+  const w3 = (await R2.options(home, { name: '강 건너', lat: 37.503, lng: 126.9 }, 'walk'))[0];
+  assert.strictEqual(w3.source, 'tmap'); assert.strictEqual(w3.travelMin, 12);
+  console.log('✓ 400m 안쪽도 걷기 경로 한 번 · 못 받으면 직선거리(다시 안 부름) · 실패한 일정은 6시간 뒤에 다시');
   // 3) 오프라인이면 시도하지 않음
   State.get('a').route = { ...est }; navigator.onLine = false; calls = 0;
   assert.strictEqual(await Routes.healEstimates(), false);

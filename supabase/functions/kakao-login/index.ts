@@ -7,9 +7,27 @@
 //   3) 일회용 로그인 링크를 만들고 바로 확인 → 보통 Supabase 세션(access/refresh 토큰)을 돌려줌
 // 비밀값: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY (Supabase가 자동으로 넣어 줌)
 //         (선택) MYPLANNER_KAKAO_AUDS = 받을 카카오 앱 키 목록, 쉼표로 구분
+//         웹 로그인: MYPLANNER_KAKAO_REST_KEY (마이플래너 카카오 앱 REST API 키), MYPLANNER_KAKAO_CLIENT_SECRET (켜 둔 경우)
+// 웹은 카카오 로그인 → ?code= 로 돌아옴 → 앱이 code를 보냄 → 여기서 카카오에 code를 ID 토큰으로 바꿔 같은 확인을 거침
 
 export const DEFAULT_AUDS = ["76014afcf1968e5e75b1976ada2896de", "a33bc63b10bc25a96b8f266cedde3680"]; // 마이플래너 카카오 앱 키, (예전) 버디플래너 앱 안의 마이플래너 키
 export const ISS = "https://kauth.kakao.com";
+/** 웹 로그인 뒤 돌아올 수 있는 주소 (카카오 디벨로퍼스 Redirect URI에도 같은 주소 등록) */
+export const WEB_BACK = ["https://ktj8824-stack.github.io/myplanner/", "http://localhost:8787/"];
+
+/** 웹: 카카오가 준 code → ID 토큰 (REST API 키 + 비밀 키는 서버에만) */
+export async function codeToIdToken(body: any, env: Record<string, string | undefined>, fetchFn: typeof fetch) {
+  const rest = (env.MYPLANNER_KAKAO_REST_KEY || "").trim();
+  if (!rest) throw new Error("웹 로그인 설정이 아직 없어요");
+  if (!WEB_BACK.includes(String(body.redirect_uri || ""))) throw new Error("허용되지 않은 주소예요");
+  const form = new URLSearchParams({ grant_type: "authorization_code", client_id: rest, redirect_uri: body.redirect_uri, code: String(body.code || "") });
+  if (env.MYPLANNER_KAKAO_CLIENT_SECRET) form.set("client_secret", env.MYPLANNER_KAKAO_CLIENT_SECRET.trim());
+  const r = await fetchFn("https://kauth.kakao.com/oauth/token", { method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" }, body: form.toString() });
+  const t = await r.json().catch(() => ({}));
+  if (!r.ok || !t.id_token) throw new Error(t.error_description ? `카카오: ${t.error_description}` : "카카오에서 로그인 정보를 받지 못했어요 (OpenID Connect를 켜 주세요)");
+  return { idToken: t.id_token as string, rest };
+}
 const JWKS_URL = "https://kauth.kakao.com/.well-known/jwks.json";
 
 const CORS = {
@@ -73,7 +91,12 @@ export async function handle(req: Request, env: Record<string, string | undefine
   try { body = await req.json(); } catch (_) { /* 빈 몸통 */ }
 
   let claims: any;
-  try { claims = await verifyKakao(body.id_token, auds.length ? auds : DEFAULT_AUDS, fetchFn); }
+  try {
+    let token = body.id_token, allow = auds.length ? auds : DEFAULT_AUDS;
+    if (!token && body.code) { const w = await codeToIdToken(body, env, fetchFn); token = w.idToken; allow = [...allow, w.rest]; }
+    claims = await verifyKakao(token, allow, fetchFn);
+    if (body.code && body.nonce && claims.nonce !== body.nonce) throw new Error("로그인 확인 값이 맞지 않아요. 다시 눌러 주세요");
+  }
   catch (e) { return json({ error: (e as Error).message }, 401); }
 
   const email = emailFor(String(claims.sub));

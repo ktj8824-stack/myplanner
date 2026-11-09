@@ -33,9 +33,9 @@ const Cloud = {
   myName() { const s = this.session(); return (State.settings.name || (s && s.user && s.user.name) || '나').slice(0, 30); },
   isNative() { const C = window.Capacitor; return !!(C && C.isNativePlatform && C.isNativePlatform()); },
 
-  init() {
+  async init() {
     if (!this.isConfigured()) { this.status = 'off'; return; }
-    const back = this._consumeRedirect();
+    const back = (await this._consumeKakaoCode()) || this._consumeRedirect();
     this.status = this.isSignedIn() ? 'synced' : 'signed_out';
     if (back) U.toast('카카오 로그인 완료 — 일정을 맞추는 중…');
     if (this.isSignedIn()) this.sync().catch(() => {});
@@ -77,10 +77,10 @@ const Cloud = {
     return data;
   },
 
-  async _kakaoLogin(idToken) {
+  async _kakaoLogin(idToken, web) {
     const { url, key } = this.cfg();
     const res = await U.fetchT(`${url}/functions/v1/myplanner-kakao-login`, { method: 'POST',
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ id_token: idToken }) });
+      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify(web || { id_token: idToken }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `로그인 실패 (${res.status})`);
     return data;
@@ -108,12 +108,41 @@ const Cloud = {
       } catch (e) { U.toast('카카오 로그인 실패: ' + (e.message || e)); }
       return;
     }
-    // 웹: Supabase가 카카오 로그인 후 이 주소로 돌려보냄 (Supabase 대시보드에 주소 등록 필요)
-    const { url } = this.cfg();
     const back = location.origin + location.pathname;
     // 로그인하고 돌아오면 누른 화면(예: AI 비서)으로 바로 돌아가게
     try { if (typeof App !== 'undefined' && App.current && !['start', 'welcome'].includes(App.current)) sessionStorage.setItem('mp_after_login', App.current); } catch (e) {}
+    const rest = Routes.key('KAKAO_REST_KEY');
+    if (rest) {
+      // 웹: 앱과 같은 '마이플래너' 카카오 앱으로 로그인 → 돌아온 code를 서버 함수가 ID 토큰으로 바꿔 확인 (앱과 같은 계정)
+      const rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
+      const state = rnd(), nonce = rnd();
+      try { sessionStorage.setItem('mp_kakao_state', JSON.stringify({ state, nonce, back })); } catch (e) {}
+      location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(rest)}&redirect_uri=${encodeURIComponent(back)}`
+        + `&response_type=code&state=${state}&nonce=${nonce}`;
+      return;
+    }
+    // (예전 방식) Supabase 카카오 설정으로 로그인 — 웹용 카카오 키를 넣기 전까지만
+    const { url } = this.cfg();
     location.href = `${url}/auth/v1/authorize?provider=kakao&redirect_to=${encodeURIComponent(back)}`;
+  },
+
+  /** 웹: 카카오 로그인에서 ?code=…&state=…로 돌아온 경우 → 서버 함수로 로그인 */
+  async _consumeKakaoCode() {
+    const q = new URLSearchParams(location.search);
+    if (!q.has('state') || !(q.has('code') || q.has('error'))) return false;
+    let saved = null;
+    try { saved = JSON.parse(sessionStorage.getItem('mp_kakao_state') || 'null'); sessionStorage.removeItem('mp_kakao_state'); } catch (e) {}
+    const code = q.get('code'), err = q.get('error'), state = q.get('state');
+    ['code', 'state', 'error', 'error_description'].forEach(k => q.delete(k));
+    history.replaceState(null, document.title, location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+    const fail = (msg) => { try { localStorage.removeItem('mp_start_seen'); } catch (e) {} setTimeout(() => U.toast(msg), 300); return false; };
+    if (err) return fail(err === 'access_denied' ? '카카오 로그인을 취소했어요.' : '카카오 로그인이 안 됐어요. 다시 눌러 주세요.');
+    if (!saved || saved.state !== state) return fail('카카오 로그인이 안 됐어요. 다시 눌러 주세요.'); // 다른 곳에서 시작된 로그인은 받지 않음
+    try {
+      const data = await this._kakaoLogin(null, { code, redirect_uri: saved.back, nonce: saved.nonce });
+      this._save(data);
+      return true;
+    } catch (e) { return fail('카카오 로그인 실패: ' + (e.message || e)); }
   },
 
   _consumeRedirect() {

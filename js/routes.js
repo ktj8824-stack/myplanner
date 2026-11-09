@@ -173,11 +173,12 @@ const Routes = {
     return 2 * R * Math.asin(Math.sqrt(h));
   },
 
-  NEAR_KM: 0.4, // 400m 안쪽만 직선거리로 (그 너머는 강·철길을 피해 가는 실제 걷기 경로)
-  /** 아주 가까운 곳: 직선거리 기준 걷는 시간 (어림값이 아니라 '가까움'으로 저장 → 다시 조회하지 않음) */
-  nearWalk(origin, dest) {
+  NEAR_KM: 0.4, // 400m 안쪽: 버스·지하철은 찾지 않고 걷기 경로 (ODsay는 700m 안을 거절)
+  /** 아주 가까운 곳인데 걷기 경로도 못 받았을 때: 직선거리 기준 걷는 시간.
+      tried = 걷기 경로를 이미 한 번 찾아봄 → 앱을 열 때마다 다시 부르지 않음 */
+  nearWalk(origin, dest, tried = true) {
     const e = this.estimate(origin, dest, 'walk');
-    return { ...e, source: 'near', summary: `가까운 거리 — 도보 약 ${e.travelMin}분 (직선거리 기준)` };
+    return { ...e, source: 'near', tried, summary: `가까운 거리 — 도보 약 ${e.travelMin}분 (직선거리 기준)` };
   },
 
   estimate(origin, dest, mode) {
@@ -203,8 +204,8 @@ const Routes = {
 
   /* ---------- 버스·지하철 (ODsay) — 여러 경로 후보를 돌려줌 ---------- */
   async transitOptions(origin, dest) {
-    // 700m 안쪽은 ODsay가 경로를 주지 않음 → 부르지 않고 바로 도보로
-    if (this.distanceKm(origin, dest) < this.NEAR_KM) return [this.nearWalk(origin, dest)];
+    // 400m 안쪽은 버스·지하철을 찾지 않고 바로 걷기 경로로 (돌아가야 하는 길도 반영)
+    if (this.distanceKm(origin, dest) < this.NEAR_KM) return [await this.walk(origin, dest)];
     if (this.can('odsay')) {
       const data = await this.api('odsay_transit', this.coords(origin, dest));
       if (data && data.error) {
@@ -318,7 +319,7 @@ const Routes = {
     const recentFail = s => { const f = fails[s.id]; if (!f) return false; const at = typeof f === 'number' ? f : f.at;
       return now - at < 6 * 3600000 && (typeof f === 'number' || f.sig === sig(s)); };
     const list = State.schedules.filter(s => !s.demo && !s._shared && !recentFail(s) && (Recur.isRepeating(s) || (s.date >= U.today() && s.date <= limit)))
-      .filter(s => noArs(s.route) || noArs(s.accessRoute) || (s.route && s.route.source === 'estimate') || (s.accessRoute && s.accessRoute.source === 'estimate')
+      .filter(s => noArs(s.route) || noArs(s.accessRoute) || (s.route && s.route.source === 'estimate') || (s.route && s.route.source === 'near' && !s.route.tried) || (s.accessRoute && s.accessRoute.source === 'estimate')
         || (s.goHome && s.goHome.on && s.goHome.route && s.goHome.route.source === 'estimate'))
       .slice(0, 5);
     let changed = false;
@@ -336,10 +337,10 @@ const Routes = {
           // 같은 경로를 못 찾았거나 번호를 안 주면 다시 묻지 않도록 표시
           s.route = same && !noArs(same) ? same : { ...s.route, arsChecked: true };
           mine = true;
-        } else if (!isTrip && s.route && s.route.source === 'estimate' && s.dest) {
+        } else if (!isTrip && s.route && (s.route.source === 'estimate' || (s.route.source === 'near' && !s.route.tried)) && s.dest) {
           const due = s.arriveBy ? Planner.at(s.date, s.arriveBy) : null;
           const r = (await this.options(s.origin, s.dest, s.mode, due))[0];
-          if (r && r.source !== 'estimate') { s.route = r; mine = true; }
+          if (r && r.source !== 'estimate') { s.route = r; mine = true; } // 걷기 경로 또는 '찾아봤음' 표시된 가까운 거리
         }
         const gh = s.goHome;
         if (gh && gh.on && gh.route && gh.route.source === 'estimate' && s.dest && gh.to) {
@@ -383,9 +384,9 @@ const Routes = {
 
   /* ---------- 도보 (티맵 보행자 경로) ---------- */
   async walk(origin, dest) {
-    // 700m 안쪽은 경로 API를 부르지 않고 직선거리로 걷는 시간 계산
-    // (ODsay는 700m 안을 거절, 티맵 걷기는 100m 안을 거절 → 앱을 열 때마다 실패가 쌓였음)
-    if (this.distanceKm(origin, dest) < this.NEAR_KM) return this.nearWalk(origin, dest);
+    // 가까워도 실제 걷기 경로를 한 번 찾음 (강·철길을 돌아가는 길이면 직선거리보다 오래 걸림)
+    // 티맵이 너무 가깝다고 거절하거나 실패하면 직선거리로 계산하고 '찾아봤음' 표시 → 다시 부르지 않음
+    const close = this.distanceKm(origin, dest) < this.NEAR_KM;
     if (this.can('tmap')) {
       const data = await this.api('tmap_walk', this.coords(origin, dest));
       const p = data?.features?.[0]?.properties;
@@ -395,6 +396,7 @@ const Routes = {
           steps: [{ type: 'walk', label: '도보', to: dest.name, min }] };
       }
     }
+    if (close) return this.nearWalk(origin, dest, this.can('tmap'));
     return this.estimate(origin, dest, 'walk');
   },
 
