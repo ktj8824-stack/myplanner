@@ -223,10 +223,12 @@ const StartScreen = {
       this.seen();
       // 웹은 카카오 화면으로 갔다가 돌아오면 시작 화면부터, 앱은 그 자리에서 로그인 후 시작 화면으로
       await Cloud.signInKakao();
-      if (Cloud.isSignedIn()) App.navigate('welcome'); // 실패하면 이 화면에 남아 다시 누르거나 '로그인 없이' 고를 수 있게
+      if (Cloud.isSignedIn()) App.navigate(this.next()); // 실패하면 이 화면에 남아 다시 누르거나 '로그인 없이' 고를 수 있게
     } finally { this._busy = false; }
   },
-  skip() { this.seen(); App.navigate('welcome'); }
+  skip() { this.seen(); App.navigate(this.next()); },
+  /** 처음이면 이름·집 넣는 화면, 로그아웃 뒤 다시 온 경우면 바로 홈 */
+  next() { return localStorage.getItem('mp_onboarded') ? 'home' : 'welcome'; },
 };
 
 const Welcome = {

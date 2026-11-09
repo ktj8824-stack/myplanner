@@ -570,14 +570,15 @@ const Settings = {
   },
   async deleteData() {
     if (!confirm('서버에 올린 마이플래너 일정·가족·공유를 모두 지우고 로그아웃할까요? 이 폰의 일정은 남아요. 되돌릴 수 없어요.')) return;
-    try { await Cloud.deleteMyData(); U.toast('서버 데이터를 지웠어요'); this.render(); }
+    try { await Cloud.deleteMyData(); U.toast('서버 데이터를 지웠어요'); App.navigate('start'); }
     catch (e) { U.toast('지우지 못했어요: ' + e.message); }
   },
   async signOut() {
     if (!confirm('로그아웃할까요? 내 일정은 이 폰에 남고, 가족이 공유한 일정은 사라져요.')) return;
+    try { await Cloud.sync(); } catch (e) {} // 아직 못 올린 변경을 먼저 올림
     await Cloud.signOut();
     U.toast('로그아웃했어요');
-    this.render();
+    App.navigate('start'); // 로그인 화면으로 (다시 카카오로 로그인하거나 '로그인 없이 시작')
   },
 
   /** 알람이 확실히 울리는지 항목별 점검 + 바로 설정 열기 */
