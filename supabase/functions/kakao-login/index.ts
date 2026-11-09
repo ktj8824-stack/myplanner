@@ -95,7 +95,7 @@ export async function handle(req: Request, env: Record<string, string | undefine
     let token = body.id_token, allow = auds.length ? auds : DEFAULT_AUDS;
     if (!token && body.code) { const w = await codeToIdToken(body, env, fetchFn); token = w.idToken; allow = [...allow, w.rest]; }
     claims = await verifyKakao(token, allow, fetchFn);
-    if (body.code && body.nonce && claims.nonce !== body.nonce) throw new Error("로그인 확인 값이 맞지 않아요. 다시 눌러 주세요");
+    if (body.code && (!body.nonce || claims.nonce !== body.nonce)) throw new Error("로그인 확인 값이 맞지 않아요. 다시 눌러 주세요");
   }
   catch (e) { return json({ error: (e as Error).message }, 401); }
 
