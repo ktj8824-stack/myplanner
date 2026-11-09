@@ -217,10 +217,14 @@ const StartScreen = {
   seen() { try { localStorage.setItem('mp_start_seen', '1'); } catch (e) {} },
   async kakao() {
     if (navigator.onLine === false) return U.toast('인터넷에 연결된 뒤 다시 눌러 주세요.');
-    this.seen();
-    // 웹은 카카오 화면으로 갔다가 돌아오면 시작 화면부터, 앱은 그 자리에서 로그인 후 시작 화면으로
-    await Cloud.signInKakao();
-    if (Cloud.isSignedIn()) App.navigate('welcome'); // 실패하면 이 화면에 남아 다시 누르거나 '로그인 없이' 고를 수 있게
+    if (this._busy) return; // 두 번 눌러도 로그인 창은 한 번만
+    this._busy = true;
+    try {
+      this.seen();
+      // 웹은 카카오 화면으로 갔다가 돌아오면 시작 화면부터, 앱은 그 자리에서 로그인 후 시작 화면으로
+      await Cloud.signInKakao();
+      if (Cloud.isSignedIn()) App.navigate('welcome'); // 실패하면 이 화면에 남아 다시 누르거나 '로그인 없이' 고를 수 있게
+    } finally { this._busy = false; }
   },
   skip() { this.seen(); App.navigate('welcome'); }
 };

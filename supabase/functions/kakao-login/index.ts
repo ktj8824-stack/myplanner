@@ -82,7 +82,7 @@ export async function handle(req: Request, env: Record<string, string | undefine
 
   // 1) 사용자 만들기 (이미 있으면 그대로)
   const cu = await fetchFn(`${url}/auth/v1/admin/users`, { method: "POST", headers: admin,
-    body: JSON.stringify({ email, email_confirm: true, user_metadata: meta, app_metadata: { provider: "kakao", providers: ["kakao"] } }) });
+    body: JSON.stringify({ email, email_confirm: true, user_metadata: meta, app_metadata: { provider: "kakao", providers: ["kakao"], kakao_sub: String(claims.sub) } }) });
   if (!cu.ok && cu.status !== 422) return json({ error: `사용자를 만들지 못했어요 (${cu.status})` }, 502);
 
   // 2) 일회용 로그인 링크 → 3) 바로 확인해서 세션 받기
@@ -94,6 +94,9 @@ export async function handle(req: Request, env: Record<string, string | undefine
     body: JSON.stringify({ type: "magiclink", token_hash: hash }) });
   const sess = await vr.json().catch(() => ({}));
   if (!vr.ok || !sess.access_token) return json({ error: `로그인 세션을 만들지 못했어요 (${vr.status})` }, 502);
+  // 이 함수가 카카오 번호로 만든 계정이 맞는지 확인 (누가 같은 주소로 미리 가입해 둔 계정에 들어가지 않게). app_metadata는 본인이 못 바꿈
+  const owner = ((sess.user && sess.user.app_metadata) || {}).kakao_sub;
+  if (String(owner || "") !== String(claims.sub)) return json({ error: "이 카카오 계정으로는 로그인할 수 없어요. 문의해 주세요." }, 403);
   if (sess.user) sess.user.user_metadata = { ...meta, ...(sess.user.user_metadata || {}) };
   return json(sess);
 }

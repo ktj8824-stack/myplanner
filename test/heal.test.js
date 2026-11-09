@@ -28,7 +28,11 @@ State.schedules = [
   Routes.options = async () => { calls++; return [{ ...est }]; };
   assert.strictEqual(await Routes.healEstimates(), false);
   assert.strictEqual(calls, 0);
-  const f = JSON.parse(localStorage.getItem('mp_heal_fail')); f.a -= 7 * 3600000; localStorage.setItem('mp_heal_fail', JSON.stringify(f)); // 7시간 지난 셈
+  const f = JSON.parse(localStorage.getItem('mp_heal_fail'));
+  // 1-2) 장소를 고치면 6시간을 기다리지 않고 바로 다시 찾음
+  const a0 = State.get('a'); const oldDest = a0.dest; a0.dest = { ...oldDest, lat: oldDest.lat + 0.01 };
+  calls = 0; await Routes.healEstimates(); assert.strictEqual(calls, 1); a0.dest = oldDest; calls = 0;
+  const f2 = JSON.parse(localStorage.getItem('mp_heal_fail')); f2.a.at -= 7 * 3600000; Object.assign(f, f2); localStorage.setItem('mp_heal_fail', JSON.stringify(f)); // 7시간 지난 셈
   // 2) 되면 가까운 실제 일정만 바꾸고 알람 다시 맞춤
   Routes.options = async () => { calls++; return [{ travelMin: 33, steps: [], source: 'tmap' }]; };
   assert.strictEqual(await Routes.healEstimates(), true);

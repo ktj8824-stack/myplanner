@@ -21,7 +21,7 @@ const fake = (opts = {}) => async (url, init = {}) => {
   if (url.includes('jwks')) return new Response(JSON.stringify({ keys: [{ ...pub, kid: 'k1' }] }));
   if (url.endsWith('/admin/users')) return new Response('{"code":"email_exists"}', { status: opts.exists ? 422 : 200 });
   if (url.endsWith('/admin/generate_link')) { assert.strictEqual(JSON.parse(init.body).email, emailFor('12345')); return new Response(JSON.stringify({ hashed_token: 'h1' })); }
-  if (url.endsWith('/auth/v1/verify')) { assert.strictEqual(JSON.parse(init.body).token_hash, 'h1'); return new Response(JSON.stringify({ access_token: 'AT', refresh_token: 'RT', expires_in: 3600, user: { id: 'u1', user_metadata: {} } })); }
+  if (url.endsWith('/auth/v1/verify')) { assert.strictEqual(JSON.parse(init.body).token_hash, 'h1'); return new Response(JSON.stringify({ access_token: 'AT', refresh_token: 'RT', expires_in: 3600, user: { id: 'u1', user_metadata: {}, app_metadata: { kakao_sub: opts.owner ?? '12345' } } })); }
   return new Response('{}', { status: 404 });
 };
 const post = (b) => new Request('https://f/', { method: 'POST', body: JSON.stringify(b) });
@@ -33,7 +33,10 @@ assert.strictEqual(r.status, 200); assert.strictEqual(j.access_token, 'AT'); ass
 // 2) 이미 있는 사용자도 로그인
 r = await handle(post({ id_token: await token(good) }), env, fake({ exists: true }));
 assert.strictEqual(r.status, 200);
-console.log('✓ 카카오 ID 토큰 → Supabase 세션 (새 사용자 · 기존 사용자)');
+// 2-1) 같은 주소로 누가 미리 만들어 둔 계정(카카오 번호 표시 없음)에는 들어가지 않음
+r = await handle(post({ id_token: await token(good) }), env, fake({ exists: true, owner: '' }));
+assert.strictEqual(r.status, 403);
+console.log('✓ 카카오 ID 토큰 → Supabase 세션 (새 사용자 · 기존 사용자) · 미리 만든 계정 거절');
 
 // 3) 다른 앱 키(버디플래너)·가짜 발급처·만료·서명 위조는 거절
 for (const [bad, why] of [[{ ...good, aud: '023bb498015836d0a4a922373e48f39f' }, '다른 앱 키'], [{ ...good, iss: 'https://evil' }, '발급처'], [{ ...good, exp: now - 3600 }, '만료']]) {

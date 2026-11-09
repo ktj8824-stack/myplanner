@@ -101,7 +101,7 @@ const Alarm = {
     try {
       const at = new Date(Date.now() + sec * 1000);
       await LN.schedule({ notifications: [{ id: this.numId('test-alarm'), title: '⏰ 알람 시험', body: '이 소리가 들리면 준비 완료예요.', schedule: { at, allowWhileIdle: true },
-        channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { alarm: true } }] });
+        channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { alarm: true, keep: true, at: at.getTime() } }] });
       return true;
     } catch (e) { return false; }
   },
@@ -242,7 +242,10 @@ const Alarm = {
             list.forEach(a => { if (a.alarm) this.IOS_REPEAT.forEach(m => more.push({
               id: this.numId(a.sid + a.key + 'r' + m), title: a.title, body: `${m}분 지났어요. ${a.body}`,
               schedule: { at: new Date(a.at.getTime() + m * 60000) }, sound: 'mp_alarm.caf', extra: { scheduleId: a.sid, alarm: true, kind: a.key, at: a.at.getTime() + m * 60000 } })); });
-            notes = notes.concat(more).sort((x, y) => x.schedule.at - y.schedule.at).slice(0, this.IOS_MAX);
+            // 64개 한도 안에서 기상·출발 알람을 더 많은 날짜만큼 넣으려고, 안내 알림(전날 밤·10분 전 등)은 3일 안의 것만
+            const soon = Date.now() + 3 * 86400000;
+            notes = notes.concat(more).filter(n => n.extra.alarm || n.schedule.at.getTime() < soon)
+              .sort((x, y) => x.schedule.at - y.schedule.at).slice(0, this.IOS_MAX);
           }
           await LN.schedule({ notifications: notes });
         }
@@ -270,8 +273,10 @@ const Alarm = {
     if (!LN) return;
     try {
       const pending = await LN.getPending();
-      const keep = this._snooze && this._snooze.at > Date.now() ? this._snooze.id : null; // 5분 뒤 다시 알림은 남김
-      const ids = pending.notifications.filter(n => n.id !== keep).map(n => ({ id: n.id }));
+      // '5분 뒤 다시'·'1분 뒤 알람 시험'은 앱을 껐다 켜도 남김 (extra.keep, 아직 안 울린 것만)
+      const keep = this._snooze && this._snooze.at > Date.now() ? this._snooze.id : null;
+      const kept = n => n.id === keep || (n.extra && n.extra.keep && (!n.extra.at || n.extra.at > Date.now()));
+      const ids = pending.notifications.filter(n => !kept(n)).map(n => ({ id: n.id }));
       if (ids.length) await LN.cancel({ notifications: ids });
     } catch (e) {}
   },
@@ -299,10 +304,13 @@ const Alarm = {
     const car = svg('<path d="M5 16V11l2-5h10l2 5v5"/><path d="M3 16h18v2H3z"/><circle cx="7.5" cy="13.5" r=".8"/><circle cx="16.5" cy="13.5" r=".8"/>');
     const lines = [];
     if (plan.weather) lines.push(`<div class="wa-line wx">${umbrella}<span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
-    const base = s.route && s.route.travelMin, live = plan.live && plan.live.travelMin;
-    if (base && live && Math.abs(live - base) >= 3) {
-      const d = live - base;
-      lines.push(`<div class="wa-line">${car}<span>${d > 0 ? `길이 평소보다 ${d}분 막혀요` : `길이 평소보다 ${-d}분 빨라요`} · 이미 반영했어요</span></div>`);
+    // 실제로 계산에 쓴 실시간 값일 때만 '이미 반영했어요' (너무 일찍 잰 값·이상한 값은 계산에서 빠지므로 문구도 뺌)
+    const lr = Planner.LIVE_MODES.includes(s.mode) ? Planner.liveRoute(s, 'route', s.mode) : null;
+    const base = s.route && s.route.travelMin, checked = plan.live && plan.live.checkedAt;
+    const fresh = checked && Date.now() - checked < 3 * 3600000; // 3시간 넘은 값은 안 보임
+    if (lr && lr.source === 'live' && base && fresh && Math.abs(lr.travelMin - base) >= 3) {
+      const d = lr.travelMin - base, ago = Math.max(1, Math.round((Date.now() - checked) / 60000));
+      lines.push(`<div class="wa-line">${car}<span>${d > 0 ? `길이 평소보다 ${d}분 막혀요` : `길이 평소보다 ${-d}분 빨라요`} · 이미 반영했어요 (${ago}분 전 확인)</span></div>`);
     }
     const left = this.SNOOZE_MAX - this.snoozeCount(id);
     const next = Planner.alarms(s, plan).find(a => (a.key === 'pre' || a.key === 'depart') && a.at > now);
@@ -408,7 +416,7 @@ const Alarm = {
       try {
         this._snooze = { id: this.numId('snooze' + id), at: at.getTime() }; // 알람 다시 맞추기(clearLocal)에서 지우지 않게
         await LN.schedule({ notifications: [{ id: this.numId('snooze' + id), title, body: '5분이 지났어요.', schedule: { at, allowWhileIdle: true },
-          channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { scheduleId: id, alarm: true, kind, at: at.getTime() } }] });
+          channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { scheduleId: id, alarm: true, kind, at: at.getTime(), keep: true } }] });
         // 기상 알람을 미뤘으면 1·2분 뒤 다시 울림 예약은 지움 (5분 뒤에 한 번만)
         if (kind === 'wake') await LN.cancel({ notifications: this.IOS_REPEAT.map(m => ({ id: this.numId(id + 'wake' + 'r' + m) })) });
       } catch (e) { setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000); }

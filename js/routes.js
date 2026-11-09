@@ -313,7 +313,10 @@ const Routes = {
     const FAIL_KEY = 'mp_heal_fail', now = Date.now();
     let fails = {};
     try { fails = JSON.parse(localStorage.getItem(FAIL_KEY) || '{}') || {}; } catch (e) {}
-    const recentFail = s => fails[s.id] && now - fails[s.id] < 6 * 3600000;
+    // 출발지·목적지·수단이 같은 채로 실패했을 때만 6시간 쉼 (장소를 고치면 바로 다시 찾음)
+    const sig = s => [s.mode, s.origin && s.origin.lat, s.origin && s.origin.lng, s.dest && s.dest.lat, s.dest && s.dest.lng].join('|');
+    const recentFail = s => { const f = fails[s.id]; if (!f) return false; const at = typeof f === 'number' ? f : f.at;
+      return now - at < 6 * 3600000 && (typeof f === 'number' || f.sig === sig(s)); };
     const list = State.schedules.filter(s => !s.demo && !s._shared && !recentFail(s) && (Recur.isRepeating(s) || (s.date >= U.today() && s.date <= limit)))
       .filter(s => noArs(s.route) || noArs(s.accessRoute) || (s.route && s.route.source === 'estimate') || (s.accessRoute && s.accessRoute.source === 'estimate')
         || (s.goHome && s.goHome.on && s.goHome.route && s.goHome.route.source === 'estimate'))
@@ -345,7 +348,7 @@ const Routes = {
         }
       } catch (e) { /* 다음에 다시 */ }
       if (mine) { State.upsert(s); changed = true; delete fails[s.id]; } // 서버에도 올림
-      else fails[s.id] = now; // 실패 기록 → 6시간 뒤에 다시
+      else fails[s.id] = { at: now, sig: sig(s) }; // 실패 기록 → 같은 장소면 6시간 뒤에 다시
     }
     try { localStorage.setItem(FAIL_KEY, JSON.stringify(fails)); } catch (e) {}
     if (changed) { try { await Alarm.rescheduleAll(); } catch (e) {} }

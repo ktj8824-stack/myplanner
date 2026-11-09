@@ -232,14 +232,20 @@ async function tryUse(env: Env, userId: string, limit: number, f: Fetch): Promis
   return Number(await res.json());
 }
 
+export const CALL_TIMEOUT_MS = 10000;   // Claude 한 번 부르기 최대 10초
+export const RETRY_BUDGET_MS = 20000;  // 처음 답부터 20초가 지났으면 다시 부르기는 건너뜀 (앱 쪽 30초 제한 안에 답하려고)
+
 async function callClaude(env: Env, body: Json, f: Fetch) {
   const res = await f("https://api.anthropic.com/v1/messages", {
     method: "POST",
+    signal: AbortSignal.timeout(CALL_TIMEOUT_MS),
     headers: { "x-api-key": (env.MYPLANNER_ANTHROPIC_API_KEY || env.ANTHROPIC_API_KEY || "").trim(), "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`Claude ${res.status} ${data?.error?.message || ""}`);
+  // 프롬프트 캐시가 실제로 쓰이는지 로그로 확인 (읽은 토큰 / 새로 만든 토큰)
+  console.info("cache", data?.usage?.cache_read_input_tokens ?? 0, data?.usage?.cache_creation_input_tokens ?? 0, "input", data?.usage?.input_tokens ?? 0);
   return data;
 }
 
@@ -340,6 +346,7 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
   const run = async (toolChoice?: Json) => {
     let said = "";
     for (let round = 0; round < MAX_ROUNDS; round++) {
+      if (round > 0 && late()) break; // 시간이 많이 지났으면 지금까지 받은 제안으로 답함
       const req: Json = { model: MODEL, max_tokens: 700, system, tools: TOOLS_CACHED, messages };
       if (toolChoice) req.tool_choice = toolChoice;
       const resp = await callClaude(env, req, f);
@@ -373,15 +380,18 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
     return await run(toolChoice);
   };
 
+  const started = Date.now();
+  const late = () => Date.now() - started > RETRY_BUDGET_MS;
   try {
     reply = await run();
     // 1) 도구 없이 "카드를 만들었어요"라고 말한 경우 → 도구로 제안하라고 한 번 더
-    if (!actions.length && claimsCard(reply)) {
+    if (!actions.length && claimsCard(reply) && !late()) {
       const r2 = await again(reply, "(앱 안내) 방금 확인 카드는 만들어지지 않았어요. 말로만 하지 말고 propose_schedule이나 propose_update 도구로 제안하세요. 제안할 게 없으면 카드를 말하지 말고 짧게 답하세요.");
       reply = r2 || reply;
       if (!actions.length && claimsCard(reply)) reply = "다시 한 번 말씀해 주시겠어요?";
-    }
+    } else if (!actions.length && claimsCard(reply)) reply = "다시 한 번 말씀해 주시겠어요?";
     // 2) 한자나 내부 메모가 섞인 경우 → 한 번 다시 받고, 그래도 있으면 그 줄을 지움
+    if (hasLeak(reply) && late()) reply = stripLeak(reply);
     if (hasLeak(reply)) {
       const r2 = await again(reply, "(앱 안내) 방금 답에 한자나 메모가 섞였어요. 같은 내용을 한국어로만, 메모 없이 다시 써 주세요. 도구는 다시 쓰지 마세요.", { type: "none" });
       if (r2) reply = r2;
