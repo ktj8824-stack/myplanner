@@ -1,13 +1,13 @@
 // PRO 결제 서버 로직: node --no-warnings test/payments.test.mjs
 import assert from 'node:assert';
-import { handle, PRICE, PayError, addMonth } from '../supabase/functions/payments/logic.ts';
+import { handle, PRICE, PLANS, PayError, addMonth, revenueCat } from '../supabase/functions/payments/logic.ts';
 
 const rows = {};
 const db = {
   getPayment: async (id) => rows[id] || null,
   insertPayment: async (r) => { rows[r.order_id] = { ...r }; },
   updatePayment: async (id, p) => { Object.assign(rows[id], p); },
-  proUntil: async (uid) => Object.values(rows).filter(r => r.user_id === uid && r.status === 'DONE').map(r => r.period_end).sort().pop() || null,
+  proUntil: async (uid, plan = 'premium') => Object.values(rows).filter(r => r.user_id === uid && r.status === 'DONE' && (plan === 'plus' ? r.plan === 'plus' : ['premium', 'pro'].includes(r.plan))).map(r => r.period_end).sort().pop() || null,
   recentPayments: async () => [],
 };
 let tossRes = { ok: true, status: 200, body: { status: 'DONE', totalAmount: PRICE, method: '카드', approvedAt: '2026-11-10T02:00:00Z' } };
@@ -43,6 +43,34 @@ let s = await handle('status', {}, 'u1', db, toss, noStore, 'test', now);
 assert.strictEqual(s.pro, true); assert.strictEqual(s.web.until, '2027-01-10T02:00:00.000Z');
 s = await handle('status', {}, 'u9', db, toss, noStore, 'test', now); assert.strictEqual(s.pro, false);
 s = await handle('status', {}, 'u9', db, toss, async () => ({ active: true, expires: '2026-12-01T00:00:00Z', product: 'mp_pro_monthly' }), 'test', now); assert.strictEqual(s.pro, true);
+assert.strictEqual(s.tier, 'premium');
+// 8) 이용권 3단계: 플러스 1,900원 → 광고만 없음 (AI 비서는 프리미엄)
+assert.strictEqual(PLANS.plus.price, 1900); assert.strictEqual(PLANS.premium.price, 4900);
+tossRes = { ok: true, status: 200, body: { status: 'DONE', totalAmount: 1900, method: '카드' } };
+const p1 = await handle('prepare', { plan: 'plus', amount: 1 }, 'u3', db, toss, noStore, 'test', now);
+assert.strictEqual(p1.amount, 1900); assert.strictEqual(p1.plan, 'plus');
+await handle('confirm', { orderId: p1.orderId, paymentKey: 'p1', amount: 1900 }, 'u3', db, toss, noStore, 'test', now);
+s = await handle('status', {}, 'u3', db, toss, noStore, 'test', now);
+assert.strictEqual(s.tier, 'plus'); assert.strictEqual(s.plus, true); assert.strictEqual(s.pro, false);
+// 플러스 쓰는 중에 프리미엄 결제 → 프리미엄 기간은 플러스와 따로 1개월
+tossRes = { ok: true, status: 200, body: { status: 'DONE', totalAmount: 4900, method: '카드' } };
+const p2 = await handle('prepare', { plan: 'premium' }, 'u3', db, toss, noStore, 'test', now);
+const c5 = await handle('confirm', { orderId: p2.orderId, paymentKey: 'p2', amount: 4900 }, 'u3', db, toss, noStore, 'test', now);
+assert.strictEqual(c5.periodEnd, '2026-12-10T02:00:00.000Z');
+s = await handle('status', {}, 'u3', db, toss, noStore, 'test', now); assert.strictEqual(s.tier, 'premium');
+// 앱에서 플러스 구독 + 웹 프리미엄 없음 → 플러스. 모르는 등급 이름은 프리미엄으로
+s = await handle('status', {}, 'u8', db, toss, async () => ({ active: true, tier: 'plus' }), 'test', now); assert.strictEqual(s.tier, 'plus');
+assert.strictEqual((await handle('prepare', { plan: 'gold' }, 'u8', db, toss, noStore, 'test', now)).amount, 4900);
+// 예전 'pro' 결제 기록은 프리미엄
+rows['OLD'] = { order_id: 'OLD', user_id: 'u7', plan: 'pro', status: 'DONE', period_end: '2026-11-20T00:00:00Z' };
+s = await handle('status', {}, 'u7', db, toss, noStore, 'test', now); assert.strictEqual(s.tier, 'premium');
+// RevenueCat 권한 이름 → 등급
+const rcf = (ents) => async () => ({ ok: true, json: async () => ({ subscriber: { entitlements: ents } }) });
+const fut = '2099-01-01T00:00:00Z', past = '2020-01-01T00:00:00Z';
+assert.strictEqual((await revenueCat('u', 'k', rcf({ plus: { expires_date: fut } }))).tier, 'plus');
+assert.strictEqual((await revenueCat('u', 'k', rcf({ plus: { expires_date: fut }, premium: { expires_date: fut } }))).tier, 'premium');
+assert.strictEqual((await revenueCat('u', 'k', rcf({ pro: { expires_date: fut } }))).tier, 'premium');
+assert.strictEqual((await revenueCat('u', 'k', rcf({ premium: { expires_date: past } }))).active, false);
 await assert.rejects(handle('nope', {}, 'u1', db, toss, noStore, 'test', now), e => e instanceof PayError);
 assert.strictEqual(addMonth(new Date('2026-01-31T00:00:00Z')).toISOString().slice(0, 10), '2026-02-28');
-console.log('✓ PRO 결제: 서버가 금액 결정 · 금액 다르면 거절 · 남의 주문 거절 · 1개월 연장 · 중복 승인 없음 · 웹/앱 둘 다 PRO');
+console.log('✓ 이용권 결제(플러스 1,900 · 프리미엄 4,900): 서버가 금액 결정 · 금액 다르면 거절 · 남의 주문 거절 · 1개월 연장 · 중복 승인 없음 · 웹/앱 둘 다 PRO');

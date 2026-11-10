@@ -1,5 +1,5 @@
 /* =========================================
-   MyPlanner — AI 비서 (PRO 핵심 기능)
+   MyPlanner — AI 비서 (프리미엄 핵심 기능)
    말·글로 부탁 → 서버(myplanner-ai, Claude)가 '제안' → 앱 계산 엔진이 경로·기상·출발을 계산한
    큰 확인 카드 → 사용자가 [저장]을 눌러야 저장. AI가 시각을 직접 정하지 않음.
    40~60대를 위해: 큰 글씨, 마이크 버튼, 대답 소리로 읽기, "회사"·"엄마 집" 같은 말 기억
@@ -91,7 +91,7 @@ const Assistant = {
   quotaLabel() {
     const q = this.quota;
     if (!q) return Cloud.isSignedIn() ? '말로 일정을 만들고 물어보세요' : '카카오 로그인 후 쓸 수 있어요';
-    return q.pro ? `PRO · 오늘 ${q.remaining}번 남음` : `무료 · 오늘 ${q.remaining}번 남음`;
+    return q.pro ? `프리미엄 · 오늘 ${q.remaining}번 남음` : `오늘 ${q.remaining}번 남음`;
   },
 
   toggleSpeak() {
@@ -539,8 +539,8 @@ const Assistant = {
   cardHtml(c, i, j) {
     if (!c) return '';
     if (c.kind === 'login') return `<div class="ai-c-body">카카오로 로그인하면 바로 쓸 수 있어요.</div><button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
-    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">PRO(월 4,900원)는 하루 60번까지 쓸 수 있어요. 무료는 내일 다시 5번이에요.</div>
-      <button class="btn primary" onclick="App.navigate('pro')">PRO 알아보기</button>
+    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">프리미엄(월 4,900원)은 하루 60번까지 쓸 수 있어요. 지금 이용권은 내일 다시 5번이에요.</div>
+      <button class="btn primary" onclick="App.navigate('pro')">프리미엄 알아보기</button>
       <button class="btn ghost" onclick="App.navigate('register')">＋ 일정 추가</button>`;
     if (c.state === 'dismissed') return `<div class="muted small">취소했어요</div>`;
     if (c.state === 'error') return `<div class="ai-c-body">⚠️ ${U.esc(c.error || '처리하지 못했어요')}</div>`;

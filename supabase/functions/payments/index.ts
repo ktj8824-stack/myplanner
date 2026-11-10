@@ -1,5 +1,5 @@
-// 마이플래너 PRO 결제 (Supabase Edge Function: myplanner-payments, verify_jwt=true)
-// action: prepare(주문 만들기) → 토스 결제창 → confirm(서버가 토스에 승인 요청) / status(PRO 상태)
+// 마이플래너 이용권 결제 (플러스·프리미엄) (Supabase Edge Function: myplanner-payments, verify_jwt=true)
+// action: prepare(주문 만들기) → 토스 결제창 → confirm(서버가 토스에 승인 요청) / status(이용권 상태)
 // 비밀값: MYPLANNER_TOSS_SECRET_KEY (없으면 토스 문서 공개 테스트 키 — 실제 돈 안 나감)
 //         MYPLANNER_REVENUECAT_SECRET_KEY (앱 구독 확인, 선택)
 // 자동: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
@@ -43,8 +43,9 @@ D.serve(async (req: Request) => {
       getPayment: async (id: string) => ((await rest(`mp_payments?order_id=eq.${q(id)}&select=*`)) || [])[0] || null,
       insertPayment: (row: unknown) => rest("mp_payments", { method: "POST", body: JSON.stringify(row) }),
       updatePayment: (id: string, patch: unknown) => rest(`mp_payments?order_id=eq.${q(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
-      proUntil: async (uid: string) => ((await rest(`mp_payments?user_id=eq.${uid}&status=eq.DONE&select=period_end&order=period_end.desc&limit=1`)) || [])[0]?.period_end || null,
-      recentPayments: (uid: string) => rest(`mp_payments?user_id=eq.${uid}&status=neq.READY&select=order_id,amount,status,method,approved_at,period_end,mode,created_at&order=created_at.desc&limit=12`),
+      // 프리미엄은 예전 'pro' 결제도 포함
+      proUntil: async (uid: string, plan = "premium") => ((await rest(`mp_payments?user_id=eq.${uid}&status=eq.DONE&plan=in.(${plan === "plus" ? "plus" : "premium,pro"})&select=period_end&order=period_end.desc&limit=1`)) || [])[0]?.period_end || null,
+      recentPayments: (uid: string) => rest(`mp_payments?user_id=eq.${uid}&status=neq.READY&select=order_id,plan,amount,status,method,approved_at,period_end,mode,created_at&order=created_at.desc&limit=12`),
     };
     const toss = async (paymentKey: string, orderId: string, amount: number) => {
       const res = await fetch("https://api.tosspayments.com/v1/payments/confirm", {

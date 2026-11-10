@@ -413,7 +413,8 @@ const Settings = {
         <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2) : st.name) : '🙂'}</div>
         <div><small>마이</small><div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div></div>
       </div>
-      <div class="pro-card"><div><small>마이플래너 PRO · 월 4,900원</small><b>AI 비서로 말 한마디에 일정 등록</b></div><button onclick="App.navigate('pro')">PRO 보기</button></div>
+      <div class="pro-card"><div><small>내 이용권 · ${{ free: '무료', plus: '플러스', premium: '프리미엄' }[Pro.tier()]}</small><b>${Pro.tier() === 'premium' ? '광고 없이 AI 비서까지 쓰는 중' : Pro.tier() === 'plus' ? '광고 없이 쓰는 중' : '플러스 1,900원 · 프리미엄 4,900원'}</b></div><button onclick="App.navigate('pro')">${Pro.tier() === 'free' ? '이용권 보기' : '관리'}</button></div>
+      <button class="pt-mine" onclick="App.navigate('points')"><span><small>내 포인트</small><b><span data-points>${Points.available() ? Points.balance().toLocaleString() : '-'}</span> P</b></span><span class="pt-mine-go">${Points.meta().attended_today ? '포인트 · 럭키드로우' : '출석 체크하기'}</span></button>
 
       <div class="card">
         <label class="lbl q-lbl">이름</label>

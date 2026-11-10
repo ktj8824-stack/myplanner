@@ -10,7 +10,7 @@ window.APP_DEFAULTS = {
   KAKAO_NATIVE_APP_KEY: '76014afcf1968e5e75b1976ada2896de',
   // 웹 카카오 로그인용 'REST API 키' (같은 마이플래너 카카오 앱 · 로그인 주소에 들어가는 공개 값). 비밀 키(Client Secret)는 서버에만
   KAKAO_LOGIN_REST_KEY: '',
-  // PRO 결제 — 토스 '클라이언트 키'(공개 값). 지금은 토스 문서 공개 테스트 키 (실제 돈 안 나감). 비밀 키는 서버에만
+  // 이용권(플러스·프리미엄) 결제 — 토스 '클라이언트 키'(공개 값). 지금은 토스 문서 공개 테스트 키 (실제 돈 안 나감). 비밀 키는 서버에만
   TOSS_CLIENT_KEY: 'test_gck_docs_Ovk5rk1EwkEbP0W43n07xlzm',
   // 앱 구독(애플·구글) — RevenueCat 공개 API 키 (appl_… / goog_…). 비밀 키는 서버에만
   REVENUECAT_IOS_KEY: '',

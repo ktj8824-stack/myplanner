@@ -2,7 +2,7 @@
    MyPlanner — 하단 배너 광고 (버디플래너 방식)
    - 아이폰·안드로이드 앱: 구글 애드몹 배너를 아래 메뉴 바로 위에 띄움
    - 웹: 카카오 애드핏 (광고 단위 ID가 있을 때만)
-   - PRO 회원, 시작·일정 추가·AI 비서·PRO 화면, 알람 화면·아래 시트가 열렸을 때는 숨김
+   - 플러스·프리미엄 회원, 시작·일정 추가·AI 비서·PRO 화면, 알람 화면·아래 시트가 열렸을 때는 숨김
    - 광고 단위 ID가 없으면 구글 공식 '테스트 광고'(Test Ad 표시)로 나옴 → 실제 수익 없음, 정책 위반 없음
    ========================================= */
 const Ads = {
@@ -22,7 +22,7 @@ const Ads = {
     return C.Plugins.AdMob || (C.Plugins.AdMob = C.registerPlugin('AdMob'));
   },
   platform() { const C = window.Capacitor; return (C && C.getPlatform && C.getPlatform()) === 'android' ? 'android' : 'ios'; },
-  isPro() { return !!(typeof Pro !== 'undefined' && Pro.status && Pro.status.pro); },
+  isPro() { return !!(typeof Pro !== 'undefined' && Pro.adFree && Pro.adFree()); }, // 플러스 이상이면 광고 없음
   /** 실제 광고 단위 ID가 있으면 실제 광고, 없으면 테스트 광고 */
   bannerId() {
     const p = this.platform();
@@ -73,7 +73,39 @@ const Ads = {
     document.body.classList.toggle('ad-on', this.wanted() && this.state === 'shown');
   },
 
-  /** PRO가 되면 광고를 아예 지움 */
+  /* ---------- 보상형 광고 (끝까지 보면 포인트, 하루 10번 — 한도는 서버가 판단) ---------- */
+  TEST_REWARD: { ios: 'ca-app-pub-3940256099942544/1712485313', android: 'ca-app-pub-3940256099942544/5224354917' },
+  rewardId() {
+    const p = this.platform(), real = this.cfg(p === 'android' ? 'ADMOB_REWARD_ANDROID' : 'ADMOB_REWARD_IOS');
+    return { id: real || this.TEST_REWARD[p], testing: !real || this.cfg('ADS_TEST_MODE') === true };
+  },
+  async reward() {
+    if (typeof Points === 'undefined' || !Points.canWatchAd()) return;
+    const A = this.plugin();
+    if (!A) return U.toast(this.native() ? '광고 기능을 준비하고 있어요. 다음 업데이트에서 열려요' : '광고 보고 포인트 받기는 아이폰·안드로이드 앱에서 할 수 있어요');
+    if (this._rewarding) return;
+    this._rewarding = true;
+    try {
+      if (!this._init) { await A.initialize({}); this._init = true; }
+      if (!this._rewardHooked) {
+        // 끝까지 본 경우에만 불림 → 서버에 적립 요청 (포인트는 서버 장부가 기준)
+        A.addListener('onRewardedVideoAdReward', () => { this._gotReward = true; Points.onAdRewarded(); });
+        this._rewardHooked = true;
+      }
+      this._gotReward = false;
+      const r = this.rewardId(), uid = Cloud.userId();
+      await A.prepareRewardVideoAd({ adId: r.id, isTesting: r.testing, ssv: uid ? { userId: uid, customData: 'mp' } : undefined });
+      if (this.state === 'shown') { try { await A.hideBanner(); this.state = 'hidden'; } catch (e) {} }
+      await A.showRewardVideoAd();
+    } catch (e) {
+      console.warn('[Ads] 보상형', e && e.message);
+      U.toast('광고를 불러오지 못했어요. 잠시 뒤 다시 해 주세요');
+    }
+    this._rewarding = false;
+    setTimeout(() => this.sync(), 600);
+  },
+
+  /** 플러스·프리미엄이 되면 광고를 아예 지움 */
   async applyPro() {
     if (!this.isPro()) return this.sync();
     const A = this.plugin();

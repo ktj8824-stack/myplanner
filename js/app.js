@@ -5,7 +5,7 @@
 const App = {
   current: null,
   params: {},
-  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView, pro: () => Pro },
+  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView, pro: () => Pro, points: () => PointsView, raffle: () => Raffle },
 
   async init() {
     State.load();
@@ -13,7 +13,8 @@ const App = {
     this.applyTextSize();
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
     const payBack = await Pro.consumeReturn(); // 토스 결제창에서 돌아온 경우 서버 승인 → PRO 화면
-    Pro.refresh(); // PRO 회원이면 광고 없음 (확인 뒤 광고 정리)
+    Pro.refresh(); // 플러스·프리미엄이면 광고 없음 (확인 뒤 광고 정리)
+    Points.refresh().then(r => { if (r && this.current === 'home') Home.render(); }); // 홈 출석 체크 줄
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)
@@ -98,6 +99,9 @@ const App = {
       ['paste', 'img/icons/message.png', '받은 문자로 등록', 'KTX·항공권·병원 예약 문자'],
       ['assistant', 'img/icons/community.png', 'AI 비서', '말로 일정 등록 · 질문'],
       ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
+      ['points', 'img/icons/raffle.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
+      ['raffle', 'img/icons/raffle.png', '럭키드로우', '모은 포인트로 경품 응모'],
+      ['pro', 'img/icons/settings.png', '이용권', '플러스 1,900원 · 프리미엄 4,900원'],
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
       ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
     ];

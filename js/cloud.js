@@ -352,6 +352,8 @@ const Cloud = {
       await this._api('rest/v1/mp_schedules?on_conflict=owner_id,id', {
         method: 'POST', body: rows, headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }
       });
+      // 새 일정이면 서버가 포인트를 줌 (하루 2번까지) → 늘었으면 알려 줌
+      if (rows.some(r => !r.deleted) && typeof Points !== 'undefined') Points.noticeEarned('새 일정 등록').catch(() => {});
     }
     // 올린 그 버전 그대로인 것만 지움 (올리는 동안 또 고친 일정은 다음에 다시 올림)
     const now = this._dirty();
@@ -382,6 +384,7 @@ const Cloud = {
   async joinFamily(code) {
     const r = await this.rpc('mp_join_family', { p_code: code, p_display: this.myName() });
     await this.loadFamilies();
+    if (typeof Points !== 'undefined') Points.noticeEarned('가족 연결').catch(() => {});
     return r;
   },
   async leaveFamily(id) {
@@ -404,6 +407,7 @@ const Cloud = {
     const add = targets.filter(t => !now.includes(t)), del = now.filter(t => !targets.includes(t));
     if (add.length) await this._api('rest/v1/mp_schedule_shares', { method: 'POST',
       body: add.map(t => ({ owner_id: this.userId(), schedule_id: scheduleId, target_id: t })), headers: { Prefer: 'return=minimal' } });
+    if (add.length && typeof Points !== 'undefined') Points.noticeEarned('가족에게 일정 공유').catch(() => {});
     for (const t of del) await this._api(`rest/v1/mp_schedule_shares?owner_id=eq.${this.userId()}&schedule_id=eq.${encodeURIComponent(scheduleId)}&target_id=eq.${t}`, { method: 'DELETE' });
     await this.loadFamilies();
   },

@@ -65,7 +65,7 @@ console.log('✓ 변경 제안 검사 (없는 일정·빈 변경·잘못된 날�
 usage = 5;
 r = await handle(req({ message: '안녕', context: ctx }), env, fake());
 j = await r.json();
-assert.strictEqual(r.status, 429); assert.ok(j.message.includes('PRO'));
+assert.strictEqual(r.status, 429); assert.ok(j.message.includes('프리미엄'));
 console.log('✓ 무료 하루 5회 넘으면 PRO 안내');
 
 // 5) PRO(시험 모드)는 60회
