@@ -320,7 +320,7 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 #nav .nav-ic { display: grid; place-items: center; height: 26px; }
 #nav .nav-ic .ic { width: 24px; height: 24px; }
 #nav button.active { color: var(--navy); }
-#nav .nav-ai .nav-ic { width: 54px; height: 54px; border-radius: 50%; margin: -20px 0 0; border: 3px solid #fff;
+#nav .nav-ai .nav-ic { width: 50px; height: 50px; border-radius: 50%; margin: -4px 0 0; border: 3px solid #fff;
   background: radial-gradient(circle at 32% 26%, #4A5C86 0%, #2B3858 42%, #141C30 100%);
   box-shadow: 0 10px 18px -8px rgba(20, 28, 48, .75), inset 0 2px 3px rgba(255, 255, 255, .28), inset 0 -4px 6px rgba(0, 0, 0, .35); }
 #nav .nav-ai .mic3d { width: 34px; height: 34px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
@@ -724,3 +724,9 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .pro-perks b { font-size: 16px; }
 .pro-perks span { font-size: 13.5px; color: var(--on-navy); }
 .pro-on { background: #E8F6EE; color: #1B7A47; font-weight: 800; border-radius: 12px; padding: 12px 14px; text-align: center; }
+
+/* ---------- 아래 배너 광고 (메뉴 바로 위, 320×50) ---------- */
+body.ad-on #main { padding-bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 152px); }
+body.ad-on #toast { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 140px); }
+body.ad-on:not(.no-nav)::after { height: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 96px); }
+#adfit-wrap { position: fixed; left: 0; right: 0; bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 72px); height: 50px; display: flex; justify-content: center; z-index: 24; }

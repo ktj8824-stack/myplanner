@@ -28,8 +28,9 @@ const Pro = {
   },
 
   async refresh() {
-    if (!Cloud.isSignedIn()) { this.status = null; return; }
+    if (!Cloud.isSignedIn()) { this.status = null; if (typeof Ads !== 'undefined') Ads.sync(); return; }
     try { this.status = await this.call({ action: 'status' }); } catch (e) { console.warn('[Pro] 상태 확인 실패', e.message); }
+    if (typeof Ads !== 'undefined') Ads.applyPro(); // PRO가 되면 광고 지움
   },
 
   render() {

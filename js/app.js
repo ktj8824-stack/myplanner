@@ -13,6 +13,7 @@ const App = {
     this.applyTextSize();
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
     const payBack = await Pro.consumeReturn(); // 토스 결제창에서 돌아온 경우 서버 승인 → PRO 화면
+    Pro.refresh(); // PRO 회원이면 광고 없음 (확인 뒤 광고 정리)
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)
@@ -60,6 +61,7 @@ const App = {
     main.scrollTop = 0;
     window.scrollTo(0, 0);
     view.render(params);
+    if (typeof Ads !== 'undefined') Ads.sync(); // 아래 배너 광고 (광고 없는 화면이면 숨김)
   },
 
   renderNav() {
@@ -135,8 +137,9 @@ const Sheet = {
     const el = document.getElementById('sheet');
     el.innerHTML = `<div class="sheet-bg" onclick="Sheet.close()"></div><div class="sheet-panel ${cls}">${html}</div>`;
     el.classList.add('show');
+    if (typeof Ads !== 'undefined') Ads.sync(); // 앱 광고는 화면 위에 따로 떠 있어 시트를 가리므로 숨김
   },
-  close() { document.getElementById('sheet').classList.remove('show'); },
+  close() { document.getElementById('sheet').classList.remove('show'); if (typeof Ads !== 'undefined') Ads.sync(); },
   isOpen() { return document.getElementById('sheet').classList.contains('show'); }
 };
 
