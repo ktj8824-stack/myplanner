@@ -33,7 +33,6 @@ const Pro = {
   },
 
   render() {
-    this._extend = false;
     this.paint();
     if (Cloud.isSignedIn() && !this.loading) { this.loading = true; this.refresh().finally(() => { this.loading = false; if (App.current === 'pro') this.paint(); }); }
   },
@@ -47,7 +46,8 @@ const Pro = {
   paint() {
     const st = this.status, signed = Cloud.isSignedIn();
     const active = !!(st && st.pro);
-    const untilTxt = st && st.web && st.web.active ? `${this.until(st.web.until)}까지` : st && st.app && st.app.active ? (st.app.until ? `${this.until(st.app.until)}에 자동 갱신` : '앱 구독 중') : '';
+    const md = (x) => { const d = new Date(x); return `${d.getMonth() + 1}월 ${d.getDate()}일`; };
+    const untilTxt = st && st.web && st.web.active ? `다음 결제일 ${md(st.web.until)} · 매달 자동결제` : st && st.app && st.app.active ? (st.app.until ? `${this.until(st.app.until)}에 자동 갱신` : '앱 구독 중') : '';
     const perks = [
       ['AI 비서 하루 60번', '무료는 하루 5번이에요'],
       ['말 한마디로 일정 관리', '"내일 10시 아산병원" 처럼 말하면 등록·변경·질문까지'],
@@ -59,15 +59,14 @@ const Pro = {
         <button class="btn primary" style="width:100%" onclick="Cloud.signInKakao()">카카오로 로그인</button>`;
     } else if (active) {
       action = `<div class="pro-on">PRO 이용 중 · ${U.esc(untilTxt)}</div>`
-        + (st.web && st.web.active && !this.isNative() ? (this._extend ? `<div style="margin-top:12px">${this.tossBlock(st, '1개월 더 연장 · ' + this.PRICE.toLocaleString() + '원 결제하기')}</div>`
-          : `<button class="btn" style="width:100%;margin-top:10px" onclick="Pro._extend=true;Pro.paint()">1개월 더 연장 (${this.PRICE.toLocaleString()}원)</button>`) : '')
+        + (st.web && st.web.active && !this.isNative() ? `<p class="muted small" style="margin:8px 0 0">해지해도 ${this.until(st.web.until)}까지 계속 쓸 수 있어요.</p>` : '')
         + (this.isNative() ? `<button class="link small" style="margin-top:10px" onclick="Pro.manage()">구독 관리 (해지는 ${this.platform() === 'ios' ? '앱스토어' : '플레이 스토어'}에서)</button>` : '');
     } else if (this.isNative()) {
       action = `<button class="btn primary" style="width:100%" onclick="Pro.buyApp()">월 ${this.PRICE.toLocaleString()}원 구독하기</button>
         <button class="link small" style="margin-top:10px" onclick="Pro.restore()">이전에 구독했어요 (구매 복원)</button>
         <p class="muted small" style="margin:8px 0 0">${this.platform() === 'ios' ? 'Apple ID' : 'Google 계정'}으로 결제되고, 해지하기 전까지 매달 자동으로 갱신돼요.</p>`;
     } else {
-      action = this.tossBlock(st, `월 ${this.PRICE.toLocaleString()}원 결제하기`);
+      action = this.tossBlock(st);
     }
     const hist = st && st.payments && st.payments.length ? `<div class="card"><div class="lbl" style="margin-bottom:8px">결제 내역</div>${st.payments.map(p =>
       `<div class="small" style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line)"><span>${U.esc((p.approved_at || p.created_at || '').slice(0, 10))} · ${p.status === 'DONE' ? '결제 완료' : p.status === 'FAILED' ? '실패' : U.esc(p.status)}${p.mode === 'test' ? ' (시험)' : ''}</span><b>${Number(p.amount).toLocaleString()}원</b></div>`).join('')}</div>` : '';
@@ -75,19 +74,45 @@ const Pro = {
       <header class="subhead"><button class="back" onclick="App.navigate('settings')" aria-label="뒤로"></button><h1>마이플래너 PRO</h1><span></span></header>
       <div class="pro-hero">
         <small>마이플래너 PRO</small>
-        <div class="pro-price"><b>월 ${this.PRICE.toLocaleString()}원</b><span>VAT 포함</span></div>
+        <div class="pro-price"><b>월 ${this.PRICE.toLocaleString()}원</b><span>부가세 포함</span></div>
+        <p class="pro-sub">매달 자동결제 · 언제든 해지</p>
         <ul class="pro-perks">${perks.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ul>
       </div>
+      ${this.resultCard()}
       <div class="card">${action}</div>
       ${hist}
       <p class="muted small" style="padding:0 6px">결제·환불 안내는 <a href="terms.html#pay" target="_blank" rel="noopener">이용약관</a>에 있어요. 일정·알람 등 기본 기능은 PRO가 아니어도 그대로 무료예요.</p>`);
-    if (signed && (!active || this._extend) && !this.isNative()) { this.widgets = null; this.mountToss(); }
+    if (signed && !active && !this.isNative()) { this.widgets = null; this._ready = false; this.mountToss(); }
   },
 
-  tossBlock(st, label) {
+  // 웹 결제: 로드플래너 개인 매니저와 같은 흐름 — 동의 체크해야 결제 버튼이 켜짐
+  tossBlock(st) {
+    const day = new Date().getDate();
     return `<div id="tossMethods"></div><div id="tossAgreement"></div>
-        <button class="btn primary" id="tossPay" style="width:100%;margin-top:6px" onclick="Pro.payWeb()">${label}</button>
-        <p class="muted small" style="margin:8px 0 0">한 번 결제하면 1개월 동안 PRO예요. 자동으로 다시 결제되지 않아요.${st && st.mode === 'test' ? ' <b>(지금은 시험 결제 — 실제 돈이 나가지 않아요)</b>' : ''}</p>`;
+        <label class="pro-agree"><input type="checkbox" id="proAgree" onchange="Pro.syncBtn()">
+          <span>매달 ${day}일 ${this.PRICE.toLocaleString()}원 자동결제에 동의해요<small>언제든 해지할 수 있고, 해지해도 결제한 기간까지는 계속 쓸 수 있어요.</small></span></label>
+        <button class="btn primary" id="tossPay" style="width:100%;margin-top:6px" onclick="Pro.payWeb()" disabled>월 ${this.PRICE.toLocaleString()}원 정기결제 시작</button>
+        ${st && st.mode === 'test' ? '<p class="muted small" style="margin:8px 0 0"><b>지금은 시험 결제 — 실제 돈이 나가지 않아요</b></p>' : ''}`;
+  },
+
+  syncBtn() {
+    const b = document.getElementById('tossPay'), a = document.getElementById('proAgree');
+    if (b && !this._busy) b.disabled = !(a && a.checked);
+  },
+
+  /** 결제 결과 카드 (완료: 주문번호 · 금액 · 다음 결제일 / 실패: 이유 + 다시 결제). 자동으로 다른 화면으로 넘어가지 않음 */
+  resultCard() {
+    const r = this.result;
+    if (!r) return '';
+    const md = (x) => { const d = new Date(x); return `${d.getMonth() + 1}월 ${d.getDate()}일`; };
+    const row = (k, v) => `<div style="display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-top:1px solid var(--line)"><span class="muted">${k}</span><b style="text-align:right;word-break:break-all">${v}</b></div>`;
+    if (r.ok) return `<div class="card pro-result ok"><b style="font-size:1.05em">결제가 완료됐어요</b>
+        <div class="small" style="margin-top:8px">${row('주문번호', U.esc(r.orderId || ''))}${row('결제 금액', Number(r.amount || this.PRICE).toLocaleString() + '원 (부가세 포함)')}${r.method ? row('결제 수단', U.esc(r.method)) : ''}${r.periodEnd ? row('다음 결제일', md(r.periodEnd) + ' (매달 자동결제)') : ''}</div>
+        <button class="link small" style="margin-top:6px" onclick="Pro.result=null;Pro.paint()">닫기</button></div>`;
+    return `<div class="card pro-result fail"><b style="font-size:1.05em">결제가 안 됐어요</b>
+        <p class="small" style="margin:6px 0">돈은 빠져나가지 않았어요.</p>
+        <p class="small pro-fail-reason">이유: ${U.esc(String(r.reason || '').slice(0, 120))}${r.code ? ` <span class="muted">(${U.esc(r.code)})</span>` : ''}</p>
+        <button class="btn primary" style="width:100%" onclick="Pro.result=null;Pro.paint()">다른 카드로 결제하기</button></div>`;
   },
 
   /* ---------- 웹: 토스 결제위젯 ---------- */
@@ -112,6 +137,7 @@ const Pro = {
       await this.widgets.setAmount({ currency: 'KRW', value: this.PRICE });
       await this.widgets.renderPaymentMethods({ selector: '#tossMethods' });
       await this.widgets.renderAgreement({ selector: '#tossAgreement' });
+      this._ready = true;
     } catch (e) {
       console.warn('[Pro] 토스 위젯', e);
       const m = document.getElementById('tossMethods');
@@ -121,7 +147,9 @@ const Pro = {
 
   async payWeb() {
     const btn = document.getElementById('tossPay');
-    if (btn) btn.disabled = true;
+    if (!(document.getElementById('proAgree') || {}).checked) return U.toast('자동결제 동의에 체크해 주세요');
+    this._busy = true;
+    if (btn) { btn.disabled = true; btn.textContent = '결제창 여는 중…'; }
     try {
       if (!this.widgets) await this.mountToss();
       if (!this.widgets) throw new Error('결제 화면이 아직 준비되지 않았어요');
@@ -135,7 +163,10 @@ const Pro = {
       });
     } catch (e) {
       if (e && e.code !== 'USER_CANCEL') U.toast('결제하지 못했어요: ' + (e.message || e.code || '알 수 없는 오류'));
-      if (btn) btn.disabled = false;
+    } finally {
+      this._busy = false;
+      if (btn) btn.textContent = `월 ${this.PRICE.toLocaleString()}원 정기결제 시작`;
+      this.syncBtn();
     }
   },
 
@@ -148,15 +179,16 @@ const Pro = {
     ['pay', 'paymentKey', 'orderId', 'amount', 'code', 'message', 'paymentType'].forEach(k => q.delete(k));
     history.replaceState(null, document.title, location.pathname + (q.toString() ? '?' + q : '') + location.hash);
     if (pay === 'fail') {
-      if (info.code !== 'PAY_PROCESS_CANCELED' && info.code !== 'USER_CANCEL') U.toast('결제가 안 됐어요' + (info.message ? ': ' + info.message : ''));
+      if (info.code === 'PAY_PROCESS_CANCELED' || info.code === 'USER_CANCEL') U.toast('결제를 취소했어요');
+      else this.result = { ok: false, reason: info.message || '결제를 완료하지 못했어요', code: info.code };
       return 'pro';
     }
     if (!info.paymentKey || !info.orderId) return 'pro';
     try {
       const r = await this.call({ action: 'confirm', paymentKey: info.paymentKey, orderId: info.orderId, amount: info.amount });
-      if (r.status === 'DONE') U.toast(`PRO가 시작됐어요 · ${this.until(r.periodEnd)}까지`);
+      if (r.status === 'DONE') this.result = { ok: true, ...r };
       else U.toast('입금을 기다리고 있어요');
-    } catch (e) { U.toast('결제 확인 실패: ' + e.message); }
+    } catch (e) { this.result = { ok: false, reason: e.message || '결제 승인에 실패했어요', code: e.code }; }
     return 'pro';
   },
 

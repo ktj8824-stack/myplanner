@@ -18,7 +18,7 @@ const now = new Date('2026-11-10T02:00:00Z');
 assert.strictEqual(PRICE, 4900);
 // 1) 주문: 금액은 서버가 정함
 const o = await handle('prepare', { amount: 1 }, 'u1', db, toss, noStore, 'test', now);
-assert.strictEqual(o.amount, 4900); assert.ok(o.orderId.startsWith('MP-PRO-'));
+assert.strictEqual(o.amount, 4900); assert.ok(/^MP-20261110-[A-Z2-9]{6}$/.test(o.orderId), o.orderId);
 // 2) 금액이 다르면 승인하지 않음
 const o2 = await handle('prepare', {}, 'u1', db, toss, noStore, 'test', now);
 await assert.rejects(handle('confirm', { orderId: o2.orderId, paymentKey: 'k', amount: 100 }, 'u1', db, toss, noStore, 'test', now), e => e.code === 'AMOUNT_MISMATCH');
