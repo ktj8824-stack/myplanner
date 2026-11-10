@@ -56,7 +56,8 @@ const App = {
     document.getElementById('nav').style.display = ['welcome', 'start'].includes(name) ? 'none' : '';
     document.querySelectorAll('#nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
     const b = document.body.classList;
-    b.toggle('no-nav', ['welcome', 'start', 'assistant'].includes(name));
+    b.toggle('no-nav', ['welcome', 'start'].includes(name));
+    b.toggle('scr-ai', name === 'assistant'); // AI 비서: 아래 메뉴 위에 입력창
     document.getElementById('nav').style.display = ['welcome', 'start', 'register'].includes(name) ? 'none' : '';
     const main = document.getElementById('main');
     main.scrollTop = 0;

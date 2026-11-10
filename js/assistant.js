@@ -76,7 +76,7 @@ const Assistant = {
           enterkeyhint="send" onkeydown="if(event.key==='Enter'){Assistant.send()}">
         <button class="btn primary" onclick="Assistant.send()">보내기</button>
       </div>`);
-    document.getElementById('nav').style.display = 'none';
+    // 아래 메뉴는 그대로 보임 (입력창은 메뉴 위에 떠 있음)
     this.scroll();
     // 지난 대화의 카드는 다시 계산해서 보여 줌
     this.msgs.forEach((m, i) => (m.cards || []).forEach((c, j) => { if (c.state === 'ready' || c.state === 'pending') this.prepare(i, j); }));

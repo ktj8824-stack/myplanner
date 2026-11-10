@@ -849,3 +849,9 @@ body.ad-on:not(.no-nav)::after { height: calc(max(10px, env(safe-area-inset-bott
 .adm-f > span { font-size: 13px; font-weight: 700; color: var(--muted); }
 .adm-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .act .ai-name .pro { font-size: 10.5px; padding: 1px 4px; margin-left: 3px; letter-spacing: -.02em; }
+
+/* AI 비서 화면에도 아래 메뉴 → 입력창·추천 말을 메뉴 위로 올림 */
+body.scr-ai .ai-input { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 66px); padding: 10px 18px 10px; z-index: 26; background: linear-gradient(180deg, rgba(244, 245, 247, .9), var(--bg) 40%); }
+body.scr-ai .ai-suggest { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 142px); z-index: 26; }
+body.scr-ai .ai-log { padding-bottom: 250px; }
+body.scr-ai::after { height: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 30px); }
