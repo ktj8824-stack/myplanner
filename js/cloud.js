@@ -207,6 +207,10 @@ const Cloud = {
     State.save();
     this.families = []; this.shares = [];
     this.status = 'signed_out';
+    // 앞 사람의 이용권·포인트 표시가 다음 사람에게 남지 않게 (2026-11-11 점검)
+    if (typeof Pro !== 'undefined') Pro.status = null;
+    try { localStorage.removeItem('mp_points'); localStorage.removeItem('mp_points_meta'); } catch (e) {}
+    if (typeof Ads !== 'undefined') Promise.resolve().then(() => Ads.sync()).catch(() => {});
     await Alarm.rescheduleAll();
   },
 
