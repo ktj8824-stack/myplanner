@@ -226,10 +226,10 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 .act small { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; align-self: start; margin-top: 2px; }
 .act .pro { display: inline-block; font-size: 11.5px; font-weight: 800; color: var(--navy); background: var(--yellow); border-radius: 6px; padding: 1px 5px; margin-left: 5px; vertical-align: 2px; }
 .bg-blue { background: var(--blue-soft); } .bg-yellow { background: #FFF4D6; } .bg-purple { background: #F3EEFF; } .bg-green { background: #E6F7EE; } .bg-cyan { background: #E3F7FA; } .bg-orange { background: #FFF0E3; } .bg-gray { background: var(--fill); }
-.mini { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; padding: 14px 6px; }
-.mini button { font-size: 13px; font-weight: 700; color: var(--ink-2); }
-.mini .ic-box { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; margin: 0 auto 6px; } /* 일정 추가·AI 비서 아이콘과 같은 크기 */
-.mini .ic-box img { width: 32px; height: 32px; object-fit: contain; }
+.mini { display: grid; grid-template-columns: repeat(4, 1fr); text-align: center; padding: 10px 6px; }
+.mini button { font-size: 12.5px; font-weight: 700; color: var(--ink-2); line-height: 1.3; }
+.mini .ic-box { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 11px; margin: 0 auto 4px; } /* 일정 추가보다 작게 (보조 메뉴) */
+.mini .ic-box img { width: 24px; height: 24px; object-fit: contain; }
 
 /* 일정 줄 */
 .list { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 4px 18px; margin-bottom: 12px; }
