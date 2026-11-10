@@ -5,13 +5,14 @@
 const App = {
   current: null,
   params: {},
-  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView },
+  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView, pro: () => Pro },
 
   async init() {
     State.load();
     this.trackViewport();
     this.applyTextSize();
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
+    const payBack = await Pro.consumeReturn(); // 토스 결제창에서 돌아온 경우 서버 승인 → PRO 화면
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)
@@ -19,7 +20,7 @@ const App = {
     try { seen = !!localStorage.getItem('mp_start_seen'); } catch (e) {}
     let after = null;
     try { after = sessionStorage.getItem('mp_after_login'); sessionStorage.removeItem('mp_after_login'); } catch (e) {}
-    this.navigate(first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
+    this.navigate(payBack && !first ? payBack : first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
     await Alarm.init();
     if (this.current === 'home') Home.render();

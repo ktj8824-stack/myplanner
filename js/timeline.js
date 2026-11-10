@@ -413,7 +413,7 @@ const Settings = {
         <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2) : st.name) : '🙂'}</div>
         <div><small>마이</small><div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div></div>
       </div>
-      <div class="pro-card"><div><small>마이플래너 PRO</small><b>AI 비서로 말 한마디에 일정 등록</b></div><button onclick="App.navigate('assistant')">써 보기</button></div>
+      <div class="pro-card"><div><small>마이플래너 PRO · 월 4,900원</small><b>AI 비서로 말 한마디에 일정 등록</b></div><button onclick="App.navigate('pro')">PRO 보기</button></div>
 
       <div class="card">
         <label class="lbl q-lbl">이름</label>

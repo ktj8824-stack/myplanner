@@ -111,7 +111,7 @@ const Cloud = {
     const back = location.origin + location.pathname;
     // 로그인하고 돌아오면 누른 화면(예: AI 비서)으로 바로 돌아가게
     try { if (typeof App !== 'undefined' && App.current && !['start', 'welcome'].includes(App.current)) sessionStorage.setItem('mp_after_login', App.current); } catch (e) {}
-    const rest = Routes.key('KAKAO_REST_KEY');
+    const rest = Routes.key('KAKAO_LOGIN_REST_KEY');
     if (rest) {
       // 웹: 앱과 같은 '마이플래너' 카카오 앱으로 로그인 → 돌아온 code를 서버 함수가 ID 토큰으로 바꿔 확인 (앱과 같은 계정)
       const rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');

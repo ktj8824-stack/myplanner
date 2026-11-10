@@ -693,3 +693,16 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .wa-foot { text-align: center; font-size: 12.5px; color: var(--on-navy); margin-top: 2px; }
 @media (max-height: 700px) {.wa { gap: 18px; padding-top: calc(env(safe-area-inset-top, 0px) + 28px); }.wa-time { font-size: 76px; } }
 @media (prefers-reduced-motion: reduce) {.wa-time { animation: none; } }
+
+/* PRO 구독 */
+.pro-hero { background: var(--navy); color: #fff; border-radius: var(--radius); padding: 22px 20px; margin-bottom: 12px; }
+.pro-hero small { display: block; font-size: 13px; font-weight: 700; color: var(--yellow); }
+.pro-price { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 14px; }
+.pro-price b { font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
+.pro-price span { font-size: 13px; color: var(--on-navy); }
+.pro-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pro-perks li { display: flex; flex-direction: column; padding-left: 22px; position: relative; }
+.pro-perks li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 10px; height: 5px; border-left: 2.4px solid var(--yellow); border-bottom: 2.4px solid var(--yellow); transform: rotate(-45deg); }
+.pro-perks b { font-size: 16px; }
+.pro-perks span { font-size: 13.5px; color: var(--on-navy); }
+.pro-on { background: #E8F6EE; color: #1B7A47; font-weight: 800; border-radius: 12px; padding: 12px 14px; text-align: center; }

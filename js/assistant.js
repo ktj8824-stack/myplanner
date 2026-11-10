@@ -539,8 +539,8 @@ const Assistant = {
   cardHtml(c, i, j) {
     if (!c) return '';
     if (c.kind === 'login') return `<div class="ai-c-body">카카오로 로그인하면 바로 쓸 수 있어요.</div><button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
-    // 결제가 열리기 전에는 버튼 없이 안내만 (없는 기능을 누르게 하지 않음)
-    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">내일 다시 쓸 수 있어요. 그동안은 아래 <b>＋ 일정 추가</b>나 받은 문자 붙여넣기로 등록할 수 있어요.</div>
+    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">PRO(월 4,900원)는 하루 60번까지 쓸 수 있어요. 무료는 내일 다시 5번이에요.</div>
+      <button class="btn primary" onclick="App.navigate('pro')">PRO 알아보기</button>
       <button class="btn ghost" onclick="App.navigate('register')">＋ 일정 추가</button>`;
     if (c.state === 'dismissed') return `<div class="muted small">취소했어요</div>`;
     if (c.state === 'error') return `<div class="ai-c-body">⚠️ ${U.esc(c.error || '처리하지 못했어요')}</div>`;

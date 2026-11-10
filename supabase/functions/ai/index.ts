@@ -210,6 +210,14 @@ async function getUser(env: Env, auth: string, f: Fetch) {
 
 async function isPro(env: Env, userId: string, f: Fetch): Promise<boolean> {
   if (env.MYPLANNER_AI_ALLOW_ALL === "true") return true;
+  // 1) 웹 토스 결제 (myplanner-payments가 기록한 PRO 기간)
+  try {
+    const svc = env.SUPABASE_SERVICE_ROLE_KEY || "";
+    const r = await f(`${env.SUPABASE_URL}/rest/v1/mp_payments?user_id=eq.${encodeURIComponent(userId)}&status=eq.DONE&period_end=gt.${encodeURIComponent(new Date().toISOString())}&select=order_id&limit=1`,
+      { headers: { apikey: svc, Authorization: `Bearer ${svc}` } });
+    if (r.ok && ((await r.json()) || []).length) return true;
+  } catch { /* 아래 앱 구독 확인으로 */ }
+  // 2) 앱 구독 (애플·구글 → RevenueCat)
   const key = env.MYPLANNER_REVENUECAT_SECRET_KEY;
   if (!key) return false;
   try {
