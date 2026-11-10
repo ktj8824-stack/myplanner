@@ -1,5 +1,5 @@
 /* =========================================
-   MyPlanner — AI 비서 (PRO 핵심 기능)
+   MyPlanner — AI 비서 (프리미엄 핵심 기능)
    말·글로 부탁 → 서버(myplanner-ai, Claude)가 '제안' → 앱 계산 엔진이 경로·기상·출발을 계산한
    큰 확인 카드 → 사용자가 [저장]을 눌러야 저장. AI가 시각을 직접 정하지 않음.
    40~60대를 위해: 큰 글씨, 마이크 버튼, 대답 소리로 읽기, "회사"·"엄마 집" 같은 말 기억
@@ -71,12 +71,12 @@ const Assistant = {
       <div id="aiLog" class="ai-log">${this.msgs.length ? this.msgs.map((m, i) => this.bubble(m, i)).join('') : this.welcome()}</div>
       <div class="ai-suggest" id="aiSuggest">${this.SUGGEST.map(s => `<button class="chip" onclick="Assistant.send(${JSON.stringify(s).replace(/"/g, '&quot;')})">${U.esc(s)}</button>`).join('')}</div>
       <div class="ai-input">
-        ${Voice.canListen() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">🎙</button>` : ''}
+        ${Voice.canListen() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">${App.micSvg()}</button>` : ''}
         <input id="aiText" class="input" placeholder="${Voice.canListen() ? '말하거나 여기에 쓰세요' : '여기에 쓰세요'}"
           enterkeyhint="send" onkeydown="if(event.key==='Enter'){Assistant.send()}">
         <button class="btn primary" onclick="Assistant.send()">보내기</button>
       </div>`);
-    document.getElementById('nav').style.display = 'none';
+    // 아래 메뉴는 그대로 보임 (입력창은 메뉴 위에 떠 있음)
     this.scroll();
     // 지난 대화의 카드는 다시 계산해서 보여 줌
     this.msgs.forEach((m, i) => (m.cards || []).forEach((c, j) => { if (c.state === 'ready' || c.state === 'pending') this.prepare(i, j); }));
@@ -91,7 +91,7 @@ const Assistant = {
   quotaLabel() {
     const q = this.quota;
     if (!q) return Cloud.isSignedIn() ? '말로 일정을 만들고 물어보세요' : '카카오 로그인 후 쓸 수 있어요';
-    return q.pro ? `PRO · 오늘 ${q.remaining}번 남음` : `무료 · 오늘 ${q.remaining}번 남음`;
+    return q.pro ? `프리미엄 · 오늘 ${q.remaining}번 남음` : `오늘 ${q.remaining}번 남음`;
   },
 
   toggleSpeak() {
@@ -539,8 +539,8 @@ const Assistant = {
   cardHtml(c, i, j) {
     if (!c) return '';
     if (c.kind === 'login') return `<div class="ai-c-body">카카오로 로그인하면 바로 쓸 수 있어요.</div><button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
-    // 결제가 열리기 전에는 버튼 없이 안내만 (없는 기능을 누르게 하지 않음)
-    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">내일 다시 쓸 수 있어요. 그동안은 아래 <b>＋ 일정 추가</b>나 받은 문자 붙여넣기로 등록할 수 있어요.</div>
+    if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">프리미엄(월 4,900원)은 하루 60번까지 쓸 수 있어요. 지금 이용권은 내일 다시 5번이에요.</div>
+      <button class="btn primary" onclick="App.navigate('pro')">프리미엄 알아보기</button>
       <button class="btn ghost" onclick="App.navigate('register')">＋ 일정 추가</button>`;
     if (c.state === 'dismissed') return `<div class="muted small">취소했어요</div>`;
     if (c.state === 'error') return `<div class="ai-c-body">⚠️ ${U.esc(c.error || '처리하지 못했어요')}</div>`;

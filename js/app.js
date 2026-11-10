@@ -5,13 +5,16 @@
 const App = {
   current: null,
   params: {},
-  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView },
+  screens: { home: () => Home, calendar: () => CalendarView, register: () => Register, timeline: () => Timeline, settings: () => Settings, welcome: () => Welcome, start: () => StartScreen, assistant: () => Assistant, market: () => MarketView, day: () => DayView, pro: () => Pro, points: () => PointsView, raffle: () => Raffle },
 
   async init() {
     State.load();
     this.trackViewport();
     this.applyTextSize();
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
+    const payBack = await Pro.consumeReturn(); // 토스 결제창에서 돌아온 경우 서버 승인 → PRO 화면
+    Pro.refresh(); // 플러스·프리미엄이면 광고 없음 (확인 뒤 광고 정리)
+    Points.refresh().then(r => { if (r && this.current === 'home') Home.render(); }); // 홈 출석 체크 줄
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
     // 처음 켤 때: 로그인 화면(한 번) → 시작 화면(이름·집·글자 크기)
@@ -19,7 +22,7 @@ const App = {
     try { seen = !!localStorage.getItem('mp_start_seen'); } catch (e) {}
     let after = null;
     try { after = sessionStorage.getItem('mp_after_login'); sessionStorage.removeItem('mp_after_login'); } catch (e) {}
-    this.navigate(first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
+    this.navigate(payBack && !first ? payBack : first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
     await Alarm.init();
     if (this.current === 'home') Home.render();
@@ -53,12 +56,14 @@ const App = {
     document.getElementById('nav').style.display = ['welcome', 'start'].includes(name) ? 'none' : '';
     document.querySelectorAll('#nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
     const b = document.body.classList;
-    b.toggle('no-nav', ['welcome', 'start', 'assistant'].includes(name));
+    b.toggle('no-nav', ['welcome', 'start'].includes(name));
+    b.toggle('scr-ai', name === 'assistant'); // AI 비서: 아래 메뉴 위에 입력창
     document.getElementById('nav').style.display = ['welcome', 'start', 'register'].includes(name) ? 'none' : '';
     const main = document.getElementById('main');
     main.scrollTop = 0;
     window.scrollTo(0, 0);
     view.render(params);
+    if (typeof Ads !== 'undefined') Ads.sync(); // 아래 배너 광고 (광고 없는 화면이면 숨김)
   },
 
   renderNav() {
@@ -69,7 +74,23 @@ const App = {
       </div>`;
     const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', null, 'AI 비서'], ['market', 'bag', '마켓'], ['settings', 'user', '마이']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
-      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${ic ? Icons.svg(ic) : '<img src="img/icons/community.png" alt="">'}</span><span>${label}</span></button>`).join('');
+      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${ic ? Icons.svg(ic) : App.micSvg()}</span><span${k === 'assistant' ? ' class="nav-ai-label"' : ''}>${label}</span></button>`).join('');
+  },
+
+  /** AI 비서 마이크 (입체: 위쪽 빛, 아래 그림자) */
+  micSvg() {
+    return `<svg class="mic3d" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="micBody" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFE7A3"/><stop offset=".45" stop-color="#FFC94D"/><stop offset="1" stop-color="#E9A21C"/></linearGradient>
+        <linearGradient id="micStand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9D2E3"/></linearGradient>
+      </defs>
+      <ellipse cx="16" cy="28.4" rx="6.5" ry="1.3" fill="#0B1324" opacity=".35"/>
+      <path d="M9.2 14.6a6.8 6.8 0 0 0 13.6 0" fill="none" stroke="url(#micStand)" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M16 21.4v4.4M12.2 26.4h7.6" stroke="url(#micStand)" stroke-width="2.2" stroke-linecap="round"/>
+      <rect x="11.6" y="3.6" width="8.8" height="15.2" rx="4.4" fill="url(#micBody)"/>
+      <path d="M12.8 9h2.4M12.8 11.6h2.4M12.8 14.2h2.4M16.8 9h2.4M16.8 11.6h2.4M16.8 14.2h2.4" stroke="#B9790A" stroke-width=".9" stroke-linecap="round" opacity=".55"/>
+      <rect x="13" y="4.8" width="2.2" height="7.6" rx="1.1" fill="#FFFFFF" opacity=".75"/>
+    </svg>`;
   },
 
   /** 전체 메뉴 (상단 ≡) */
@@ -79,6 +100,9 @@ const App = {
       ['paste', 'img/icons/message.png', '받은 문자로 등록', 'KTX·항공권·병원 예약 문자'],
       ['assistant', 'img/icons/community.png', 'AI 비서', '말로 일정 등록 · 질문'],
       ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
+      ['points', 'img/icons/raffle.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
+      ['raffle', 'img/icons/raffle.png', '럭키드로우', '모은 포인트로 경품 응모'],
+      ['pro', 'img/icons/settings.png', '이용권', '플러스 1,900원 · 프리미엄 4,900원'],
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
       ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
     ];
@@ -118,8 +142,9 @@ const Sheet = {
     const el = document.getElementById('sheet');
     el.innerHTML = `<div class="sheet-bg" onclick="Sheet.close()"></div><div class="sheet-panel ${cls}">${html}</div>`;
     el.classList.add('show');
+    if (typeof Ads !== 'undefined') Ads.sync(); // 앱 광고는 화면 위에 따로 떠 있어 시트를 가리므로 숨김
   },
-  close() { document.getElementById('sheet').classList.remove('show'); },
+  close() { document.getElementById('sheet').classList.remove('show'); if (typeof Ads !== 'undefined') Ads.sync(); },
   isOpen() { return document.getElementById('sheet').classList.contains('show'); }
 };
 

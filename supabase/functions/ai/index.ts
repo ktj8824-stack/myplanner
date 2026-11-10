@@ -8,7 +8,7 @@
 //
 // 비밀값 (버디플래너 프로젝트와 같은 곳 — MYPLANNER_ 접두사가 우선):
 //   MYPLANNER_ANTHROPIC_API_KEY (없으면 ANTHROPIC_API_KEY)
-//   선택: MYPLANNER_REVENUECAT_SECRET_KEY (PRO 확인), MYPLANNER_AI_ALLOW_ALL=true (출시 전 시험용: 모두 PRO 취급)
+//   선택: MYPLANNER_REVENUECAT_SECRET_KEY (프리미엄 확인), MYPLANNER_AI_ALLOW_ALL=true (출시 전 시험용: 모두 PRO 취급)
 //         MYPLANNER_AI_FREE_DAILY (기본 5), MYPLANNER_AI_PRO_DAILY (기본 60)
 // 자동 제공: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 // =====================================================================
@@ -210,13 +210,22 @@ async function getUser(env: Env, auth: string, f: Fetch) {
 
 async function isPro(env: Env, userId: string, f: Fetch): Promise<boolean> {
   if (env.MYPLANNER_AI_ALLOW_ALL === "true") return true;
+  // AI 비서 많이 쓰기는 '프리미엄'만 (플러스는 광고 제거만). 예전 'pro'도 프리미엄
+  // 1) 웹 토스 결제 (myplanner-payments가 기록한 프리미엄 기간)
+  try {
+    const svc = env.SUPABASE_SERVICE_ROLE_KEY || "";
+    const r = await f(`${env.SUPABASE_URL}/rest/v1/mp_payments?user_id=eq.${encodeURIComponent(userId)}&status=eq.DONE&plan=in.(premium,pro)&period_end=gt.${encodeURIComponent(new Date().toISOString())}&select=order_id&limit=1`,
+      { headers: { apikey: svc, Authorization: `Bearer ${svc}` } });
+    if (r.ok && ((await r.json()) || []).length) return true;
+  } catch { /* 아래 앱 구독 확인으로 */ }
+  // 2) 앱 구독 (애플·구글 → RevenueCat)
   const key = env.MYPLANNER_REVENUECAT_SECRET_KEY;
   if (!key) return false;
   try {
     const res = await f(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`, { headers: { Authorization: `Bearer ${key}` } });
     if (!res.ok) return false;
-    const ent = (await res.json())?.subscriber?.entitlements?.pro;
-    return !!ent && (!ent.expires_date || Date.parse(ent.expires_date) > Date.now());
+    const ents = (await res.json())?.subscriber?.entitlements || {};
+    return ["premium", "pro"].some((k) => { const e = ents[k]; return !!e && (!e.expires_date || Date.parse(e.expires_date) > Date.now()); });
   } catch { return false; }
 }
 
@@ -313,7 +322,7 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
   if (remaining < 0) {
     return json(429, { error: "daily_limit", pro,
       message: pro ? `오늘 AI 비서를 ${limit}번 모두 쓰셨어요. 내일 다시 이용해 주세요.`
-        : `무료로는 하루 ${limit}번까지 쓸 수 있어요. PRO로 바꾸시면 하루 ${env.MYPLANNER_AI_PRO_DAILY || 60}번까지 대화할 수 있어요.` });
+        : `지금 이용권으로는 하루 ${limit}번까지 쓸 수 있어요. 프리미엄으로 바꾸시면 하루 ${env.MYPLANNER_AI_PRO_DAILY || 60}번까지 대화할 수 있어요.` });
   }
 
   // 대화 기록 (최근 10개, 글만) + 이번 말

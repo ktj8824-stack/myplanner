@@ -350,7 +350,7 @@ const Alarm = {
     el.classList.toggle('wake', !!html);
     if (html) {
       el.innerHTML = html;
-      el.classList.add('show');
+      el.classList.add('show'); if (typeof Ads !== 'undefined') Ads.sync();
       if (!quiet) this.beep(true);
       clearInterval(this._clockTimer);
       this._clockTimer = setInterval(() => { const t = el.querySelector('.wa-time'); if (t) t.textContent = U.hm(new Date()); }, 15000);
@@ -364,7 +364,7 @@ const Alarm = {
         <button class="btn primary big" onclick="Alarm.stop(true)">확인 · 일정 보기</button>
         <button class="btn ghost" onclick="Alarm.snooze()">5분 뒤 다시 알림</button>
       </div>`;
-    el.classList.add('show');
+    el.classList.add('show'); if (typeof Ads !== 'undefined') Ads.sync();
     this.beep(true);
     // 울리는 동안 큰 시계 숫자도 흘러가게
     clearInterval(this._clockTimer);
@@ -387,6 +387,7 @@ const Alarm = {
     clearInterval(this._clockTimer);
     this.beep(false);
     document.getElementById('ringing').classList.remove('show');
+    if (typeof Ads !== 'undefined') Ads.sync();
     if (open) {
       // '일정 보기'로 끈 것도 알람을 본 것 → 아이폰이 1·2분 뒤 다시 울리려고 예약해 둔 알림 지움
       const id = this._ringId, kind = this._ringKind, LN = this.ln();
