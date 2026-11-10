@@ -700,6 +700,13 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .pro-price { display: flex; align-items: baseline; gap: 8px; margin: 6px 0 14px; }
 .pro-price b { font-size: 30px; font-weight: 800; letter-spacing: -.02em; }
 .pro-price span { font-size: 13px; color: var(--on-navy); }
+.pro-sub { margin: -8px 0 14px; font-size: 13px; color: var(--on-navy); }
+.pro-agree { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 4px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; font-size: 14px; font-weight: 700; line-height: 1.5; }
+.pro-agree input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 1px; }
+.pro-agree small { display: block; font-weight: 500; font-size: 12.5px; color: var(--muted, #6b7280); }
+.pro-result.ok { border: 1.5px solid #86efac; }
+.pro-result.fail { border: 1.5px solid #fecaca; }
+.pro-fail-reason { background: #fff4f2; color: #a63a24; border-radius: 10px; padding: 8px 10px; }
 .pro-perks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 .pro-perks li { display: flex; flex-direction: column; padding-left: 22px; position: relative; }
 .pro-perks li::before { content: ''; position: absolute; left: 2px; top: 7px; width: 10px; height: 5px; border-left: 2.4px solid var(--yellow); border-bottom: 2.4px solid var(--yellow); transform: rotate(-45deg); }

@@ -2,7 +2,7 @@
 // 토스 승인 결과를 서버가 확인한 뒤에만 PRO 기간을 늘립니다.
 // 웹 = 토스 결제(1개월씩), 앱 = 애플·구글 구독(RevenueCat). 둘 중 하나라도 유효하면 PRO.
 export const PRICE = 4900; // 월 4,900원 (VAT 포함)
-export const ORDER_NAME = "마이플래너 PRO (1개월)";
+export const ORDER_NAME = "마이플래너 PRO (월 정기)";
 export const DOCS_TEST_SECRET = "test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6"; // 토스 문서 공개 테스트 키 (실제 돈 안 나감)
 
 export class PayError extends Error {
@@ -21,9 +21,17 @@ export function addMonth(from: Date) {
 // db: { getPayment, insertPayment, updatePayment, proUntil, recentPayments }
 // toss: (paymentKey, orderId, amount) => { ok, status, body }
 // store: () => Promise<{ active, expires, product } | null>  (앱 구독, RevenueCat)
+// 주문번호: 문의·환불 때 불러 주기 쉽게 "MP-날짜(한국)-영문숫자 6자리" (예: MP-20261110-8F3K2A)
+export function makeOrderId(now: Date) {
+  const k = new Date(now.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10).replace(/-/g, "");
+  const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 헷갈리는 0·O·1·I 빼고
+  const r = crypto.getRandomValues(new Uint8Array(6));
+  return `MP-${k}-${Array.from(r, (b) => abc[b % abc.length]).join("")}`;
+}
+
 export async function handle(action: string, body: Record<string, unknown>, userId: string, db: any, toss: any, store: any, mode: string, now = new Date()) {
   if (action === "prepare") {
-    const orderId = `MP-PRO-${now.getTime()}-${crypto.randomUUID().slice(0, 8)}`;
+    const orderId = makeOrderId(now);
     await db.insertPayment({ order_id: orderId, user_id: userId, plan: "pro", amount: PRICE, order_name: ORDER_NAME, status: "READY", mode });
     return { orderId, amount: PRICE, orderName: ORDER_NAME, mode };
   }
