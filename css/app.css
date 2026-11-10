@@ -515,8 +515,12 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 .ai-input { position: fixed; left: 0; right: 0; bottom: 0; max-width: 480px; margin: 0 auto; display: flex; gap: 8px; align-items: center; padding: 12px 18px calc(env(safe-area-inset-bottom) + 12px); background: rgba(244, 245, 247, .95); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .ai-input .input { flex: 1; font-size: 17px; background: #fff; box-shadow: var(--shadow); }
 .ai-input .btn { flex: none; background: var(--navy); color: #fff; box-shadow: none; }
-.ai-mic { flex: none; width: 54px; height: 54px; border-radius: 18px; background: var(--navy); color: #fff; font-size: 24px; display: grid; place-items: center; }
-.ai-mic.on { background: var(--red); animation: pulse 1s infinite; }
+.ai-mic { flex: none; width: 54px; height: 54px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 32% 26%, #4A5C86 0%, #2B3858 42%, #141C30 100%);
+  box-shadow: 0 8px 14px -8px rgba(20, 28, 48, .75), inset 0 2px 3px rgba(255, 255, 255, .28), inset 0 -4px 6px rgba(0, 0, 0, .35); }
+.ai-mic .mic3d { width: 32px; height: 32px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
+.ai-mic:active { transform: translateY(1px) scale(.97); }
+.ai-mic.on { background: radial-gradient(circle at 32% 26%, #FF7A70 0%, #F04452 45%, #B5202C 100%); animation: pulse 1s infinite; }
 .ai-report { align-self: flex-start; margin: 6px 0 0 6px; padding: 4px 6px; font-size: 13px; font-weight: 600; color: var(--faint); text-decoration: underline; text-underline-offset: 3px; }
 .ai-report.done { text-decoration: none; }
 .ai-report-quote { padding: 12px 14px; border-radius: 14px; background: var(--fill); color: var(--ink-2); font-size: 15px; line-height: 1.55; max-height: 140px; overflow: auto; }

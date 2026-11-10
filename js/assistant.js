@@ -71,7 +71,7 @@ const Assistant = {
       <div id="aiLog" class="ai-log">${this.msgs.length ? this.msgs.map((m, i) => this.bubble(m, i)).join('') : this.welcome()}</div>
       <div class="ai-suggest" id="aiSuggest">${this.SUGGEST.map(s => `<button class="chip" onclick="Assistant.send(${JSON.stringify(s).replace(/"/g, '&quot;')})">${U.esc(s)}</button>`).join('')}</div>
       <div class="ai-input">
-        ${Voice.canListen() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">🎙</button>` : ''}
+        ${Voice.canListen() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">${App.micSvg()}</button>` : ''}
         <input id="aiText" class="input" placeholder="${Voice.canListen() ? '말하거나 여기에 쓰세요' : '여기에 쓰세요'}"
           enterkeyhint="send" onkeydown="if(event.key==='Enter'){Assistant.send()}">
         <button class="btn primary" onclick="Assistant.send()">보내기</button>
