@@ -320,9 +320,12 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 #nav .nav-ic { display: grid; place-items: center; height: 26px; }
 #nav .nav-ic .ic { width: 24px; height: 24px; }
 #nav button.active { color: var(--navy); }
-#nav .nav-ai .nav-ic { width: 46px; height: 46px; border-radius: 15px; background: var(--navy); margin: -10px 0 0; box-shadow: 0 6px 14px -6px rgba(31, 42, 68, .6); }
-#nav .nav-ai .nav-ic img { width: 30px; height: 30px; object-fit: contain; }
-#nav .nav-ai span:last-child { color: var(--navy); }
+#nav .nav-ai .nav-ic { width: 54px; height: 54px; border-radius: 50%; margin: -20px 0 0; border: 3px solid #fff;
+  background: radial-gradient(circle at 32% 26%, #4A5C86 0%, #2B3858 42%, #141C30 100%);
+  box-shadow: 0 10px 18px -8px rgba(20, 28, 48, .75), inset 0 2px 3px rgba(255, 255, 255, .28), inset 0 -4px 6px rgba(0, 0, 0, .35); }
+#nav .nav-ai .mic3d { width: 34px; height: 34px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
+#nav .nav-ai:active .nav-ic { transform: translateY(1px) scale(.97); box-shadow: 0 6px 12px -8px rgba(20, 28, 48, .75), inset 0 3px 6px rgba(0, 0, 0, .4); }
+#nav .nav-ai-label { font-size: 12px; font-weight: 900; letter-spacing: -.02em; background: linear-gradient(90deg, #1F2A44, #3182F6); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
 /* ── 시트 ── */
 #sheet { display: none; position: fixed; inset: 0; z-index: 40; }

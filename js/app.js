@@ -70,7 +70,23 @@ const App = {
       </div>`;
     const items = [['home', 'home', '홈'], ['calendar', 'calendar', '캘린더'], ['assistant', null, 'AI 비서'], ['market', 'bag', '마켓'], ['settings', 'user', '마이']];
     document.getElementById('nav').innerHTML = items.map(([k, ic, label]) =>
-      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${ic ? Icons.svg(ic) : '<img src="img/icons/community.png" alt="">'}</span><span>${label}</span></button>`).join('');
+      `<button data-nav="${k}" class="${k === 'assistant' ? 'nav-ai' : ''}" onclick="App.navigate('${k}')" aria-label="${label}"><span class="nav-ic">${ic ? Icons.svg(ic) : App.micSvg()}</span><span${k === 'assistant' ? ' class="nav-ai-label"' : ''}>${label}</span></button>`).join('');
+  },
+
+  /** AI 비서 마이크 (입체: 위쪽 빛, 아래 그림자) */
+  micSvg() {
+    return `<svg class="mic3d" viewBox="0 0 32 32" aria-hidden="true">
+      <defs>
+        <linearGradient id="micBody" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FFE7A3"/><stop offset=".45" stop-color="#FFC94D"/><stop offset="1" stop-color="#E9A21C"/></linearGradient>
+        <linearGradient id="micStand" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#C9D2E3"/></linearGradient>
+      </defs>
+      <ellipse cx="16" cy="28.4" rx="6.5" ry="1.3" fill="#0B1324" opacity=".35"/>
+      <path d="M9.2 14.6a6.8 6.8 0 0 0 13.6 0" fill="none" stroke="url(#micStand)" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M16 21.4v4.4M12.2 26.4h7.6" stroke="url(#micStand)" stroke-width="2.2" stroke-linecap="round"/>
+      <rect x="11.6" y="3.6" width="8.8" height="15.2" rx="4.4" fill="url(#micBody)"/>
+      <path d="M12.8 9h2.4M12.8 11.6h2.4M12.8 14.2h2.4M16.8 9h2.4M16.8 11.6h2.4M16.8 14.2h2.4" stroke="#B9790A" stroke-width=".9" stroke-linecap="round" opacity=".55"/>
+      <rect x="13" y="4.8" width="2.2" height="7.6" rx="1.1" fill="#FFFFFF" opacity=".75"/>
+    </svg>`;
   },
 
   /** 전체 메뉴 (상단 ≡) */
