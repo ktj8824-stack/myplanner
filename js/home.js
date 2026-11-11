@@ -28,6 +28,7 @@ const Home = {
       ${Demo.bar()}
       ${next ? this.nextCard(next) : this.emptyCard()}
       <div id="permNotice"></div>
+      ${typeof AutoNav !== 'undefined' && AutoNav.promoHtml ? AutoNav.promoHtml() : ''}
       ${!State.settings.home ? `<button class="notice" onclick="App.navigate('settings')">${U.icon('home')} 집 주소를 등록하면 출발지가 자동으로 들어가요</button>` : ''}
 
       <div class="acts">

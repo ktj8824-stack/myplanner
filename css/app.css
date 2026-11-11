@@ -889,3 +889,13 @@ body.scr-ai::after { height: calc(max(10px, env(safe-area-inset-bottom) - 12px) 
 .an-g-ol{padding-left:22px;margin:0;list-style:decimal;font-size:14px;line-height:1.6}
 .an-g-link{display:flex;gap:6px;align-items:center}.an-g-link .input{flex:1;min-width:0;margin:0}.an-g-link .btn{white-space:nowrap;width:auto;padding:0 14px}
 .sheet-panel.an-sheet > * { flex: none; }
+
+/* 홈: 차에 타면 자동 길안내 홍보 줄 */
+.anp { position:relative; margin:0 0 12px; }
+.anp-go { display:flex; align-items:center; gap:10px; padding:11px 40px 11px 12px; border-radius:16px; background:#191F28; color:#fff; text-decoration:none; }
+.anp-ic { flex:none; width:34px; height:34px; border-radius:10px; display:grid; place-items:center; background:var(--blue); color:#fff; }
+.anp-t { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+.anp-t b { font-size:14.5px; font-weight:700; letter-spacing:-0.3px; }
+.anp-t small { font-size:12px; color:#C9CFD8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.anp-btn { flex:none; height:30px; padding:0 10px; border-radius:9px; background:#fff; color:var(--blue-ink); font-size:13px; font-weight:700; display:grid; place-items:center; }
+.anp-x { position:absolute; top:50%; right:6px; transform:translateY(-50%); width:30px; height:30px; border:0; background:transparent; color:#8B95A1; font-size:14px; cursor:pointer; }
