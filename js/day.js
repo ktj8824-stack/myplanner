@@ -245,7 +245,7 @@ const DayView = {
     if (!b) return;
     const occ = Recur.isRepeating(b) ? Recur.instance(b, this.date) : b;
     Sheet.open(`
-      <div class="sheet-head"><b>'${U.esc(b.title)}' 몇 시에 끝나요?</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>'${U.esc(b.title)}' 몇 시에 끝나요?</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <p class="muted small">끝나는 시간을 알면 다음 약속까지 남는 시간과 이동을 정확히 계산해요.</p>
       <input type="time" id="endIn" class="input" value="${U.esc(occ.endBy || '')}">
       <button class="btn primary big" style="margin-top:14px" onclick="DayView.saveEnd('${U.esc(id)}')">저장</button>`);

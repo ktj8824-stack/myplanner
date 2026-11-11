@@ -215,7 +215,7 @@ const AutoNav = {
         <li>실행: <b>웹페이지 열기</b>(또는 링크 열기) → 위 링크</li>
       </ol>`;
     Sheet.open(`
-      <div class="sheet-head"><b>🚗 차에 타면 자동 길안내</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>🚗 차에 타면 자동 길안내</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <p class="small">휴대폰이 차와 연결되면 마이플래너가 열리면서 <b>지금 가야 할 곳</b>(일정 장소·역·공항·집)으로 내비가 켜져요. 출발지는 <b>지금 있는 곳</b>이에요.</p>
       <label class="lbl">1. 자가용 기본 내비</label>
       <div class="seg">${opt('tmap', '티맵')}${opt('kakaomap', '카카오맵')}${opt('choice', '매번 선택')}</div>

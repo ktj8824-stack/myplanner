@@ -224,7 +224,7 @@ const Timeline = {
     const s = this.cur();
     const isTrip = Planner.isTrip(s.mode);
     Sheet.open(`
-      <div class="sheet-head"><b>${U.dateLabel(s.date).split(' · ')[0]}만 바꾸기</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>${U.dateLabel(s.date).split(' · ')[0]}만 바꾸기</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       ${isTrip ? '' : `<label class="lbl">도착 시간</label><input type="time" id="ovArrive" class="input" value="${s.arriveBy}">`}
       <label class="lbl">준비 시간 (분)</label><input type="number" id="ovPrep" class="input" inputmode="numeric" min="0" max="300" value="${s.prepMin}">
       <label class="lbl">여유 시간 (분)</label><input type="number" id="ovBuffer" class="input" inputmode="numeric" min="0" max="300" value="${s.bufferMin}">
@@ -327,14 +327,14 @@ const Timeline = {
     if (!Cloud.families.length) { try { await Cloud.loadFamilies(); } catch (e) {} }
     const people = Cloud.familyPeople();
     if (!people.length) {
-      Sheet.open(`<div class="sheet-head"><b>가족 공유</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      Sheet.open(`<div class="sheet-head"><b>가족 공유</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
         <p>아직 가족이 없어요. <b>설정 &gt; 가족</b>에서 가족을 만들고 초대 코드를 보내 주세요.</p>
         <button class="btn primary big" onclick="Sheet.close();App.navigate('settings')">가족 만들러 가기</button>`);
       return;
     }
     const on = Cloud.sharedTargets(s.id);
     Sheet.open(`
-      <div class="sheet-head"><b>누구 폰에서 알람이 울릴까요?</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>누구 폰에서 알람이 울릴까요?</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <p class="muted small">고른 가족의 폰에도 이 일정과 기상·출발 알람이 들어가요. 고치면 가족 폰에도 반영돼요.</p>
       ${people.map(p => `<label class="toggle-row"><span>${U.esc(p.display_name || '가족')} <small class="muted">${U.esc(p.family)}</small></span>
         <input type="checkbox" class="fs-pick" value="${p.user_id}" ${on.includes(p.user_id) ? 'checked' : ''}></label>`).join('')}
@@ -364,7 +364,7 @@ const Timeline = {
     const s = this.cur(), b = this.base();
     if (Recur.isRepeating(s)) {
       Sheet.open(`
-        <div class="sheet-head"><b>반복 일정 삭제</b><button class="x" onclick="Sheet.close()">✕</button></div>
+        <div class="sheet-head"><b>반복 일정 삭제</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
         <button class="btn ghost" onclick="Sheet.close();Timeline.skipDay()">이 날만 삭제 (건너뛰기)</button>
         <button class="btn ghost" onclick="Timeline.endFrom()">이 날부터 반복 끝내기</button>
         <button class="btn ghost danger" onclick="Timeline.removeAll()">반복 일정 전체 삭제</button>`);

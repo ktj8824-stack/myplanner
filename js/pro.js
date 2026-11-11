@@ -9,7 +9,7 @@
 const Pro = {
   PRICE: 4900,          // 프리미엄 (예전 이름 그대로 둠)
   PLANS: {
-    plus: { name: '플러스', price: 1900, perks: [['광고 없음', '아래 배너·보상형 광고가 나오지 않아요'], ['일정·알람·가족 공유', '무료와 같은 기능을 광고 없이 편하게']] },
+    plus: { name: '플러스', price: 1900, perks: [['광고 없음', '아래 배너 광고가 나오지 않아요 (포인트용 광고는 원할 때만)'], ['일정·알람·가족 공유', '무료와 같은 기능을 광고 없이 편하게']] },
     premium: { name: '프리미엄', price: 4900, perks: [['광고 없음', '플러스 혜택을 모두 포함해요'], ['AI 비서 하루 60번', '"내일 10시 아산병원"처럼 말하면 등록·변경·질문까지'], ['여러 일정도 한 번에', '"병원 갔다가 2시에 회사" 같은 하루 동선을 바로 정리']] },
   },
   sel: 'premium',       // 고른 이용권
@@ -34,7 +34,12 @@ const Pro = {
 
   async refresh() {
     if (!Cloud.isSignedIn()) { this.status = null; if (typeof Ads !== 'undefined') Ads.sync(); return; }
-    try { this.status = await this.call({ action: 'status' }); } catch (e) { console.warn('[Pro] 상태 확인 실패', e.message); }
+    try {
+      this.status = await this.call({ action: 'status' });
+      // 다음에 앱을 켤 때 서버 답 전에도 등급을 알도록 기억 (유료 회원에게 광고가 깜빡이지 않게)
+      const st = this.status, until = (st.web && st.web.active && st.web.until) || (st.app && st.app.active && st.app.until) || (st.tier !== 'free' ? new Date(Date.now() + 3 * 86400000).toISOString() : null);
+      try { localStorage.setItem('mp_tier', JSON.stringify({ tier: st.tier || 'free', until, uid: Cloud.userId() })); } catch (e) {}
+    } catch (e) { console.warn('[Pro] 상태 확인 실패', e.message); }
     if (typeof Ads !== 'undefined') Ads.applyPro(); // 플러스·프리미엄이면 광고 지움
   },
 
@@ -54,7 +59,15 @@ const Pro = {
   promoText() { const d = new Date(this.promoUntil()); return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`; },
 
   /** 지금 이용권: free | plus | premium */
-  tier() { return (this.status && this.status.tier) || (this.status && this.status.pro ? 'premium' : 'free'); },
+  tier() {
+    if (this.status) return this.status.tier || (this.status.pro ? 'premium' : 'free');
+    // 서버 답 전: 같은 계정으로 기억해 둔 등급 (기간 안일 때만)
+    try {
+      const c = JSON.parse(localStorage.getItem('mp_tier') || 'null');
+      if (c && c.tier !== 'free' && c.uid && c.uid === Cloud.userId() && c.until && Date.parse(c.until) > Date.now()) return c.tier;
+    } catch (e) {}
+    return 'free';
+  },
   adFree() { return this.tier() !== 'free'; },
   premium() { return this.tier() === 'premium'; },
   price() { return this.PLANS[this.sel].price; },
@@ -147,7 +160,7 @@ const Pro = {
         <div class="small" style="margin-top:8px">${row('주문번호', U.esc(r.orderId || ''))}${row('이용권', r.plan === 'plus' ? '플러스' : '프리미엄')}${row('결제 금액', Number(r.amount || this.PRICE).toLocaleString() + '원 (부가세 포함)')}${r.method ? row('결제 수단', U.esc(r.method)) : ''}${r.periodEnd ? row('다음 결제일', md(r.periodEnd) + ' (매달 자동결제)') : ''}</div>
         <button class="link small" style="margin-top:6px" onclick="Pro.result=null;Pro.paint()">닫기</button></div>`;
     return `<div class="card pro-result fail"><b style="font-size:1.05em">결제가 안 됐어요</b>
-        <p class="small" style="margin:6px 0">돈은 빠져나가지 않았어요.</p>
+        <p class="small" style="margin:6px 0">${r.afterApprove ? `결제 확인 중 문제가 생겼어요. 카드에서 돈이 빠져나갔다면 주문번호 <b>${U.esc(r.orderId || '')}</b>로 문의해 주세요. 앱을 다시 열면 한 번 더 확인해요.` : '돈은 빠져나가지 않았어요.'}</p>
         <p class="small pro-fail-reason">이유: ${U.esc(String(r.reason || '').slice(0, 120))}${r.code ? ` <span class="muted">(${U.esc(r.code)})</span>` : ''}</p>
         <button class="btn primary" style="width:100%" onclick="Pro.result=null;Pro.paint()">다른 카드로 결제하기</button></div>`;
   },
@@ -225,8 +238,25 @@ const Pro = {
       const r = await this.call({ action: 'confirm', paymentKey: info.paymentKey, orderId: info.orderId, amount: info.amount });
       if (r.status === 'DONE') this.result = { ok: true, ...r };
       else U.toast('입금을 기다리고 있어요');
-    } catch (e) { this.result = { ok: false, reason: e.message || '결제 승인에 실패했어요', code: e.code }; }
+    } catch (e) {
+      // 토스가 거절한 경우가 아니면(저장 오류·연결 끊김 등) 돈이 나갔을 수 있음 → 다음 실행 때 한 번 더 확인
+      const declined = /^[A-Z_]+$/.test(e.code || '') && !['DB', 'INTERNAL', 'AMOUNT_MISMATCH', 'CONFIG', 'UNAUTHORIZED'].includes(e.code);
+      if (!declined) { try { localStorage.setItem('mp_pay_pending', JSON.stringify(info)); } catch (x) {} }
+      this.result = { ok: false, reason: e.message || '결제 승인에 실패했어요', code: e.code, afterApprove: !declined, orderId: info.orderId };
+    }
     return 'pro';
+  },
+
+  /** 지난번 결제 확인이 중간에 끊겼으면 한 번 더 확인 (토스는 같은 주문 승인을 두 번 하지 않음) */
+  async retryPending() {
+    let p = null;
+    try { p = JSON.parse(localStorage.getItem('mp_pay_pending') || 'null'); } catch (e) {}
+    if (!p || !p.paymentKey || !Cloud.isSignedIn()) return;
+    try {
+      const r = await this.call({ action: 'confirm', paymentKey: p.paymentKey, orderId: p.orderId, amount: p.amount });
+      localStorage.removeItem('mp_pay_pending');
+      if (r.status === 'DONE') { U.toast('지난 결제를 확인했어요'); this.refresh(); }
+    } catch (e) { if (e.code && !['DB', 'INTERNAL'].includes(e.code)) { try { localStorage.removeItem('mp_pay_pending'); } catch (x) {} } }
   },
 
   /* ---------- 앱: 애플·구글 구독 (RevenueCat) ---------- */

@@ -611,7 +611,7 @@ const PasteImport = {
 
   open(text = '') {
     Sheet.open(`
-      <div class="sheet-head"><b>받은 문자로 채우기</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>받은 문자로 채우기</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <textarea id="pasteText" class="input paste-area" rows="3" placeholder="예) [코레일] 11월 5일 KTX 101열차 서울(08:00)→부산(10:40)&#10;예) [OO병원] 11월 6일 오후 2시 30분 진료 예약&#10;예) 내일 오전 10시 판교역 2번 출구에서 미팅"
         oninput="PasteImport.preview()">${U.esc(text)}</textarea>
       <div class="paste-row">

@@ -61,7 +61,7 @@ const Points = {
   /** 로그인 안 했으면 안내하고 false */
   requireLogin(what = '포인트') {
     if (this.available()) return true;
-    Sheet.open(`<div class="sheet-head"><b>로그인이 필요해요</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>로그인이 필요해요</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <p class="muted" style="margin:0 0 14px">${what}는 계정에 안전하게 보관돼요. 폰을 바꿔도 그대로 이어져요.</p>
       <button class="btn kakao big" onclick="Sheet.close();Cloud.signInKakao()">카카오로 로그인</button>
       <button class="btn ghost" onclick="Sheet.close()">나중에</button>`);

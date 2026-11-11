@@ -128,7 +128,7 @@ const Assistant = {
     const m = this.msgs[i];
     if (!m) return;
     Sheet.open(`
-      <div class="sheet-head"><b>이 답변 신고하기</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>이 답변 신고하기</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="ai-report-quote">${U.esc(m.content).slice(0, 300)}</div>
       <label class="lbl">어떤 문제가 있나요?</label>
       <div class="report-reasons">${this.REPORT_REASONS.map(([k, l], n) => `

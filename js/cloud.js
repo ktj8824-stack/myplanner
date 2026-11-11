@@ -105,6 +105,9 @@ const Cloud = {
         this.status = 'synced';
         U.toast('로그인했어요');
         await this.sync();
+        // 이용권(광고 여부)·포인트를 바로 반영
+        if (typeof Pro !== 'undefined') Pro.refresh();
+        if (typeof Points !== 'undefined') Points.refresh();
       } catch (e) { U.toast('카카오 로그인 실패: ' + (e.message || e)); }
       return;
     }
@@ -191,13 +194,13 @@ const Cloud = {
       try { const j = JSON.parse(text); msg = j.message || j.msg || text; } catch (e) {}
       const err = new Error(msg.slice(0, 200)); err.status = res.status;
       // 테이블이 아직 없음 (서버 설정 전)
-      if (res.status === 404 || /does not exist|schema cache/i.test(msg)) { err.noServer = true; this.status = 'no_server'; }
+      if (res.status === 404 || /does not exist|schema cache/i.test(msg)) { err.noServer = true; if (!opts.quiet) this.status = 'no_server'; }
       throw err;
     }
     return text ? JSON.parse(text) : null;
   },
 
-  rpc(fn, args) { return this._api(`rest/v1/rpc/${fn}`, { method: 'POST', body: args || {} }); },
+  rpc(fn, args) { return this._api(`rest/v1/rpc/${fn}`, { method: 'POST', body: args || {}, quiet: true }); }, // 함수 호출 실패는 동기화 상태를 바꾸지 않음
 
   async signOut() {
     try { if (this.isSignedIn()) await this._api('auth/v1/logout', { method: 'POST' }); } catch (e) {}
@@ -211,7 +214,7 @@ const Cloud = {
     this.status = 'signed_out';
     // 앞 사람의 이용권·포인트 표시가 다음 사람에게 남지 않게 (2026-11-11 점검)
     if (typeof Pro !== 'undefined') Pro.status = null;
-    try { localStorage.removeItem('mp_points'); localStorage.removeItem('mp_points_meta'); } catch (e) {}
+    try { ['mp_points', 'mp_points_meta', 'mp_tier'].forEach(k => localStorage.removeItem(k)); } catch (e) {}
     if (typeof Ads !== 'undefined') Promise.resolve().then(() => Ads.sync()).catch(() => {});
     await Alarm.rescheduleAll();
   },

@@ -14,6 +14,7 @@ const App = {
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
     const payBack = await Pro.consumeReturn(); // 토스 결제창에서 돌아온 경우 서버 승인 → PRO 화면
     Pro.refresh(); // 플러스·프리미엄이면 광고 없음 (확인 뒤 광고 정리)
+    Pro.retryPending(); // 지난번에 끊긴 결제 확인
     Points.refresh().then(r => { if (r && this.current === 'home') Home.render(); }); // 홈 출석 체크 줄
     this.renderNav();
     const first = !localStorage.getItem('mp_onboarded');
@@ -107,7 +108,7 @@ const App = {
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
       ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
     ];
-    Sheet.open(`<div class="sheet-head"><b>전체 메뉴</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>전체 메뉴</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="menu-list">${items.map(([k, img, t, d]) => `<button class="menu-item" onclick="Sheet.close();${k === 'paste' ? "App.navigate('register',{paste:true})" : `App.navigate('${k}')`}"><img src="${img}" alt=""><span>${t}<small>${d}</small></span></button>`).join('')}
       ${typeof Demo !== 'undefined' ? `<button class="menu-item" onclick="Sheet.close();${Demo.has() ? 'Demo.remove()' : 'Demo.add()'}"><img src="img/icons/timeline.png" alt=""><span>${Demo.has() ? '예시 일정 지우기' : '예시 일정으로 둘러보기'}<small>기능을 한눈에 보는 일정 3개</small></span></button>` : ''}</div>`);
   },
@@ -157,7 +158,7 @@ const PlacePicker = {
     this.results = [];
     const home = State.settings.home;
     Sheet.open(`
-      <div class="sheet-head"><b>${U.esc(title)}</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>${U.esc(title)}</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="search-row">
         <div class="search-box">${Icons.svg('search')}
           <input id="ppInput" class="input" placeholder="장소·역·주소 (예: 서울아산병원)" enterkeyhint="search" autocomplete="off"

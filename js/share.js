@@ -84,7 +84,7 @@ const Share = {
       await navigator.clipboard.writeText(text + '\n' + url);
       U.toast('링크를 복사했어요. 카톡에 붙여넣어 보내 주세요');
     } catch (e) {
-      Sheet.open(`<div class="sheet-head"><b>링크 복사</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      Sheet.open(`<div class="sheet-head"><b>링크 복사</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
         <textarea class="input paste-area" readonly onclick="this.select()">${U.esc(text + '\n' + url)}</textarea>
         <p class="muted small">길게 눌러 복사한 뒤 카톡에 붙여넣으세요.</p>`);
     }
@@ -98,7 +98,7 @@ const Share = {
     const plan = (() => { try { return Planner.compute({ ...o, alarm: {} }); } catch (e) { return null; } })();
     const sameHome = home && o.origin && Math.abs(home.lat - o.origin.lat) < 0.002 && Math.abs(home.lng - o.origin.lng) < 0.002;
     Sheet.open(`
-      <div class="sheet-head"><b>받은 일정</b><button class="x" onclick="Sheet.close()">✕</button></div>
+      <div class="sheet-head"><b>받은 일정</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="card import-card">
         <div class="muted small">${U.dateLabel(o.date)} · ${m.emoji} ${m.label}${o.repeat ? ' · 🔁 ' + U.esc(Recur.label(o)) : ''}</div>
         <div class="import-title">${U.esc(o.title)}</div>

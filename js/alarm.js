@@ -245,7 +245,15 @@ const Alarm = {
             // 64개 한도 안에서 기상·출발 알람을 더 많은 날짜만큼 넣으려고, 안내 알림(전날 밤·10분 전 등)은 3일 안의 것만
             const soon = Date.now() + 3 * 86400000;
             notes = notes.concat(more).filter(n => n.extra.alarm || n.schedule.at.getTime() < soon)
-              .sort((x, y) => x.schedule.at - y.schedule.at).slice(0, this.IOS_MAX);
+              .sort((x, y) => x.schedule.at - y.schedule.at);
+            // 넘치면 마지막 자리에 '여기까지 예약돼 있어요' 안내 1개 (앱을 오래 안 열어 알람이 조용히 끊기지 않게)
+            if (notes.length > this.IOS_MAX) {
+              notes = notes.slice(0, this.IOS_MAX - 1);
+              const last = notes[notes.length - 1].schedule.at, d = new Date(last);
+              notes.push({ id: this.numId('mp-end-notice'), title: '마이플래너 알람 안내',
+                body: `알람이 ${d.getMonth() + 1}월 ${d.getDate()}일까지 예약돼 있어요. 앱을 한 번 열어 주시면 다음 알람을 이어서 예약해요.`,
+                schedule: { at: new Date(last.getTime() + 60000) }, extra: { kind: 'end-notice' } });
+            }
           }
           await LN.schedule({ notifications: notes });
         }

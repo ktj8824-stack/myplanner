@@ -121,7 +121,7 @@ const Raffle = {
     const max = Math.max(0, Math.min(r.per_user_limit - r.my_entries, r.max_entries - r.entries, Math.floor(bal / r.entry_cost)));
     if (max <= 0) {
       if (bal < r.entry_cost) {
-        Sheet.open(`<div class="sheet-head"><b>포인트가 모자라요</b><button class="x" onclick="Sheet.close()">✕</button></div>
+        Sheet.open(`<div class="sheet-head"><b>포인트가 모자라요</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
           <p class="muted" style="margin:0 0 14px">응모하려면 ${r.entry_cost.toLocaleString()}P가 필요해요. 지금 ${bal.toLocaleString()}P가 있어요.</p>
           <button class="btn primary big" onclick="Sheet.close();App.navigate('points')">포인트 모으러 가기</button>
           <button class="btn ghost" onclick="Sheet.close()">닫기</button>`);
@@ -130,7 +130,7 @@ const Raffle = {
     }
     this._count = 1;
     this._entering = { id: r.id, cost: r.entry_cost, bal };
-    Sheet.open(`<div class="sheet-head"><b>럭키드로우 응모</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>럭키드로우 응모</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="rf-enter">
         <b>${U.esc(r.prize_name)}</b>
         <p class="muted small">1회 ${r.entry_cost.toLocaleString()}P · 많이 응모할수록 당첨 확률이 올라가요</p>
@@ -160,7 +160,7 @@ const Raffle = {
       else {
         Points.apply({ balance: r.balance });
         if (r.drawn) {
-          Sheet.open(`<div class="sheet-head"><b>${r.won ? '당첨됐어요!' : '추첨이 끝났어요'}</b><button class="x" onclick="Sheet.close()">✕</button></div>
+          Sheet.open(`<div class="sheet-head"><b>${r.won ? '당첨됐어요!' : '추첨이 끝났어요'}</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
             <p class="muted" style="margin:0 0 14px">마지막 응모로 정원이 차서 바로 추첨했어요. ${r.won ? '축하해요! 배송지를 넣어 주세요.' : '아쉽게도 이번에는 당첨되지 않았어요.'}</p>
             <button class="btn primary big" onclick="Sheet.close();${r.won ? `Raffle.showClaim(${id})` : ''}">${r.won ? '배송지 입력' : '확인'}</button>`);
         } else U.toast(`응모 완료 · 내 응모 ${r.my_entries}회`);
@@ -172,7 +172,7 @@ const Raffle = {
   /* ── 당첨 경품 배송지 ── */
   showClaim(id) {
     const r = this.find(id);
-    Sheet.open(`<div class="sheet-head"><b>경품 배송지 입력</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>경품 배송지 입력</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="rf-form">
         <p class="muted small">${r ? U.esc(r.prize_name) : ''}</p>
         <input id="rfName" class="input" maxlength="30" placeholder="받는 분 이름">
@@ -220,7 +220,7 @@ const Raffle = {
 
   showRules(id) {
     const r = this.find(id); if (!r) return;
-    Sheet.open(`<div class="sheet-head"><b>공식 규칙</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>공식 규칙</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="rf-rules"><b>${U.esc(r.title)}</b>${this.rulesText(r).map(([k, v]) => `<dl><dt>${U.esc(k)}</dt><dd>${U.esc(v)}</dd></dl>`).join('')}
       ${r.rules ? `<dl><dt>추가 안내</dt><dd style="white-space:pre-wrap">${U.esc(r.rules)}</dd></dl>` : ''}</div>
       <button class="btn primary big" onclick="Sheet.close()">확인</button>`);
@@ -288,7 +288,7 @@ const RaffleAdmin = {
   act(id, action, user = null) {
     const msg = { draw: '지금 추첨할까요? 성립 기준에 못 미치면 취소되고 포인트가 돌아가요.', cancel: '이 회차를 취소하고 응모 포인트를 모두 돌려줄까요?',
       ship: '보냄으로 표시할까요? 배송 정보는 30일 뒤 자동으로 지워져요.', promote: '기한 안에 배송지를 넣지 않은 당첨자를 취소하고 예비 당첨자에게 넘길까요?' }[action];
-    Sheet.open(`<div class="sheet-head"><b>럭키드로우</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>럭키드로우</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <p class="muted" style="margin:0 0 14px">${msg}</p>
       <button class="btn primary big" onclick="RaffleAdmin.run(${id}, '${action}', ${user ? `'${user}'` : 'null'})">확인</button>
       <button class="btn ghost" onclick="Sheet.close()">그만두기</button>`);
@@ -315,7 +315,7 @@ const RaffleAdmin = {
     this.draft = r ? { id: r.id, minTouched: true } : { id: null, minTouched: false };
     const v = (k, d = '') => r && r[k] != null ? U.esc(String(r[k])) : d;
     const f = (lab, inner) => `<label class="adm-f"><span>${lab}</span>${inner}</label>`;
-    Sheet.open(`<div class="sheet-head"><b>${id ? '회차 고치기' : '새 럭키드로우 회차'}</b><button class="x" onclick="Sheet.close()">✕</button></div>
+    Sheet.open(`<div class="sheet-head"><b>${id ? '회차 고치기' : '새 럭키드로우 회차'}</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="adm-form">
         ${f('회차 이름', `<input id="arTitle" class="input" maxlength="80" placeholder="예: 12월 첫 럭키드로우" value="${v('title')}">`)}
         ${f('경품', `<input id="arPrize" class="input" maxlength="80" placeholder="예: 스타벅스 아메리카노" value="${v('prize_name')}">`)}
