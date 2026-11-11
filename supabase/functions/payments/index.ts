@@ -44,7 +44,9 @@ D.serve(async (req: Request) => {
       insertPayment: (row: unknown) => rest("mp_payments", { method: "POST", body: JSON.stringify(row) }),
       updatePayment: (id: string, patch: unknown) => rest(`mp_payments?order_id=eq.${q(id)}`, { method: "PATCH", body: JSON.stringify(patch) }),
       // 프리미엄은 예전 'pro' 결제도 포함
-      proUntil: async (uid: string, plan = "premium") => ((await rest(`mp_payments?user_id=eq.${uid}&status=eq.DONE&plan=in.(${plan === "plus" ? "plus" : "premium,pro"})&select=period_end&order=period_end.desc&limit=1`)) || [])[0]?.period_end || null,
+      // READY 일 때만 DONE 으로 (동시에 두 번 승인돼도 한 번만 저장)
+      finishPayment: async (id: string, patch: unknown) => ((await rest(`mp_payments?order_id=eq.${q(id)}&status=eq.READY`, { method: "PATCH", body: JSON.stringify(patch) })) || []).length > 0,
+      proUntil: async (uid: string, plan = "premium", except = "") => ((await rest(`mp_payments?user_id=eq.${uid}&status=eq.DONE&plan=in.(${plan === "plus" ? "plus" : "premium,pro"})${except ? `&order_id=neq.${q(except)}` : ""}&select=period_end&order=period_end.desc&limit=1`)) || [])[0]?.period_end || null,
       recentPayments: (uid: string) => rest(`mp_payments?user_id=eq.${uid}&status=neq.READY&select=order_id,plan,amount,status,method,approved_at,period_end,mode,created_at&order=created_at.desc&limit=12`),
     };
     const toss = async (paymentKey: string, orderId: string, amount: number) => {

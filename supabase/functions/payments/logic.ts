@@ -27,7 +27,7 @@ export function addMonth(from: Date) {
   return d;
 }
 
-// db: { getPayment, insertPayment, updatePayment, proUntil(userId, plan), recentPayments }
+// db: { getPayment, insertPayment, updatePayment, finishPayment(orderId, patch) → 바꾼 줄이 있으면 true, proUntil(userId, plan, exceptOrderId), recentPayments }
 // toss: (paymentKey, orderId, amount) => { ok, status, body }
 // store: () => Promise<{ active, expires, product } | null>  (앱 구독, RevenueCat)
 // 주문번호: 문의·환불 때 불러 주기 쉽게 "MP-날짜(한국)-영문숫자 6자리" (예: MP-20261110-8F3K2A)
@@ -69,11 +69,19 @@ export async function handle(action: string, body: Record<string, unknown>, user
     if (Number(r.body.totalAmount) !== row.amount) throw new PayError(400, "AMOUNT_MISMATCH", "승인 금액이 주문과 달라요.");
     // 같은 이용권 기간이 남아 있으면 그 끝에서 1개월 더
     const plan = planOf(row.plan);
-    const cur = await db.proUntil(userId, plan);
+    // 이 주문은 빼고 계산 — 같은 주문 승인이 거의 동시에 두 번 와도 1개월만 붙게 (2026-11-11 점검)
+    const cur = await db.proUntil(userId, plan, orderId);
     const start = cur && new Date(cur) > now ? new Date(cur) : now;
     const periodEnd = addMonth(start);
     const approvedAt = r.body.approvedAt || now.toISOString();
-    await db.updatePayment(orderId, { status: "DONE", payment_key: paymentKey, method: String(r.body.method || ""), approved_at: approvedAt, period_end: periodEnd.toISOString() });
+    const patch = { status: "DONE", payment_key: paymentKey, method: String(r.body.method || ""), approved_at: approvedAt, period_end: periodEnd.toISOString() };
+    // READY 일 때만 DONE 으로 바꿈. 먼저 끝난 요청이 있으면 그 결과를 그대로 돌려줌
+    const changed = db.finishPayment ? await db.finishPayment(orderId, patch) : (await db.updatePayment(orderId, patch), true);
+    if (!changed) {
+      const done = await db.getPayment(orderId);
+      if (done && done.status === "DONE") return { status: "DONE", orderId, plan: planOf(done.plan), amount: done.amount, method: done.method, approvedAt: done.approved_at, periodEnd: done.period_end, mode: done.mode };
+      throw new PayError(409, "ORDER_CLOSED", "이미 처리된 주문이에요.");
+    }
     return { status: "DONE", orderId, plan, amount: row.amount, method: r.body.method, approvedAt, periodEnd: periodEnd.toISOString(), mode: row.mode };
   }
 

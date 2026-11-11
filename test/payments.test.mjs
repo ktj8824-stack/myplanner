@@ -80,4 +80,25 @@ await assert.rejects(handle('prepare', { plan: 'premium' }, 'u5', db, toss, noSt
 const ps = await handle('status', {}, 'u5', db, toss, noStore, 'test', now);
 assert.strictEqual(ps.promo.active, true);
 assert.strictEqual((await handle('status', {}, 'u5', db, toss, noStore, 'test', new Date('2027-04-01T00:00:00+09:00'))).promo.active, false);
+// 9) 같은 주문 승인이 거의 동시에 두 번 와도 1개월만 (2026-11-11 점검: 예전엔 2개월이 됨)
+{
+  const rr = {}; const tk = () => new Promise(r => setTimeout(r, 5));
+  const db2 = {
+    getPayment: async (id) => { await tk(); return rr[id] ? { ...rr[id] } : null; },
+    insertPayment: async (r) => { rr[r.order_id] = { ...r }; },
+    updatePayment: async (id, p) => { await tk(); Object.assign(rr[id], p); },
+    finishPayment: async (id, p) => { await tk(); if (rr[id].status !== 'READY') return false; Object.assign(rr[id], p); return true; },
+    proUntil: async (uid, plan = 'premium', ex = '') => { await tk(); return Object.values(rr).filter(r => r.user_id === uid && r.status === 'DONE' && r.order_id !== ex).map(r => r.period_end).sort().pop() || null; },
+    recentPayments: async () => [],
+  };
+  const t2 = async () => { await tk(); return { ok: true, status: 200, body: { status: 'DONE', totalAmount: 4900, method: '카드' } }; };
+  const o = await H('prepare', { plan: 'premium' }, 'r1', db2, t2, noStore, 'test', now);
+  const A = H('confirm', { orderId: o.orderId, paymentKey: 'k', amount: 4900 }, 'r1', db2, t2, noStore, 'test', now);
+  await new Promise(r => setTimeout(r, 9));
+  const B = H('confirm', { orderId: o.orderId, paymentKey: 'k', amount: 4900 }, 'r1', db2, t2, noStore, 'test', now);
+  const [a, b] = await Promise.all([A, B]);
+  assert.strictEqual(a.periodEnd, '2026-12-10T02:00:00.000Z'); assert.strictEqual(b.periodEnd, '2026-12-10T02:00:00.000Z');
+  assert.strictEqual(rr[o.orderId].period_end, '2026-12-10T02:00:00.000Z');
+  console.log('✓ 같은 주문 동시 승인 → 1개월만');
+}
 console.log('✓ 이용권 결제(플러스 1,900 · 프리미엄 4,900): 서버가 금액 결정 · 금액 다르면 거절 · 남의 주문 거절 · 1개월 연장 · 중복 승인 없음 · 웹/앱 둘 다 PRO');
