@@ -169,7 +169,7 @@ const PlacePicker = {
         ${home && opts.allowHome !== false ? `<button class="chip" onclick="PlacePicker.pickHome()">${U.icon('home')} 집 · ${U.esc(home.name)}</button>` : ''}
         <button class="chip" onclick="PlacePicker.pickCurrent()">${U.icon('pin')} 현재 위치</button>
       </div>
-      <div id="ppResults" class="pp-results"><div class="muted pad">가는 곳 이름을 적어 주세요.</div></div>`, 'pp-sheet');
+      <div id="ppResults" class="pp-results">${this.frequentHTML()}</div>`, 'pp-sheet');
     if (opts.query) {
       document.getElementById('ppInput').value = opts.query;
       this.search();
@@ -177,10 +177,37 @@ const PlacePicker = {
       setTimeout(() => document.getElementById('ppInput')?.focus(), 250);
     }
   },
+  /** 내 일정에 자주 쓴 장소 5곳 (출발지·도착지, 집·현재 위치 빼고) */
+  frequent(n = 5) {
+    const home = State.settings.home, map = new Map();
+    const key = p => p.name + '|' + Number(p.lat).toFixed(3) + ',' + Number(p.lng).toFixed(3);
+    const homeKey = home && home.lat ? key(home) : '';
+    (State.schedules || []).forEach(sc => {
+      if (sc.demo) return;
+      [sc.dest, sc.origin].forEach(p => {
+        if (!p || !p.name || p.lat == null || p.name === '현재 위치') return;
+        const k = key(p);
+        if (k === homeKey) return;
+        const e = map.get(k) || { p, n: 0, t: 0 };
+        e.n++; e.t = Math.max(e.t, sc.updatedAt || 0); e.p = p; map.set(k, e);
+      });
+    });
+    return [...map.values()].sort((a, b) => b.n - a.n || b.t - a.t).slice(0, n).map(e => e.p);
+  },
+  frequentHTML() {
+    const list = this.frequent();
+    this.results = list;
+    if (!list.length) return '<div class="muted pad">가는 곳 이름을 적어 주세요.</div>';
+    return `<div class="pp-sec">자주 가는 곳</div>` + list.map((p, i) => `
+      <button class="pp-item" onclick="PlacePicker.pick(${i})">
+        <span class="pp-pin"><img src="img/icons/pin.png" alt=""></span>
+        <span><b>${U.esc(p.name)}</b>${p.address ? `<small>${U.esc(p.address)}</small>` : ''}</span>
+      </button>`).join('');
+  },
   debounced() { clearTimeout(this._t); this._t = setTimeout(() => this.search(), 450); },
   async search() {
     const q = document.getElementById('ppInput').value;
-    if (!q.trim()) return;
+    if (!q.trim()) { this._seq = (this._seq || 0) + 1; document.getElementById('ppResults').innerHTML = this.frequentHTML(); return; }
     const box = document.getElementById('ppResults');
     box.innerHTML = '<div class="muted pad">찾는 중…</div>';
     const seq = (this._seq = (this._seq || 0) + 1);

@@ -59,6 +59,11 @@ D.serve(async (req: Request) => {
       let b: any = {}; try { b = await res.json(); } catch (_) { /* */ }
       return { ok: res.ok, status: res.status, body: b };
     };
+    // 가상계좌(입금 대기)는 받지 않음 → 발급된 계좌를 바로 취소
+    (toss as any).cancel = (paymentKey: string, reason: string) => fetch(`https://api.tosspayments.com/v1/payments/${encodeURIComponent(paymentKey)}/cancel`, {
+      method: "POST", headers: { Authorization: "Basic " + btoa(secret + ":"), "Content-Type": "application/json" },
+      body: JSON.stringify({ cancelReason: reason }),
+    });
     const store = () => revenueCat(user.id, env.MYPLANNER_REVENUECAT_SECRET_KEY, fetch);
     return reply(200, await handle(String(body.action || ""), body, user.id, db, toss, store, mode, new Date(), env.MYPLANNER_PROMO_UNTIL || undefined));
   } catch (e) {

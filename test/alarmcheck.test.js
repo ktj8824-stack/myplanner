@@ -15,3 +15,12 @@ assert.ok(!['battery', 'volume'].some(k => Alarm.CRITICAL.includes(k))); // 배�
 assert.deepStrictEqual(Alarm.problems('granted', { exact: true, fullScreen: true, notifications: true }), []);
 console.log('✓ 알람 점검 항목 · 홈 경고 기준');
 console.log('알람 점검 테스트 완료');
+// 준비 시간 제안: 5번 이상 기록, 지금과 10분 이상 차이 날 때만
+{
+  const T = 1794380000000, rec = m => ({ up: T, go: T + m * 60000 });
+  assert.strictEqual(Alarm.prepSuggest([rec(40), rec(42), rec(38), rec(41)], 60), null);          // 4번 → 아직
+  assert.deepStrictEqual(Alarm.prepSuggest([rec(40), rec(42), rec(38), rec(41), rec(39)], 60), { min: 40, n: 5 });
+  assert.strictEqual(Alarm.prepSuggest([rec(55), rec(57), rec(53), rec(56), rec(54)], 60), null); // 차이 작음
+  assert.strictEqual(Alarm.prepSuggest([rec(40), rec(2), rec(400), { up: T }, rec(41)], 60), null); // 이상한 값·짝 없는 기록은 뺌
+  console.log('✓ 준비 시간 제안 기준');
+}

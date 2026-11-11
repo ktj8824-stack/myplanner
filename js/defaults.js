@@ -20,6 +20,8 @@ window.APP_DEFAULTS = {
   // 광고 — 구글 애드몹 '광고 단위 ID'(공개 값). 비어 있으면 구글 테스트 광고(Test Ad)로 나옴
   ADMOB_BANNER_IOS: '',
   ADMOB_BANNER_ANDROID: '',
+  ADMOB_REWARD_IOS: '',      // 보상형(포인트) 광고 단위 — 비워 두면 구글 테스트 광고
+  ADMOB_REWARD_ANDROID: '',
   // 웹 광고 — 카카오 애드핏 광고 단위 ID (DAN-…). 비어 있으면 웹에는 광고 없음
   ADFIT_UNIT_ID: '',
   SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhY2NkcWN0aGh0dnZldG1icnlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM0MzM1MDksImV4cCI6MjEwOTAwOTUwOX0.WUuGsdr-mG0gEqhEFQTS0ew8Kr6uy9l7PZ6pXe5zbRM'

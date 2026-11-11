@@ -101,4 +101,14 @@ assert.strictEqual((await handle('status', {}, 'u5', db, toss, noStore, 'test', 
   assert.strictEqual(rr[o.orderId].period_end, '2026-12-10T02:00:00.000Z');
   console.log('✓ 같은 주문 동시 승인 → 1개월만');
 }
+{
+  // 가상계좌(입금 대기) → 받지 않고 바로 취소, 이용권 없음
+  let cancelled = '';
+  const tv = async () => ({ ok: true, status: 200, body: { status: 'WAITING_FOR_DEPOSIT', totalAmount: 4900, virtualAccount: { accountNumber: 'X' } } });
+  tv.cancel = async (k) => { cancelled = k; };
+  const o = await H('prepare', { plan: 'premium' }, 'va1', db, tv, noStore, 'test', now);
+  await assert.rejects(H('confirm', { orderId: o.orderId, paymentKey: 'vk', amount: 4900 }, 'va1', db, tv, noStore, 'test', now), e => e.code === 'VIRTUAL_ACCOUNT');
+  assert.strictEqual(cancelled, 'vk'); assert.strictEqual(rows[o.orderId].status, 'FAILED'); assert.strictEqual(rows[o.orderId].fail_reason, 'VIRTUAL_ACCOUNT');
+  console.log('✓ 가상계좌 결제 → 발급 취소 · 이용권 없음');
+}
 console.log('✓ 이용권 결제(플러스 1,900 · 프리미엄 4,900): 서버가 금액 결정 · 금액 다르면 거절 · 남의 주문 거절 · 1개월 연장 · 중복 승인 없음 · 웹/앱 둘 다 PRO');

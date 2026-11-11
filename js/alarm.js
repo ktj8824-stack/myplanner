@@ -32,6 +32,7 @@ const Alarm = {
           const n = ev && ev.notification, x = (n && n.extra) || {};
           // 기상 알람을 울린 지 얼마 안 돼서 눌렀으면 기상 화면을 보여 줌 (소리는 다시 내지 않음)
           if (x.kind === 'wake' && x.at && Date.now() - x.at < 20 * 60000) return this.showRinging(n.title, n.body, x.scheduleId, 'wake', true);
+          if (x.kind === 'depart' && x.at && Date.now() - x.at < 30 * 60000) this.habitMark(x.scheduleId, 'go');
           this.openSchedule(x.scheduleId);
         });
         LN.addListener('localNotificationReceived', n => {
@@ -384,6 +385,8 @@ const Alarm = {
     const id = this._ringId;
     this.stop(false);
     this.setSnoozeCount(id, 0);
+    this.clearSnoozeMark();
+    this.habitMark(id, 'up');
     const LN = this.ln();
     if (LN && id) {
       try { await LN.cancel({ notifications: this.IOS_REPEAT.map(m => ({ id: this.numId(id + 'wake' + 'r' + m) })) }); } catch (e) {}
@@ -396,6 +399,7 @@ const Alarm = {
     this.beep(false);
     document.getElementById('ringing').classList.remove('show');
     if (typeof Ads !== 'undefined') Ads.sync();
+    if (this._ringKind === 'depart') this.habitMark(this._ringId, 'go');
     if (open) {
       // '일정 보기'로 끈 것도 알람을 본 것 → 아이폰이 1·2분 뒤 다시 울리려고 예약해 둔 알림 지움
       const id = this._ringId, kind = this._ringKind, LN = this.ln();
@@ -428,11 +432,97 @@ const Alarm = {
           channelId: this.CHANNEL, ...(this.isIOS() ? { sound: 'mp_alarm.caf' } : {}), extra: { scheduleId: id, alarm: true, kind, at: at.getTime(), keep: true } }] });
         // 기상 알람을 미뤘으면 1·2분 뒤 다시 울림 예약은 지움 (5분 뒤에 한 번만)
         if (kind === 'wake') await LN.cancel({ notifications: this.IOS_REPEAT.map(m => ({ id: this.numId(id + 'wake' + 'r' + m) })) });
-      } catch (e) { setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000); }
+      } catch (e) { clearTimeout(this._webSnooze); this._webSnooze = setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000); }
     } else {
-      setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000);
+      clearTimeout(this._webSnooze);
+      this._webSnooze = setTimeout(() => this.showRinging(title, '5분이 지났어요.', id, kind), 5 * 60000);
     }
+    try { localStorage.setItem('mp_snooze_at', JSON.stringify({ id, kind, at: at.getTime(), nid: this.numId('snooze' + id), title: s ? s.title : '' })); } catch (e) {}
     U.toast('5분 뒤에 다시 알려 드릴게요.');
+    if (typeof App !== 'undefined' && App.current === 'home' && typeof Home !== 'undefined') Home.render();
+  },
+
+  /* ---------- '5분 뒤 다시' 대기 중 (홈에 '끄기' 띠) ---------- */
+  pendingSnooze() {
+    try { const v = JSON.parse(localStorage.getItem('mp_snooze_at') || 'null'); return v && v.at > Date.now() ? v : null; } catch (e) { return null; }
+  },
+  clearSnoozeMark() { try { localStorage.removeItem('mp_snooze_at'); } catch (e) {} },
+  /** 안드로이드 전체 화면 알람(네이티브)은 앱에서 취소할 방법이 아직 없음 → '끄기'를 안 보임 */
+  canCancelSnooze() { return !this.native(); },
+  async cancelSnooze() {
+    const v = this.pendingSnooze();
+    this.clearSnoozeMark();
+    if (!v) return;
+    clearTimeout(this._webSnooze);
+    this._snooze = null;
+    const LN = this.ln();
+    if (LN) { try { await LN.cancel({ notifications: [{ id: v.nid }] }); } catch (e) {} }
+    if (v.kind === 'wake') this.setSnoozeCount(v.id, 0);
+    U.toast('5분 뒤 알림을 껐어요');
+  },
+
+  /* ---------- 예약 확인 한 줄 (홈) ---------- */
+  /** { count, last: Date } — 아이폰은 폰에 실제로 예약된 알림 기준 */
+  async summary() {
+    const N = this.native(), LN = this.ln();
+    if (!N && LN) {
+      try {
+        const p = (await LN.getPending()).notifications || [];
+        const al = p.filter(n => n.extra && n.extra.alarm && n.extra.kind !== 'end-notice');
+        const ats = al.map(n => Number(n.extra.at) || (n.schedule && n.schedule.at ? new Date(n.schedule.at).getTime() : 0)).filter(Boolean);
+        // 1·2분 뒤 다시 울림은 같은 알람이므로 세지 않음
+        return { count: al.filter(n => !/r[12]$/.test(String(n.extra.kind || '')) && !/^[12]분 지났어요/.test(n.body || '')).length, last: ats.length ? new Date(Math.max(...ats)) : null };
+      } catch (e) { return null; }
+    }
+    const days = N ? this.NATIVE_DAYS : this.HORIZON_DAYS;
+    const al = this.collect(days).filter(a => a.alarm && a.at.getTime() > Date.now());
+    return { count: al.length, last: al.length ? al[al.length - 1].at : null, web: !N && !LN };
+  },
+
+  /* ---------- 준비 시간 제안 (실제 '일어났어요' ~ 출발 알람 확인 사이) ---------- */
+  HABIT_MIN: 5,
+  habitAll() { try { return JSON.parse(localStorage.getItem('mp_habit') || '{}') || {}; } catch (e) { return {}; } },
+  habitMark(sid, what) {
+    if (!sid) return;
+    let s = null; try { s = Recur.resolve(sid); } catch (e) {}
+    if (!s || s.chained || Planner.isTrip(s.mode)) return;
+    let plan; try { plan = Planner.compute(s); } catch (e) { return; }
+    const now = Date.now(), ref = (what === 'up' ? plan.wakeAt : plan.departAt).getTime();
+    if (Math.abs(now - ref) > 90 * 60000) return; // 엉뚱한 때 누른 건 기록 안 함
+    const all = this.habitAll(), base = s.baseId || s.id, list = all[base] || (all[base] = []);
+    let rec = list.find(r => r.occ === sid && r.day === s.date);
+    if (!rec) { rec = { occ: sid, day: s.date }; list.push(rec); }
+    if (!rec[what]) rec[what] = now;
+    all[base] = list.slice(-10);
+    try { localStorage.setItem('mp_habit', JSON.stringify(all)); } catch (e) {}
+  },
+  /** 기록 → 제안할 준비 시간(분) 또는 null. 5번 이상, 지금과 10분 이상 차이 날 때만 */
+  prepSuggest(records, prepMin) {
+    const mins = (records || []).filter(r => r.up && r.go && r.go > r.up).map(r => (r.go - r.up) / 60000).filter(m => m >= 10 && m <= 240);
+    if (mins.length < this.HABIT_MIN) return null;
+    const sorted = mins.slice(-7).sort((a, b) => a - b), mid = sorted[Math.floor(sorted.length / 2)];
+    const sug = Math.round(mid / 5) * 5;
+    return Math.abs(sug - Number(prepMin ?? 60)) >= 10 ? { min: sug, n: mins.length } : null;
+  },
+  /** 일정 s에 대한 제안 (이미 '괜찮아요' 한 값이면 안 보임) */
+  prepFor(s) {
+    const base = s.baseId || s.id, all = this.habitAll(), sug = this.prepSuggest(all[base], s.prepMin);
+    if (!sug) return null;
+    let off = {}; try { off = JSON.parse(localStorage.getItem('mp_habit_off') || '{}'); } catch (e) {}
+    return off[base] === sug.min ? null : { ...sug, base };
+  },
+  applyPrep(base, min) {
+    const s = State.get(base);
+    if (!s) return;
+    s.prepMin = min; State.upsert(s);
+    const all = this.habitAll(); delete all[base];
+    try { localStorage.setItem('mp_habit', JSON.stringify(all)); } catch (e) {}
+    this.rescheduleAll();
+    U.toast(`준비 시간을 ${min}분으로 바꿨어요. 알람도 다시 맞췄어요`);
+  },
+  skipPrep(base, min) {
+    let off = {}; try { off = JSON.parse(localStorage.getItem('mp_habit_off') || '{}'); } catch (e) {}
+    off[base] = min; try { localStorage.setItem('mp_habit_off', JSON.stringify(off)); } catch (e) {}
   },
 
   beep(on) {

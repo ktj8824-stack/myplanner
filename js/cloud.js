@@ -254,6 +254,7 @@ const Cloud = {
       try {
         const changed = await this.pull();
         await this.push();
+        if (this._firstUp) { U.toast(`이 폰의 일정 ${this._firstUp}개를 계정에 올렸어요`); this._firstUp = 0; }
         await this.loadFamilies();
         localStorage.setItem(this.LAST_KEY, String(Date.now()));
         this.status = 'synced';
@@ -263,6 +264,7 @@ const Cloud = {
         }
         return true;
       } catch (e) {
+        this._firstUp = 0;
         if (!e.noServer) this.status = navigator.onLine === false ? 'offline' : 'error';
         console.warn('[Cloud] 동기화 실패', e);
         throw e;
@@ -309,7 +311,7 @@ const Cloud = {
     if (firstTime) {
       const onServer = new Set(mine.filter(r => !r.deleted).map(r => r.id));
       State.schedules.filter(s => !s._shared && !s.demo && !onServer.has(s.id) && !dirty[s.id])
-        .forEach(s => { dirty[s.id] = { at: s.updatedAt || Date.now() }; dirtyChanged = true; });
+        .forEach(s => { dirty[s.id] = { at: s.updatedAt || Date.now() }; dirtyChanged = true; this._firstUp = (this._firstUp || 0) + 1; });
     }
     if (dirtyChanged) this._setDirty(dirty);
     // 공유받은 일정: 서버에 있는 그대로 (내 폰의 알람 끄기·실시간 값은 유지)

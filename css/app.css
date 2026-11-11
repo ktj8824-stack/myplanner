@@ -132,7 +132,7 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 .card .btn.primary { background: var(--navy); }
 .btn.danger { color: var(--red); }
 .btn.big { width: 100%; font-size: 17px; height: 56px; font-weight: 800; }
-.btn.small { height: 36px; padding: 0 13px; font-size: 14px; border-radius: 12px; }
+.btn.small { height: 44px; min-width: 44px; padding: 0 13px; font-size: 14px; border-radius: 12px; }
 .btn:disabled { opacity: .4; }
 .link { color: var(--blue); font-weight: 700; padding: 10px 2px; font-size: 14px; }
 .actions { display: flex; gap: 10px; margin: 12px 0; }
@@ -901,3 +901,15 @@ body.scr-ai::after { height: calc(max(10px, env(safe-area-inset-bottom) - 12px) 
 .anp-x { position:absolute; top:50%; right:6px; transform:translateY(-50%); width:30px; height:30px; border:0; background:transparent; color:#8B95A1; font-size:14px; cursor:pointer; }
 /* AI 비서 칸: 배지는 설명 줄 앞에 (작은 폰에서 넘치지 않게) */
 .act small .pro { margin: 0 3px 2px 0; vertical-align: 1px; font-size: 11px; white-space: nowrap; }
+
+/* 홈: '5분 뒤 다시' 대기 띠 · 알람 예약 확인 · 준비 시간 제안 */
+.snz-strip { display: flex; align-items: center; gap: 8px; padding: 10px 10px 10px 14px; margin-bottom: 12px; border-radius: 14px; background: var(--note); color: var(--note-ink); font-size: 14px; }
+.snz-strip > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.snz-strip button { height: 44px; padding: 0 16px; border-radius: 12px; background: rgba(255,255,255,.7); color: inherit; font-weight: 700; font-size: 14px; flex: none; }
+.alarm-line { display: flex; align-items: center; gap: 6px; margin: -4px 4px 12px; color: var(--faint); font-size: 13px; }
+.alarm-line .ic { color: #2BB673; width: 16px; height: 16px; }
+.prep-tip > div:first-child { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; line-height: 1.5; }
+.prep-tip > div:first-child .ic { margin-top: 2px; }
+.prep-btns { display: flex; gap: 8px; margin-top: 12px; }
+.prep-btns .btn { flex: 1; margin: 0; }
+.pp-sec { padding: 6px 4px 2px; font-size: 13px; font-weight: 700; color: var(--faint); }

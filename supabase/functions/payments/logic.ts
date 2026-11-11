@@ -61,9 +61,11 @@ export async function handle(action: string, body: Record<string, unknown>, user
     }
     const r = await toss(paymentKey, orderId, row.amount);
     if (!r.ok || r.body?.status !== "DONE") {
+      // 가상계좌(무통장 입금)는 입금 알림을 받을 곳이 없어 이용권을 줄 수 없음 → 발급된 계좌를 바로 취소하고 다른 수단으로 안내
       const waiting = r.ok && r.body?.status === "WAITING_FOR_DEPOSIT";
-      await db.updatePayment(orderId, { status: waiting ? "WAITING_FOR_DEPOSIT" : "FAILED", payment_key: paymentKey, fail_reason: waiting ? null : String(r.body?.code || r.status || "TOSS_ERROR").slice(0, 80) });
-      if (waiting) return { status: "WAITING_FOR_DEPOSIT", orderId, virtualAccount: r.body.virtualAccount };
+      if (waiting && toss.cancel) { try { await toss.cancel(paymentKey, "가상계좌 결제 미지원"); } catch (_) { /* 입금 기한이 지나면 자동 취소 */ } }
+      await db.updatePayment(orderId, { status: "FAILED", payment_key: paymentKey, fail_reason: waiting ? "VIRTUAL_ACCOUNT" : String(r.body?.code || r.status || "TOSS_ERROR").slice(0, 80) });
+      if (waiting) throw new PayError(400, "VIRTUAL_ACCOUNT", "가상계좌(무통장 입금)는 받지 않아요. 카드나 간편결제로 다시 결제해 주세요.");
       throw new PayError(402, String(r.body?.code || "PAYMENT_FAILED"), String(r.body?.message || "결제 승인에 실패했어요."));
     }
     if (Number(r.body.totalAmount) !== row.amount) throw new PayError(400, "AMOUNT_MISMATCH", "승인 금액이 주문과 달라요.");

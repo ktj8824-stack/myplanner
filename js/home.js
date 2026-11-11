@@ -2,6 +2,9 @@
    MyPlanner — 홈 · 캘린더
    ========================================= */
 
+/** 선 아이콘 (이모지 대신) */
+const Ico = n => Icons.svg(n);
+
 const Home = {
   render() {
     const name = State.settings.name;
@@ -22,12 +25,15 @@ const Home = {
     App.setMain(`
       <header class="hello">
         <div><small>${today.getMonth() + 1}월 ${today.getDate()}일 ${U.DOW[today.getDay()]}요일</small><b>${name ? U.esc(name) + '님, ' : ''}${greet}</b></div>
-        <button class="avatar" onclick="App.navigate('settings')" aria-label="마이">${name ? U.esc(name.length >= 3 ? name.slice(-2) : name) : '🙂'}</button>
+        <button class="avatar" onclick="App.navigate('settings')" aria-label="마이">${name ? U.esc(name.length >= 3 ? name.slice(-2) : name) : Ico('smile')}</button>
       </header>
 
       ${Demo.bar()}
+      ${this.snoozeStrip()}
       ${next ? this.nextCard(next) : this.emptyCard()}
+      ${next ? this.prepTip(next.s) : ''}
       <div id="permNotice"></div>
+      <div id="alarmLine"></div>
       ${typeof AutoNav !== 'undefined' && AutoNav.promoHtml ? AutoNav.promoHtml() : ''}
       ${!State.settings.home ? `<button class="notice" onclick="App.navigate('settings')">${U.icon('home')} 집 주소를 등록하면 출발지가 자동으로 들어가요</button>` : ''}
 
@@ -51,7 +57,7 @@ const Home = {
       ${this.week()}
       ${Briefing.card()}
     `);
-    this.checkPermission();
+    this.checkPermission().then(ok => { if (ok && up.length) this.alarmLine(); });
     if (next) Bus.renderInto('heroBus', next.s, next.plan);
   },
 
@@ -69,7 +75,7 @@ const Home = {
     const wakePrev = U.hmRel(plan.wakeAt, s.date).startsWith('전날');
     const route = trip ? s.accessRoute : (plan.live ? null : s.route);
     const info = [];
-    if (plan.weather) info.push(`${plan.weather.icon} ${U.esc(plan.weather.label)}${plan.weather.extraMin ? ' +' + plan.weather.extraMin + '분' : ''}`);
+    if (plan.weather) info.push(`${Icons.svg(Icons.EMOJI[plan.weather.icon] || Icons.EMOJI[String(plan.weather.icon).replace(/\uFE0F/g, '')] || '') || plan.weather.icon} ${U.esc(plan.weather.label)}${plan.weather.extraMin ? ' +' + plan.weather.extraMin + '분' : ''}`);
     const lv = plan.live ? Planner.liveFor(s) : null;
     if (lv) info.push(`실시간 교통 ${lv.prevMin && lv.travelMin !== lv.prevMin ? (lv.travelMin > lv.prevMin ? '+' : '') + (lv.travelMin - lv.prevMin) + '분' : lv.travelMin + '분'}`);
     else if (route && route.travelMin) info.push(`${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${U.durLabel(route.travelMin)}${route.summary && /환승|원/.test(route.summary) ? ' · ' + U.esc(U.routeRest(route.summary)) : ''}`);
@@ -89,8 +95,8 @@ const Home = {
         </div>
         ${info.length ? `<div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
         <div id="heroBus"></div>
-        ${far ? `<div class="info"><span>⏰ 알람은 일정 2주 전부터 자동으로 맞춰져요</span></div>` : ''}
-        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${far ? '📅 D-' + dday : moving ? '🚶 이동 중이에요' : '⏰ ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
+        ${far ? `<div class="info"><span>${Ico('alarm')} 알람은 일정 2주 전부터 자동으로 맞춰져요</span></div>` : ''}
+        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${far ? Ico('calendar') + ' D-' + dday : moving ? Ico('walk') + ' 이동 중이에요' : Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
       </div>`;
   },
 
@@ -102,7 +108,7 @@ const Home = {
         <div class="tri"><div class="on"><small>기상</small><b>--:--</b></div><div><small>출발</small><b>--:--</b></div><div><small>도착</small><b>--:--</b></div></div>
         <button class="go" onclick="App.navigate('register')"><span>＋ 첫 일정 만들기</span><span>›</span></button>
       </div>
-      <button class="notice" onclick="Demo.add()">✨ 예시 일정 3개로 먼저 둘러보기</button>`;
+      <button class="notice" onclick="Demo.add()">${Ico('sparkles')} 예시 일정 3개로 먼저 둘러보기</button>`;
   },
 
   /** 이번 주 (일~토) */
@@ -145,13 +151,44 @@ const Home = {
     if (!el) return;
     const st = await Alarm.permissionState();
     if (st !== 'granted' && st !== 'unsupported') {
-      el.innerHTML = `<button class="notice warn" onclick="Alarm.requestPermission().then(()=>Home.render())">🔔 알림이 꺼져 있어요. 눌러서 허용해 주세요</button>`;
-      return;
+      el.innerHTML = `<button class="notice warn" onclick="Alarm.requestPermission().then(()=>Home.render())">${Ico('bell')} 알림이 꺼져 있어요. 눌러서 허용해 주세요</button>`;
+      return false;
     }
     const ns = await Alarm.nativeStatus();
     if (ns && Alarm.problems(st, ns).some(k => Alarm.CRITICAL.includes(k))) {
-      el.innerHTML = `<button class="notice warn" onclick="App.navigate('settings')">⏰ 알람이 정확히 울리려면 권한 설정이 필요해요</button>`;
+      el.innerHTML = `<button class="notice warn" onclick="App.navigate('settings')">${Ico('alarm')} 알람이 정확히 울리려면 권한 설정이 필요해요</button>`;
+      return false;
     }
+    return true;
+  },
+
+  /** '5분 뒤 다시' 대기 중이면 맨 위에 띠 + 끄기 */
+  snoozeStrip() {
+    const v = Alarm.pendingSnooze();
+    if (!v) return '';
+    clearTimeout(this._snzT);
+    this._snzT = setTimeout(() => { if (App.current === 'home') this.render(); }, v.at - Date.now() + 1000);
+    return `<div class="snz-strip">${Ico('alarm')}<span><b>${U.hm(new Date(v.at))}</b> 알림 예정${v.title ? ' · ' + U.esc(v.title) : ''}</span>${Alarm.canCancelSnooze() ? `<button onclick="Alarm.cancelSnooze().then(()=>Home.render())">끄기</button>` : ''}</div>`;
+  },
+
+  /** 알람이 실제로 어디까지 맞춰져 있는지 한 줄 */
+  async alarmLine() {
+    const el = document.getElementById('alarmLine');
+    if (!el) return;
+    const r = await Alarm.summary();
+    if (!r || !document.getElementById('alarmLine')) return;
+    if (!r.count) { el.innerHTML = ''; return; }
+    const d = r.last, DOW = U.DOW;
+    el.innerHTML = `<div class="alarm-line">${Ico('checkCircle')}<span>예약된 알람 ${r.count}개 · 마지막 알람 ${d.getMonth() + 1}월 ${d.getDate()}일 (${DOW[d.getDay()]})${r.web ? ' · 이 창이 열려 있을 때만 울려요' : ''}</span></div>`;
+  },
+
+  /** 실제 준비 시간이 설정과 다르면 바꾸자고 제안 */
+  prepTip(s) {
+    const t = Alarm.prepFor(s);
+    if (!t) return '';
+    const cur = Number(s.prepMin ?? 60);
+    return `<div class="card prep-tip"><div>${Ico('clock')}<span>최근 ${t.n}번은 일어나서 나가기까지 <b>${t.min}분</b> 정도 걸렸어요. 지금 준비 시간은 ${cur}분이에요.</span></div>
+      <div class="prep-btns"><button class="btn small" onclick="Alarm.skipPrep('${t.base}',${t.min});Home.render()">그대로 둘게요</button><button class="btn small primary" onclick="Alarm.applyPrep('${t.base}',${t.min});Home.render()">${t.min}분으로 바꾸기</button></div></div>`;
   }
 };
 
@@ -197,7 +234,7 @@ const CalendarView = {
       ${view === 'month' ? `
       <div class="sec-row"><h2 class="sec">${U.dateLabel(this.selected)}${Recur.holiday(this.selected) ? ` <span class="holiday">${Recur.holiday(this.selected)}</span>` : ''}</h2>
         <button class="btn small primary" onclick="App.navigate('register',{date:'${this.selected}'})">＋ 추가</button></div>
-      ${list.length > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${this.selected}',from:'calendar'})">🗓️ 이 날 일정 ${list.length}개 · 하루 동선 보기</button>` : ''}
+      ${list.length > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${this.selected}',from:'calendar'})">${Ico('calendar')} 이 날 일정 ${list.length}개 · 하루 동선 보기</button>` : ''}
       <div class="list">${list.length ? list.map(s => Home.row(s)).join('') : `<button class="empty-add" onclick="App.navigate('register',{date:'${this.selected}'})"><b>이 날은 일정이 없어요</b><small>눌러서 ${isToday ? '오늘' : U.dateLabel(this.selected).split(' · ')[0]} 일정 추가</small></button>`}</div>` : ''}
     `);
   },
