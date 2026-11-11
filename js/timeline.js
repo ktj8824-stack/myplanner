@@ -439,6 +439,11 @@ const Settings = {
             <div class="row-side">›</div></button>`).join('')}
         </div>` : ''}
 
+      <button class="card row flat an-entry" onclick="AutoNav.openGuide()">
+        <div class="row-ic">🚗</div>
+        <div class="row-main"><b>차에 타면 자동 길안내</b><small>차와 연결되면 지금 갈 곳으로 내비가 켜져요</small></div>
+        <div class="row-side">›</div></button>
+
       <div class="card">
         <label class="lbl q-lbl">글자 크기</label>
         <div class="seg text-size">${[['normal', '보통'], ['large', '크게'], ['xlarge', '아주 크게']].map(([k, l]) =>

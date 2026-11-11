@@ -24,6 +24,7 @@ const App = {
     try { after = sessionStorage.getItem('mp_after_login'); sessionStorage.removeItem('mp_after_login'); } catch (e) {}
     this.navigate(payBack && !first ? payBack : first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
+    if (typeof AutoNav !== 'undefined') AutoNav.init(); // 차에 타면 자동 길안내 (?go=next · myplanner://next)
     await Alarm.init();
     if (this.current === 'home') Home.render();
 

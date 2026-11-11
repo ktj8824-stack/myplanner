@@ -442,9 +442,10 @@ const Routes = {
         : window.open('https://www.kakaomobility.com/service-ride', '_blank');
     }
     if (!dest || !isFinite(dest.lat)) return U.toast('목적지 위치가 없어요. 일정을 수정해 목적지를 다시 골라 주세요');
-    const u = this.navUrls(app, mode, origin, dest);
     // PC에서는 카카오맵 웹 길찾기 (출발·도착이 채워진 상태)
-    if (!mobile) return window.open(u.web, '_blank');
+    if (!mobile) return window.open(this.navUrls(app, mode, origin, dest).web, '_blank');
+    // 휴대폰: 출발지는 넘기지 않음 → 티맵·카카오맵이 지금 있는 곳(현재 위치)에서 안내 (집에서 늦게 나오거나 다른 곳에서 출발해도 맞게)
+    const u = this.navUrls(app, mode, null, dest);
     // 휴대폰: 앱을 열고, 앱이 없으면 카카오맵 웹 길찾기로
     this.tryApp(u.scheme, u.web, app === 'tmap' ? '티맵 앱이 없어 카카오맵 길찾기로 열어요' : '카카오맵 앱이 없어 웹 길찾기로 열어요');
   },

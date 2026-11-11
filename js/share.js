@@ -112,7 +112,32 @@ const Share = {
         <button class="btn primary big" onclick="Share.accept(true)">🏠 내 집(${U.esc(home.name)})에서 출발로 추가</button>
         <button class="btn ghost" onclick="Share.accept(false)">${U.esc(o.origin.name)}에서 출발 그대로 추가</button>`
       : `<button class="btn primary big" onclick="Share.accept(false)">내 알람에 추가</button>`}
-      <p class="muted small center">추가 화면에서 확인한 뒤 저장하면 알람이 맞춰져요.</p>`);
+      <p class="muted small center">추가 화면에서 확인한 뒤 저장하면 알람이 맞춰져요.</p>
+      ${this.quickNavHTML(o)}`);
+  },
+
+  /** 받은 일정 '바로 길안내': 로그인·추가 없이, 지금 있는 곳에서 목적지까지 */
+  quickNavHTML(o) {
+    const trip = Planner.isTrip(o.mode);
+    const dest = trip ? (o.trip && o.trip.departStation) : o.dest;
+    if (!dest || !isFinite(dest.lat) || !isFinite(dest.lng)) return '';
+    const navMode = trip ? (o.trip.accessMode || 'transit') : o.mode;
+    if (navMode === 'taxi') return '';
+    const car = navMode === 'car';
+    return `
+      <div class="qnav">
+        <div class="qnav-h">🚗 바로 길안내 <small>지금 있는 곳에서 출발해요 · 로그인 없이 돼요</small></div>
+        <div class="qnav-to">📍 <b>${U.esc(dest.name || '목적지')}</b></div>
+        <div class="qnav-b${car ? '' : ' one'}">
+          ${car ? `<button class="qnav-btn tmap" onclick="Share.quickNav('tmap')">티맵</button>` : ''}
+          <button class="qnav-btn kakao" onclick="Share.quickNav('kakaomap')">${car ? '카카오맵' : '카카오맵 길찾기'}</button>
+        </div>
+      </div>`;
+  },
+  quickNav(app) {
+    const o = this._incoming; if (!o) return;
+    const trip = Planner.isTrip(o.mode);
+    Routes.openNav(app, trip ? (o.trip.accessMode || 'transit') : o.mode, null, trip ? o.trip.departStation : o.dest);
   },
 
   /** 같은 일정(이름·날짜·시각)이 이미 있으면 그 일정 */
