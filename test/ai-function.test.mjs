@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { handle, checkAction, calendarTable, systemPrompt, stripLeak, hasLeak, claimsCard } from '../supabase/functions/ai/index.ts';
 
-const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk' };
+const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk', MYPLANNER_PROMO_UNTIL: '2000-01-01T00:00:00Z' }; // 기본 시험은 출시 기념 무료가 끝난 뒤로
 const ctx = { today: '2026-11-03', weekday: '화', upcoming: [{ idx: 0, title: '판교 출근', date: '2026-11-04' }] };
 let usage = 0, claudeCalls = [], script = [];
 const fake = (opts = {}) => async (url, init = {}) => {
@@ -42,6 +42,13 @@ assert.deepStrictEqual(claudeCalls[0].tools.at(-1).cache_control, { type: 'ephem
 assert.ok(!claudeCalls[0].tools[0].cache_control || claudeCalls[0].tools.length === 1);
 assert.strictEqual(j.pro, false); assert.strictEqual(j.remaining, 4);
 console.log('✓ 말 한마디 → 일정 제안 카드 (무료 남은 횟수 4)');
+// 출시 기념 무료 기간(2027-03-31까지)에는 결제 없이 하루 20번
+{
+  const pr = await handle(req({ message: '내일 10시 아산병원 가야 돼', context: ctx }), { ...env, MYPLANNER_PROMO_UNTIL: '2099-01-01T00:00:00Z' }, fake());
+  const pj = await pr.json();
+  assert.strictEqual(pj.promo, true); assert.strictEqual(pj.pro, false); assert.ok(pj.remaining > 4 && pj.remaining < 20); // 한도가 5가 아니라 20
+  console.log('✓ 출시 기념 무료: 하루 20번, 결제 없이');
+}
 
 // 2) 잘못된 제안(장소 없음)은 AI에게 되돌려 다시 묻게 함
 script = [

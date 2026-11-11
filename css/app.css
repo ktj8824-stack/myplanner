@@ -855,3 +855,7 @@ body.scr-ai .ai-input { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12p
 body.scr-ai .ai-suggest { bottom: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 142px); z-index: 26; }
 body.scr-ai .ai-log { padding-bottom: 250px; }
 body.scr-ai::after { height: calc(max(10px, env(safe-area-inset-bottom) - 12px) + 30px); }
+
+/* 출시 기념 무료 안내 */
+.pro-promo b { display: block; font-size: 18px; font-weight: 900; color: var(--navy); }
+.pro-promo p { margin: 6px 0 0; font-size: 15px; line-height: 1.55; color: var(--ink-2); }

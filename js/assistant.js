@@ -91,7 +91,7 @@ const Assistant = {
   quotaLabel() {
     const q = this.quota;
     if (!q) return Cloud.isSignedIn() ? '말로 일정을 만들고 물어보세요' : '카카오 로그인 후 쓸 수 있어요';
-    return q.pro ? `프리미엄 · 오늘 ${q.remaining}번 남음` : `오늘 ${q.remaining}번 남음`;
+    return q.pro ? `프리미엄 · 오늘 ${q.remaining}번 남음` : q.promo ? `출시 기념 무료 · 오늘 ${q.remaining}번 남음` : `오늘 ${q.remaining}번 남음`;
   },
 
   toggleSpeak() {
@@ -209,7 +209,7 @@ const Assistant = {
       const history = this.msgs.filter(m => !m.typing && !m.local).slice(-11, -1).map(m => ({ role: m.role, content: m.content }));
       const res = await this.call({ message: text, history, context: this.context() });
       this.msgs.splice(this.msgs.indexOf(typing), 1);
-      if (res.remaining != null) this.quota = { remaining: res.remaining, pro: res.pro };
+      if (res.remaining != null) this.quota = { remaining: res.remaining, pro: res.pro, promo: res.promo };
       const q = document.getElementById('aiQuota'); if (q) q.textContent = this.quotaLabel();
       // 변경 제안은 지금 번호표로 바로 일정 id를 정해 둠 (나중에 목록이 바뀌어도 엉뚱한 일정을 바꾸지 않게)
       const cards = (res.actions || []).map(a => {
@@ -236,7 +236,7 @@ const Assistant = {
       body: JSON.stringify(body)
     }, 30000);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) { const e = new Error(data.message || `연결 오류 (${res.status})`); e.code = data.error; e.pro = data.pro; throw e; }
+    if (!res.ok) { const e = new Error(data.message || `연결 오류 (${res.status})`); e.code = data.error; e.pro = data.pro || data.promo; throw e; }
     return data;
   },
 

@@ -10,6 +10,8 @@ export const PRICE = PLANS.premium.price; // 예전 이름 (프리미엄 가격)
 export const ORDER_NAME = PLANS.premium.name;
 const RANK: Record<string, number> = { free: 0, plus: 1, premium: 2 };
 export const planOf = (p: unknown) => (p === "pro" ? "premium" : (PLANS[String(p)] ? String(p) : "premium"));
+// 출시 기념 무료 기간: 이 날까지는 모든 기능 무료라 결제를 받지 않음 (사업자 등록 전)
+export const PROMO_UNTIL = "2027-03-31T23:59:59+09:00";
 export const DOCS_TEST_SECRET = "test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6"; // 토스 문서 공개 테스트 키 (실제 돈 안 나감)
 
 export class PayError extends Error {
@@ -36,8 +38,10 @@ export function makeOrderId(now: Date) {
   return `MP-${k}-${Array.from(r, (b) => abc[b % abc.length]).join("")}`;
 }
 
-export async function handle(action: string, body: Record<string, unknown>, userId: string, db: any, toss: any, store: any, mode: string, now = new Date()) {
+export async function handle(action: string, body: Record<string, unknown>, userId: string, db: any, toss: any, store: any, mode: string, now = new Date(), promoUntil = PROMO_UNTIL) {
+  const promo = now.getTime() < Date.parse(promoUntil);
   if (action === "prepare") {
+    if (promo) throw new PayError(403, "PROMO_FREE", "지금은 출시 기념 무료 기간이라 결제하지 않아도 돼요.");
     const plan = planOf(body.plan), p = PLANS[plan];
     const orderId = makeOrderId(now);
     await db.insertPayment({ order_id: orderId, user_id: userId, plan, amount: p.price, order_name: p.name, status: "READY", mode });
@@ -90,6 +94,7 @@ export async function handle(action: string, body: Record<string, unknown>, user
       web: { tier: webTier, until: cur.until, active: cur.active, plus: web.plus, premium: web.premium },
       app: app ? { active: !!app.active, tier: app.active ? appTier : "free", until: app.expires || null, product: app.product || null } : null,
       plans: { plus: PLANS.plus.price, premium: PLANS.premium.price },
+      promo: { active: promo, until: promoUntil },
       price: PRICE, mode,
       payments: await db.recentPayments(userId),
     };

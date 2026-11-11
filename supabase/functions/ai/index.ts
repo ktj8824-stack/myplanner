@@ -18,6 +18,7 @@ type Json = any;
 type Env = Record<string, string | undefined>;
 type Fetch = (input: string, init?: RequestInit) => Promise<Response>;
 
+export const PROMO_UNTIL = "2027-03-31T23:59:59+09:00"; // 출시 기념 무료 끝 (비밀값 MYPLANNER_PROMO_UNTIL로 바꿀 수 있음)
 export const MODEL = "claude-haiku-5-5";   // 빠르고 저렴 (대화·일정 이해에 충분)
 const MAX_ROUNDS = 3;
 
@@ -315,13 +316,17 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
   if (!text) return json(400, { error: "empty_message" });
 
   const pro = await isPro(env, user.id, f);
-  const limit = pro ? parseInt(env.MYPLANNER_AI_PRO_DAILY || "60", 10) : parseInt(env.MYPLANNER_AI_FREE_DAILY || "5", 10);
+  // 출시 기념 무료 기간(기본 2027-03-31까지): 결제 없이 누구나 AI 비서를 넉넉히 (광고는 그대로)
+  const promo = !pro && Date.now() < Date.parse(env.MYPLANNER_PROMO_UNTIL || PROMO_UNTIL);
+  const limit = pro ? parseInt(env.MYPLANNER_AI_PRO_DAILY || "60", 10)
+    : promo ? parseInt(env.MYPLANNER_AI_PROMO_DAILY || "20", 10)
+    : parseInt(env.MYPLANNER_AI_FREE_DAILY || "5", 10);
   let remaining: number;
   try { remaining = await tryUse(env, user.id, limit, f); }
   catch { return json(503, { error: "server_not_ready", message: "AI 비서 서버를 준비하고 있어요. 잠시 후 다시 써 주세요." }); }
   if (remaining < 0) {
-    return json(429, { error: "daily_limit", pro,
-      message: pro ? `오늘 AI 비서를 ${limit}번 모두 쓰셨어요. 내일 다시 이용해 주세요.`
+    return json(429, { error: "daily_limit", pro, promo,
+      message: pro || promo ? `오늘 AI 비서를 ${limit}번 모두 쓰셨어요. 내일 다시 이용해 주세요.`
         : `지금 이용권으로는 하루 ${limit}번까지 쓸 수 있어요. 프리미엄으로 바꾸시면 하루 ${env.MYPLANNER_AI_PRO_DAILY || 60}번까지 대화할 수 있어요.` });
   }
 
@@ -410,7 +415,7 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
     console.error("ai failed", (e as Error).message);
     return json(502, { error: "ai_failed", message: "AI가 잠시 대답하지 못했어요. 조금 뒤에 다시 말씀해 주세요." });
   }
-  return json(200, { reply: reply || (actions.length ? "아래 카드에서 확인해 주세요." : "다시 한 번 말씀해 주시겠어요?"), actions, remaining, pro });
+  return json(200, { reply: reply || (actions.length ? "아래 카드에서 확인해 주세요." : "다시 한 번 말씀해 주시겠어요?"), actions, remaining, pro, promo });
 }
 
 // Supabase Edge Runtime(Deno)에서 실행

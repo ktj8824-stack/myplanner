@@ -102,7 +102,7 @@ const App = {
       ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
       ['points', 'img/icons/raffle.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
       ['raffle', 'img/icons/raffle.png', '럭키드로우', '모은 포인트로 경품 응모'],
-      ['pro', 'img/icons/settings.png', '이용권', '플러스 1,900원 · 프리미엄 4,900원'],
+      ['pro', 'img/icons/settings.png', '이용권', '3월 31일까지 출시 기념 무료'],
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
       ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
     ];
