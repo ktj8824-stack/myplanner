@@ -363,7 +363,9 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
       if (round > 0 && late()) break; // 시간이 많이 지났으면 지금까지 받은 제안으로 답함
       const req: Json = { model: MODEL, max_tokens: 700, system, tools: TOOLS_CACHED, messages };
       if (toolChoice) req.tool_choice = toolChoice;
-      const resp = await callClaude(env, req, f);
+      let resp: Json;
+      try { resp = await callClaude(env, req, f); }
+      catch (e) { if (actions.length) break; throw e; } // 카드는 이미 받았으면 뒤 대답이 늦어도 카드는 보여 줌
       const blocks: Json[] = resp.content || [];
       const t = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n").trim();
       if (t) said = t;

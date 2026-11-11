@@ -116,8 +116,10 @@ const Cloud = {
       // 웹: 앱과 같은 '마이플래너' 카카오 앱으로 로그인 → 돌아온 code를 서버 함수가 ID 토큰으로 바꿔 확인 (앱과 같은 계정)
       const rnd = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join('');
       const state = rnd(), nonce = rnd();
-      try { sessionStorage.setItem('mp_kakao_state', JSON.stringify({ state, nonce, back })); } catch (e) {}
-      location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(rest)}&redirect_uri=${encodeURIComponent(back)}`
+      // 홈 화면에 추가한 앱은 …/index.html로 열림 → 카카오·서버에 등록한 …/ 주소로 맞춤
+      const webBack = location.origin + location.pathname.replace(/index\.html$/, '');
+      try { sessionStorage.setItem('mp_kakao_state', JSON.stringify({ state, nonce, back: webBack })); } catch (e) {}
+      location.href = `https://kauth.kakao.com/oauth/authorize?client_id=${encodeURIComponent(rest)}&redirect_uri=${encodeURIComponent(webBack)}`
         + `&response_type=code&state=${state}&nonce=${nonce}`;
       return;
     }
