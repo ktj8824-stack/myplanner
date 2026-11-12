@@ -34,6 +34,7 @@ const App = {
     if (capApp) {
       capApp.addListener('backButton', () => {
         if (Sheet.isOpen()) return Sheet.close();
+        if (document.getElementById('an-guide') && typeof AutoNav !== 'undefined') return AutoNav.closeGuide(); // 앱 안 자동 길안내 가이드 레이어
         if (this.current === 'register' && typeof Register !== 'undefined') return Register.back(); // 쓰던 새 일정을 묻지 않고 버리지 않게
         if (this.current === 'home') return capApp.exitApp();
         this.navigate('home');

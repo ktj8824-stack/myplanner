@@ -435,11 +435,14 @@ const Alarm = {
     this.stop(true, true);
     if (!s) return this.openSchedule(id);
     this.habitMark(id, 'go', 'btn');
-    const mode = s.mode || 'transit';
+    // 기차·비행기는 최종 목적지가 아니라 출발역·공항까지 (하루 동선 DayView.modeOf/destOf 와 같은 기준)
+    const trip = Planner.isTrip(s.mode);
+    const mode = (trip ? s.trip && s.trip.accessMode : s.mode) || 'transit';
+    const to = trip ? s.trip && s.trip.departStation : s.dest;
     if (mode === 'taxi') return Routes.openNav('kakaot');
     const pref = (State.settings && State.settings.navApp) || 'choice';
     const app = mode === 'car' ? (pref === 'tmap' || pref === 'kakaomap' ? pref : 'tmap') : 'kakaomap';
-    Routes.openNav(app, mode, null, s.dest);
+    Routes.openNav(app, mode, null, to);
   },
 
   async snooze() {
@@ -515,7 +518,13 @@ const Alarm = {
   HABIT_MIN: 5,
   habitAll() { try { return JSON.parse(localStorage.getItem('mp_habit') || '{}') || {}; } catch (e) { return {}; } },
   _canGoNow(id) {
-    try { const s = Recur.resolve(id); return !!(s && (s.mode === 'taxi' || (s.dest && isFinite(s.dest.lat)))); } catch (e) { return false; }
+    try {
+      const s = Recur.resolve(id); if (!s) return false;
+      const trip = Planner.isTrip(s.mode);
+      const mode = trip ? (s.trip && s.trip.accessMode) || 'transit' : s.mode;
+      const to = trip ? s.trip && s.trip.departStation : s.dest;
+      return mode === 'taxi' || !!(to && isFinite(to.lat));
+    } catch (e) { return false; }
   },
   /** src: 'btn'(지금 출발 버튼)·'car'(차에서 자동 길안내) = 실제로 나간 시각. 없으면 출발 알람을 끈 시각(추정) */
   habitMark(sid, what, src) {
