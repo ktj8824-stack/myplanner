@@ -300,6 +300,7 @@ const AutoNav = {
       <label class="lbl">3. 휴대폰에 자동 실행 등록</label>
       ${isAndroid ? android + ios : ios + android}
       <a class="btn primary" style="display:flex;align-items:center;justify-content:center;text-decoration:none;margin-bottom:8px" href="autonav-guide.html?os=${isAndroid ? 'android' : 'ios'}" onclick="return AutoNav.guideClick('${isAndroid ? 'android' : 'ios'}')">그림으로 보는 설정 가이드</a>
+      <button class="btn ghost" style="width:100%;margin-bottom:8px" onclick="AutoNav.markDone()">✓ 설정 완료했어요</button>
       <button class="btn ghost" onclick="Sheet.close(); AutoNav.start()">지금 시험해 보기</button>`, 'an-sheet');
   },
 
@@ -344,6 +345,18 @@ const AutoNav = {
     el.remove();
     document.body.classList.remove('guide-open');
     if (!fromNav && typeof Ads !== 'undefined' && Ads.sync) Ads.sync();
+  },
+
+  /** '설정 완료' 버튼: 홈의 '1분 설정' 안내를 더 띄우지 않음 (가이드 안·설정 창에서 누름) */
+  markDone() {
+    try { localStorage.setItem('mp_autonav_setup_done', '1'); } catch (e) { }
+    this.hidePromo();
+    if (this.closeGuide) this.closeGuide();
+    try { if (typeof App !== 'undefined' && App.closeModal) App.closeModal(); } catch (e) { }
+    try { if (typeof Sheet !== 'undefined' && Sheet.close) Sheet.close(); } catch (e) { }
+    document.querySelectorAll('.modal-back').forEach(m => m.remove());
+    const msg = '설정 완료! 홈에 설정 안내가 더 뜨지 않아요';
+    if (typeof U !== 'undefined' && U.toast) U.toast(msg); else if (typeof App !== 'undefined' && App.toast) App.toast(msg);
   },
 
   hidePromo() {
