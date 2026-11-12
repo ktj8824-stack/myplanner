@@ -6,6 +6,7 @@
 //   service: tmap_pois {keyword} | tmap_route {sx,sy,ex,ey} | tmap_predict {sx,sy,ex,ey,predictionTime}
 //            | tmap_walk {sx,sy,ex,ey} | odsay_transit {sx,sy,ex,ey}
 //            | kakao_local {keyword}  (카카오 키워드 장소 검색 — 티맵 키가 없거나 결과가 없을 때)
+//            | kakao_address {keyword}  (카카오 주소 검색 — '역삼동 824'처럼 주소로 친 경우, 지번·도로명 둘 다)
 //            | bus_arrival {stationID, routeIDs?}  → { arrivals: [{ routeId, routeNm, sec, left }] } (정리된 형태)
 //            | seoul_bus_ride {busID, busLocalBlID?, fromArs, toArs}  → { ride, boardSec, plainNo } 서울 버스 '지금 타면 몇 분'
 //              (서울시 버스도착정보: 노선 모든 정류장의 도착 예정 → 같은 차량이 탈 곳·내릴 곳에 도착하는 시간 차이)
@@ -163,6 +164,12 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
     if (!keyword) return json({ error: "검색어 없음" }, 400);
     if (!env.KAKAO_REST_KEY) return json({ error: "카카오 키가 설정되지 않음" }, 503);
     url = `https://dapi.kakao.com/v2/local/search/keyword.json?size=15&query=${encodeURIComponent(keyword)}`;
+    init = { headers: { Authorization: "KakaoAK " + env.KAKAO_REST_KEY } };
+  } else if (service === "kakao_address") {
+    const keyword = String(p.keyword || "").trim().slice(0, 60);
+    if (!keyword) return json({ error: "검색어 없음" }, 400);
+    if (!env.KAKAO_REST_KEY) return json({ error: "카카오 키가 설정되지 않음" }, 503);
+    url = `https://dapi.kakao.com/v2/local/search/address.json?size=5&query=${encodeURIComponent(keyword)}`;
     init = { headers: { Authorization: "KakaoAK " + env.KAKAO_REST_KEY } };
   } else if (service === "bus_arrival") {
     const stationID = String(p.stationID || "");

@@ -56,7 +56,7 @@ const U = {
     const place = p => {
       if (!p || typeof p !== 'object') return null;
       const lat = Number(p.lat), lng = Number(p.lng);
-      return { name: str(p.name, 80) || '장소', address: str(p.address, 160), lat: isFinite(lat) ? lat : null, lng: isFinite(lng) ? lng : null };
+      return { name: str(p.name, 80) || '장소', address: str(p.address, 160), ...(p.jibun ? { jibun: str(p.jibun, 160) } : {}), lat: isFinite(lat) ? lat : null, lng: isFinite(lng) ? lng : null };
     };
     const step = st => (st && typeof st === 'object' ? {
       type: word(st.type) || 'walk', label: str(st.label, 80), from: str(st.from, 80), to: str(st.to, 80),

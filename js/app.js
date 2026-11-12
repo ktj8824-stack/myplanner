@@ -59,7 +59,8 @@ const App = {
     document.querySelectorAll('#nav [data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === name));
     const b = document.body.classList;
     b.toggle('no-nav', ['welcome', 'start'].includes(name));
-    b.toggle('scr-ai', name === 'assistant'); // AI 비서: 아래 메뉴 위에 입력창
+    b.toggle('scr-ai', name === 'assistant');
+    b.toggle('has-cta', name === 'register'); // 아래 고정 '저장' 버튼 화면 // AI 비서: 아래 메뉴 위에 입력창
     document.getElementById('nav').style.display = ['welcome', 'start', 'register'].includes(name) ? 'none' : '';
     const main = document.getElementById('main');
     main.scrollTop = 0;
@@ -201,8 +202,17 @@ const PlacePicker = {
     return `<div class="pp-sec">자주 가는 곳</div>` + list.map((p, i) => `
       <button class="pp-item" onclick="PlacePicker.pick(${i})">
         <span class="pp-pin"><img src="img/icons/pin.png" alt=""></span>
-        <span><b>${U.esc(p.name)}</b>${p.address ? `<small>${U.esc(p.address)}</small>` : ''}</span>
+        <span><b>${U.esc(p.name)}</b>${PlacePicker.addrHTML(p)}</span>
       </button>`).join('');
+  },
+  /** 도로명·지번 두 줄 (지번으로 검색해도 어느 곳인지 맞춰 볼 수 있게) */
+  addrHTML(p) {
+    if (!p.address && !p.jibun) return '';
+    if (!p.jibun) return `<small>${U.esc(p.address)}</small>`;
+    const strip = a => a.replace(/^(서울특별시|서울|부산광역시|부산|대구광역시|대구|인천광역시|인천|광주광역시|광주|대전광역시|대전|울산광역시|울산|세종특별자치시|세종|경기도?|강원특별자치도|강원도?|충청북도|충북|충청남도|충남|전북특별자치도|전라북도|전북|전라남도|전남|경상북도|경북|경상남도|경남|제주특별자치도|제주)\s+/, '');
+    // 지번은 도로명과 같은 시·구를 빼고 짧게 (예: 역삼동 824)
+    const road = p.address, jb = strip(p.jibun).replace(/^\S+[시군구]\s+/, '');
+    return `<small class="pp-addr"><em>도로명</em>${U.esc(road)}</small><small class="pp-addr"><em>지번</em>${U.esc(jb)}</small>`;
   },
   debounced() { clearTimeout(this._t); this._t = setTimeout(() => this.search(), 450); },
   async search() {
@@ -226,9 +236,9 @@ const PlacePicker = {
       return;
     }
     box.innerHTML = this.results.map((p, i) => `
-      <button class="pp-item" onclick="PlacePicker.pick(${i})">
+      <button class="pp-item${p.isAddr ? ' pp-exact' : ''}" onclick="PlacePicker.pick(${i})">
         <span class="pp-pin"><img src="img/icons/pin.png" alt=""></span>
-        <span><b>${U.esc(p.name)}</b>${p.address ? `<small>${U.esc(p.address)}</small>` : ''}</span>
+        <span><b>${U.esc(p.name)}</b>${PlacePicker.addrHTML(p)}</span>
       </button>`).join('') + sampleNote;
   },
   pick(i) { this.done(this.results[i]); },

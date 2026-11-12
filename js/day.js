@@ -187,6 +187,8 @@ const DayView = {
     const first = list.find(x => !x.plan.chained);
     const last = list[list.length - 1];
     const hol = Recur.holiday(ymd);
+    this._list = list;
+    const next = list.find(x => x.start.getTime() > now); // 아직 도착 전인 첫 일정 = 지금 갈 곳
     const back = this.from === 'home' ? "App.navigate('home')" : this.from.startsWith('timeline:') ? `App.navigate('timeline',{id:'${this.from.slice(9)}'})` : "App.navigate('calendar')";
 
     const rows = list.map((x, i) => {
@@ -213,6 +215,7 @@ const DayView = {
       }
       if (!plan.chained) h += `<div class="tl-item wake ${past(plan.wakeAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.wakeAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>기상 · 준비</b><small>준비 ${s.prepMin}분${i ? ' · 집에 들렀다 가는 일정' : ''}</small></div></div>`;
       h += `<div class="tl-item depart ${past(plan.departAt)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(plan.departAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>${U.esc((s.origin && s.origin.name) || '집')}에서 출발</b><small>${U.modeIcon(trip ? s.trip.accessMode : s.mode)} ${Planner.MODES[trip ? s.trip.accessMode : s.mode].label}${(trip ? s.accessRoute : s.route) ? ' · ' + U.durLabel((trip ? s.accessRoute : s.route).travelMin) : ''}</small></div></div>`;
+      if (x.start.getTime() > now) h += this.navBtn(i, x === next);
       h += `<div class="tl-item event ${past(x.start)}" onclick="App.navigate('timeline',{id:'${id}'})"><div class="tl-time">${U.hm(x.start)}</div><div class="tl-dot"></div><div class="tl-body"><b>${U.esc(s.title)}</b><small>${trip ? `${U.esc(s.trip.number || Planner.MODES[s.mode].label)} 탑승 · ${U.esc((s.trip.departStation && s.trip.departStation.name) || '')}` : U.esc((s.dest && s.dest.name) || '')}${x.end ? ` · ${U.hm(x.end)}까지` : ''}</small></div></div>`;
       if (plan.homeAt && i === list.length - 1) {
         if (plan.lastLeaveAt) h += `<div class="tl-item last ${past(plan.lastLeaveAt)}"><div class="tl-time">${U.hm(plan.lastLeaveAt)}</div><div class="tl-dot"></div><div class="tl-body"><b>막차 타려면 늦어도 출발</b><small>막차 ${U.esc(s.goHome.lastTime)}</small></div></div>`;
@@ -231,12 +234,35 @@ const DayView = {
           <div><small>첫 출발</small><b>${U.hm(list[0].plan.departAt)}</b></div>
           ${last.plan.homeAt ? `<div><small>집 도착</small><b>${U.hm(last.plan.homeAt)}</b></div>` : `<div><small>${last.end ? '마지막 끝' : '마지막 일정'}</small><b>${U.hm(last.end || last.start)}</b></div>`}
         </div>` : ''}
+        ${next ? `<button class="dv-go" onclick="DayView.nav(${list.indexOf(next)})">${this.navLabel(next).icon} <span>${U.esc(this.navLabel(next).text)}<small>${U.esc(this.destOf(next.s).name || next.s.title)} · ${U.hm(next.plan.departAt)} 출발</small></span></button>` : ''}
         ${list.some(x => x.conflict) ? '<div class="info"><span>⚠️ 시간이 겹치는 일정이 있어요</span></div>' : ''}
       </div>
       ${list.length ? `<div class="card" style="padding:12px 18px"><div class="tl">${rows}</div></div>` : ''}
       <p class="muted small" style="margin:0 4px 12px">일정에 <b>끝나는 시간</b>을 넣으면 사이 여유 시간을 더 정확히 계산해요.</p>
       <button class="btn primary big" onclick="App.navigate('register',{date:'${ymd}'})">＋ 이 날 일정 추가</button>
     `);
+  },
+
+  /* ---------- 길안내 (하루 동선에서도 일정마다 바로 내비) ---------- */
+  modeOf(s) { return Planner.isTrip(s.mode) ? (s.trip && s.trip.accessMode) || 'transit' : s.mode; },
+  destOf(s) { return (Planner.isTrip(s.mode) ? s.trip && s.trip.departStation : s.dest) || {}; },
+  navLabel(x) {
+    const m = this.modeOf(x.s);
+    if (m === 'taxi') return { app: 'kakaot', icon: '🚕', text: '카카오T 부르기' };
+    if (m === 'car') return { app: 'tmap', icon: '🚗', text: '티맵 길안내' };
+    return { app: 'kakaomap', icon: m === 'walk' ? '🚶' : '🗺️', text: m === 'walk' ? '걷기 길안내' : '길안내 시작' };
+  },
+  /** 출발 줄 아래 작은 길안내 버튼 (지금 갈 일정은 진하게) */
+  navBtn(i, isNext) {
+    const x = this._list[i], n = this.navLabel(x);
+    return `<button class="dv-nav${isNext ? ' on' : ''}" onclick="event.stopPropagation();DayView.nav(${i})">${n.icon} ${n.text} ›</button>`;
+  },
+  nav(i) {
+    const x = this._list && this._list[i];
+    if (!x) return;
+    const n = this.navLabel(x);
+    if (n.app === 'kakaot') return Routes.openNav('kakaot');
+    Routes.openNav(n.app, this.modeOf(x.s), x.s.origin, this.destOf(x.s));
   },
 
   /** 앞 약속이 몇 시에 끝나는지 물어서 저장 (빈 시간·이어서 출발 계산용). 반복 일정은 이 날만 */
