@@ -399,7 +399,7 @@ const Alarm = {
     this.beep(false);
     document.getElementById('ringing').classList.remove('show');
     if (typeof Ads !== 'undefined') Ads.sync();
-    if (this._ringKind === 'depart') this.habitMark(this._ringId, 'go');
+    if (open && this._ringKind === 'depart') this.habitMark(this._ringId, 'go');   // '5분 뒤 다시'(stop(false))는 출발로 치지 않음
     if (open) {
       // '일정 보기'로 끈 것도 알람을 본 것 → 아이폰이 1·2분 뒤 다시 울리려고 예약해 둔 알림 지움
       const id = this._ringId, kind = this._ringKind, LN = this.ln();
