@@ -1,7 +1,9 @@
 // 챙길 것 확인: node test/pack.test.js
 const assert = require('assert');
 const Pack = require('../js/pack.js');
-const d = '2026-11-05';
+// 날짜는 오늘 기준 (지난 날 체크는 7일 뒤 지워지므로 고정 날짜를 쓰면 시간이 지나 실패함)
+const ymd = t => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+const d = ymd(new Date(Date.now() + 86400000)), d2 = ymd(new Date(Date.now() + 2 * 86400000));
 const hospital = { title: '서울아산병원 정기검진', mode: 'transit', date: d };
 
 // 1) 병원·검진 + 비 예보 → 신분증·진료카드·우산 (중복 없이)
@@ -29,7 +31,7 @@ let l = Pack.list({ ...base, date: d }, { weather: { kind: 'rain' } });
 assert.ok(l.find(x => x.name === '검사 결과지' && !x.auto));
 assert.ok(!l.find(x => x.name === '금식 여부 확인'));
 assert.ok(l.find(x => x.name === '신분증').done);
-assert.ok(!Pack.list({ ...base, date: '2026-11-06' }, {}).find(x => x.name === '신분증').done);
+assert.ok(!Pack.list({ ...base, date: d2 }, {}).find(x => x.name === '신분증').done);
 Pack.toggle(base, d, '신분증');
 assert.ok(!Pack.list({ ...base, date: d }, {}).find(x => x.name === '신분증').done);
 Pack.addItem(base, '금식 여부 확인'); // 뺐던 자동 항목을 다시 적으면 돌아옴
