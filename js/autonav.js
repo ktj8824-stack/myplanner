@@ -241,19 +241,37 @@ const AutoNav = {
     const h = State.settings && State.settings.home;
     return h && isFinite(h.lat) && new Date().getHours() >= 15 ? h : null;
   },
+  /** 집으로: 먼저 이동수단을 고름 → 자가용은 내비(티맵·카카오맵), 버스·지하철은 카카오맵 대중교통 길찾기 (출발 = 지금 있는 곳) */
   goHome() {
     const h = this._homeFallback() || (State.settings && State.settings.home);
     if (!h) { this.cancel(); U.toast('집 주소를 먼저 등록해 주세요'); return App.navigate('settings'); }
     if (!isFinite(h.lat)) { U.toast('집 주소를 다시 골라 주세요'); return App.navigate('settings'); }
-    const dm = State.settings.defaultMode;
-    this._leg = { to: h, mode: dm === 'transit' || dm === 'walk' ? dm : 'car', home: true, label: '집으로 귀가', s: null };
+    this._home = h;
+    const ic = n => `<span class="gh-ic" aria-hidden="true">${U.modeIcon(n)}</span>`;
+    this._overlay(`<div class="an-t">집으로 가요</div><div class="an-d">📍 ${this._esc(h.name || '집')} · 지금 있는 곳에서 출발</div>
+      <div class="an-c">무엇으로 갈까요?</div>
+      <div class="gh-modes">
+        <button type="button" class="gh-mode" onclick="AutoNav.goHomeBy('car')">${ic('car')}<b>자가용</b><small>티맵·카카오맵 내비</small></button>
+        <button type="button" class="gh-mode" onclick="AutoNav.goHomeBy('transit')">${ic('transit')}<b>버스·지하철</b><small>대중교통 길찾기</small></button>
+        <button type="button" class="gh-mode" onclick="AutoNav.goHomeBy('walk')">${ic('walk')}<b>걸어서</b><small>도보 길찾기</small></button>
+      </div>
+      <button type="button" class="an-link" onclick="AutoNav.cancel()">닫기</button>`, true);
+  },
+  goHomeBy(mode) {
+    const h = this._home || (State.settings && State.settings.home);
+    if (!h) return this.cancel();
+    try { localStorage.setItem('mp_gohome_mode', mode); } catch (e) { }
+    if (mode !== 'car') {   // 버스·지하철·도보: 카카오맵이 지금 위치에서 집까지 경로를 보여 줌 (버스·지하철을 그 화면에서 고름)
+      this._close();
+      return Routes.openNav('kakaomap', mode, null, h);
+    }
+    this._leg = { to: h, mode: 'car', home: true, label: '집으로 귀가', s: null };
     const pref = this.pref();
     if (pref === 'tmap' || pref === 'kakaomap') return this.go(pref);
-    this._overlay(`<div class="an-t">집으로 안내할게요</div><div class="an-d">📍 ${this._esc(h.name || '집')}</div>
-      <div class="an-c">어느 내비로 안내할까요?</div>
+    this._overlay(`<div class="an-t">어느 내비로 갈까요?</div><div class="an-d">📍 ${this._esc(h.name || '집')}</div>
       <div class="an-b"><button type="button" class="an-go an-tmap" onclick="AutoNav.go('tmap')">티맵</button>
       <button type="button" class="an-go an-kakao" onclick="AutoNav.go('kakaomap')">카카오맵</button></div>
-      <button type="button" class="an-link" onclick="AutoNav.cancel()">닫기</button>`, true);
+      <button type="button" class="an-link" onclick="AutoNav.goHome()">‹ 이동수단 다시 고르기</button>`, true);
   },
 
   _overlay(html, closable) {
