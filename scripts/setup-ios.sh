@@ -52,11 +52,13 @@ $PB_ -c "Set :CFBundleDisplayName 마이플래너" "$PL" 2>/dev/null || $PB_ -c 
 $PB_ -c "Delete :LSApplicationQueriesSchemes" "$PL" 2>/dev/null || true
 $PB_ -c "Add :LSApplicationQueriesSchemes array" "$PL"
 for s in kakaokompassauth kakaolink kakaotalk kakaomap tmap kakaot; do $PB_ -c "Add :LSApplicationQueriesSchemes: string $s" "$PL"; done
+$PB_ -c "Delete :CFBundleURLTypes" "$PL" 2>/dev/null || true
+$PB_ -c "Add :CFBundleURLTypes array" "$PL"
+$PB_ -c "Add :CFBundleURLTypes:0 dict" "$PL"
+$PB_ -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PL"
+# 차에 타면 자동 길안내 (단축어 'URL 열기' → myplanner://next)
+$PB_ -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes: string myplanner" "$PL"
 if [ -n "$KAKAO_KEY" ]; then
-  $PB_ -c "Delete :CFBundleURLTypes" "$PL" 2>/dev/null || true
-  $PB_ -c "Add :CFBundleURLTypes array" "$PL"
-  $PB_ -c "Add :CFBundleURLTypes:0 dict" "$PL"
-  $PB_ -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes array" "$PL"
   $PB_ -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes: string kakao$KAKAO_KEY" "$PL"
 fi
 $PB_ -c "Delete :NSLocationWhenInUseUsageDescription" "$PL" 2>/dev/null || true
