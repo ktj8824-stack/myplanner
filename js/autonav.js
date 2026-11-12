@@ -20,6 +20,8 @@ const AutoNav = {
 
   _isIOSApp() { const C = window.Capacitor; return !!(C && C.getPlatform && C.getPlatform() === 'ios'); },
   isAppLink(url) { return /^myplanner:\/\/(go[=/])?next\b/i.test(String(url || '')); },
+  /** myplanner://home — 시리·단축어로 '집으로' 바로 */
+  isHomeLink(url) { return /^myplanner:\/\/(go[=/])?home\b/i.test(String(url || '')); },
 
   // 주소에 go=next 가 있으면 지우고 true
   _consumeFlag() {
@@ -27,11 +29,12 @@ const AutoNav = {
       const u = new URL(location.href);
       const q = u.searchParams.get('go');
       const h = (u.hash || '').replace(/^#/, '');
-      if (q !== 'next' && h !== 'go=next' && h !== 'next') return false;
+      const home = q === 'home' || h === 'go=home';
+      if (!home && q !== 'next' && h !== 'go=next' && h !== 'next') return false;
       u.searchParams.delete('go');
-      if (h === 'go=next' || h === 'next') u.hash = '';
+      if (h === 'go=next' || h === 'next' || h === 'go=home') u.hash = '';
       history.replaceState(history.state, '', u.pathname + u.search + u.hash);
-      return true;
+      return home ? 'home' : true;
     } catch (e) { return false; }
   },
 
@@ -41,12 +44,14 @@ const AutoNav = {
       document.addEventListener('visibilitychange', () => { if (document.hidden) this.keepNotice(); });
       window.addEventListener('pagehide', () => this.keepNotice());
     }
-    if (this._consumeFlag()) { this._run(); return; }
+    const flag = this._consumeFlag();
+    if (flag === 'home') { setTimeout(() => this.goHome(), 300); return; }
+    if (flag) { this._run(); return; }
     const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
     if (!A) return;
     // 아이폰 앱이 myplanner://next 로 처음 켜진 경우 + 이미 켜져 있을 때
-    try { if (A.getLaunchUrl) A.getLaunchUrl().then(r => { if (r && this.isAppLink(r.url)) this._run(); }).catch(() => {}); } catch (e) { /* */ }
-    try { A.addListener('appUrlOpen', ev => { if (ev && this.isAppLink(ev.url)) this._run(); }); } catch (e) { /* */ }
+    try { if (A.getLaunchUrl) A.getLaunchUrl().then(r => { if (r && this.isHomeLink(r.url)) setTimeout(() => this.goHome(), 300); else if (r && this.isAppLink(r.url)) this._run(); }).catch(() => {}); } catch (e) { /* */ }
+    try { A.addListener('appUrlOpen', ev => { if (ev && this.isHomeLink(ev.url)) this.goHome(); else if (ev && this.isAppLink(ev.url)) this._run(); }); } catch (e) { /* */ }
   },
   _run() {
     if (this._launched) return;
@@ -238,8 +243,10 @@ const AutoNav = {
   },
   goHome() {
     const h = this._homeFallback() || (State.settings && State.settings.home);
-    if (!h) return this.cancel();
-    this._leg = { to: h, mode: 'car', home: true, label: '집으로 귀가', s: null };
+    if (!h) { this.cancel(); U.toast('집 주소를 먼저 등록해 주세요'); return App.navigate('settings'); }
+    if (!isFinite(h.lat)) { U.toast('집 주소를 다시 골라 주세요'); return App.navigate('settings'); }
+    const dm = State.settings.defaultMode;
+    this._leg = { to: h, mode: dm === 'transit' || dm === 'walk' ? dm : 'car', home: true, label: '집으로 귀가', s: null };
     const pref = this.pref();
     if (pref === 'tmap' || pref === 'kakaomap') return this.go(pref);
     this._overlay(`<div class="an-t">집으로 안내할게요</div><div class="an-d">📍 ${this._esc(h.name || '집')}</div>
@@ -357,6 +364,36 @@ const AutoNav = {
     document.querySelectorAll('.modal-back').forEach(m => m.remove());
     const msg = '설정 완료! 홈에 설정 안내가 더 뜨지 않아요';
     if (typeof U !== 'undefined' && U.toast) U.toast(msg); else if (typeof App !== 'undefined' && App.toast) App.toast(msg);
+  },
+
+  /** 홈 맨 위 '집으로': 정해 둔 시간대(기본 18~23시)에만, 집 주소가 있을 때 */
+  homeWin() {
+    const w = State.settings.homeWin || {};
+    return { on: w.on !== false, from: /^\d{2}:\d{2}$/.test(w.from) ? w.from : '18:00', to: /^\d{2}:\d{2}$/.test(w.to) ? w.to : '23:00' };
+  },
+  _inWin(now = new Date()) {
+    const w = this.homeWin(), m = now.getHours() * 60 + now.getMinutes();
+    const t = v => +v.slice(0, 2) * 60 + +v.slice(3);
+    const a = t(w.from), b = t(w.to);
+    return a <= b ? m >= a && m < b : m >= a || m < b;   // 22:00~02:00처럼 자정을 넘겨도
+  },
+  homeCardHtml() {
+    const h = State.settings.home, w = this.homeWin();
+    if (!w.on || !h || !isFinite(h.lat) || !this._inWin()) return '';
+    try { if (localStorage.getItem('mp_gohome_off') === U.ymd(new Date())) return ''; } catch (e) { }
+    return `<div class="gohome" role="group" aria-label="집으로">
+      <button type="button" class="gohome-go" onclick="AutoNav.goHome()">
+        <span class="gohome-ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></span>
+        <span class="gohome-t"><b>집으로</b><small>지금 있는 곳에서 ${this._esc(h.name || '집')}까지 바로 길안내</small></span>
+        <span class="gohome-btn">바로 출발</span>
+      </button>
+      <button type="button" class="gohome-x" aria-label="오늘은 그만 보기" onclick="AutoNav.hideHomeToday()">✕</button>
+    </div>`;
+  },
+  hideHomeToday() {
+    try { localStorage.setItem('mp_gohome_off', U.ymd(new Date())); } catch (e) { }
+    document.querySelectorAll('.gohome').forEach(el => el.remove());
+    U.toast('오늘은 집으로 버튼을 숨겼어요');
   },
 
   hidePromo() {

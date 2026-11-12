@@ -429,6 +429,12 @@ const Settings = {
         <input class="input" maxlength="20" value="${U.esc(st.name)}" onchange="State.settings.name=this.value.trim().slice(0,20);State.save()">
         <label class="lbl q-lbl">집 <small>기본 출발지</small></label>
         <button class="input place-btn ${st.home ? '' : 'empty'}" onclick="Settings.pickHome()">${U.icon('home')} ${st.home ? U.esc(st.home.name) : '집 주소 검색'}</button>
+        ${(() => { const w = AutoNav.homeWin(); const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0') + ':00');
+          const sel = (k, v) => `<select class="input hw-sel" onchange="Settings.setHomeWin('${k}', this.value)" ${w.on ? '' : 'disabled'}>${hours.map(t => `<option value="${t}" ${t === v ? 'selected' : ''}>${+t.slice(0, 2) < 12 ? '오전' : '오후'} ${(+t.slice(0, 2)) % 12 || 12}시</option>`).join('')}</select>`;
+          return `<label class="lbl">홈에 '집으로' 버튼 보이는 시간</label>
+          <div class="seg">${[[true, '켜기'], [false, '끄기']].map(([v, l]) => `<button class="${w.on === v ? 'on' : ''}" onclick="Settings.setHomeWin('on', ${v})">${l}</button>`).join('')}</div>
+          <div class="hw-row">${sel('from', w.from)}<span>부터</span>${sel('to', w.to)}<span>까지</span></div>
+          <p class="muted small" style="margin:8px 0 0">이 시간에 홈 맨 위에 '집으로'가 떠요. 누르면 지금 있는 곳에서 집까지 바로 내비가 켜져요.</p>`; })()}
       </div>
 
       <div class="card" id="cloudCard"></div>
@@ -634,6 +640,7 @@ const Settings = {
 
   set(k, v) { State.settings[k] = v; State.save(); this.render(); },
   setKey(k, v) { v = v.trim(); if (v) localStorage.setItem('mp_key_' + k, v); else localStorage.removeItem('mp_key_' + k); U.toast('저장했어요.'); },
+  setHomeWin(k, v) { State.settings.homeWin = { ...AutoNav.homeWin(), [k]: v }; State.save(); this.render(); },
   pickHome() {
     PlacePicker.open('집 주소', p => { State.settings.home = { ...p, name: p.name === '현재 위치' ? '집' : p.name }; State.save(); this.render(); }, { allowHome: false });
   },

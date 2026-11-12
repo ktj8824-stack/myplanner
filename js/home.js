@@ -29,6 +29,7 @@ const Home = {
       </header>
 
       ${Demo.bar()}
+      ${typeof AutoNav !== 'undefined' && AutoNav.homeCardHtml ? AutoNav.homeCardHtml() : ''}
       ${this.snoozeStrip()}
       ${next ? this.nextCard(next) : this.emptyCard()}
       ${next ? this.prepTip(next.s) : ''}

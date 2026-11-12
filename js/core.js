@@ -161,7 +161,8 @@ const State = {
     defaultMode: 'transit',
     prepMin: 60,
     bufferMin: 10,
-    alarm: { wake: true, preDepart: true, depart: true, nightBefore: true }
+    alarm: { wake: true, preDepart: true, depart: true, nightBefore: true },
+    homeWin: { on: true, from: '18:00', to: '23:00' }   // 홈 '집으로' 버튼이 보이는 시간대
   },
 
   load() {
