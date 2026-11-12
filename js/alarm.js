@@ -33,6 +33,8 @@ const Alarm = {
           // 기상 알람을 울린 지 얼마 안 돼서 눌렀으면 기상 화면을 보여 줌 (소리는 다시 내지 않음)
           if (x.kind === 'wake' && x.at && Date.now() - x.at < 20 * 60000) return this.showRinging(n.title, n.body, x.scheduleId, 'wake', true);
           if (x.kind === 'depart' && x.at && Date.now() - x.at < 30 * 60000) this.habitMark(x.scheduleId, 'go');
+          // 출발 1시간 전·10분 전·출발 알림을 누르면 → 바로 길안내 (2시간 안에 누른 경우)
+          if (['next', 'pre', 'depart'].includes(x.kind) && x.at && Math.abs(Date.now() - x.at) < 120 * 60000 && typeof AutoNav !== 'undefined') return AutoNav._run();
           this.openSchedule(x.scheduleId);
         });
         LN.addListener('localNotificationReceived', n => {
@@ -268,13 +270,28 @@ const Alarm = {
       const delay = a.at.getTime() - Date.now();
       if (delay > 0 && delay < 2147483000) {
         this.webTimers.push(setTimeout(() => {
-          try { if ('Notification' in window && Notification.permission === 'granted') new Notification(a.title, { body: a.body, icon: 'icon-192.png' }); } catch (e) {}
+          this.webNotify(a);
           if (a.alarm) this.showRinging(a.title, a.body, a.sid, a.key);
           else U.toast(a.title);
         }, delay));
       }
     });
     return list;
+  },
+
+  /** 웹 알림: 서비스워커로 띄움(안드로이드 크롬은 이 방법만 됨). 출발 관련 알림은 누르면 ?go=next → 바로 길안내 */
+  async webNotify(a) {
+    try {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      const nav = ['next', 'pre', 'depart'].includes(a.key);
+      const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : null;
+      if (reg && reg.showNotification) {
+        return await reg.showNotification(a.title, { body: a.body, icon: new URL('icon-192.png', reg.scope).href,
+          tag: nav ? 'next-' + a.sid : 'mp-' + a.sid + '-' + a.key, data: { url: new URL(nav ? './?go=next' : './', reg.scope).href } });
+      }
+      const n = new Notification(a.title, { body: a.body, icon: 'icon-192.png' });
+      if (nav) n.onclick = () => { try { window.focus(); n.close(); } catch (e) { } if (typeof AutoNav !== 'undefined') AutoNav._run(); };
+    } catch (e) { }
   },
 
   async clearLocal() {

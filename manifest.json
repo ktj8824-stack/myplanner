@@ -29,5 +29,20 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "다음 일정 길안내",
+      "short_name": "길안내",
+      "description": "지금 가야 할 곳으로 내비를 바로 켭니다",
+      "url": "./?go=next",
+      "icons": [
+        {
+          "src": "./icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
