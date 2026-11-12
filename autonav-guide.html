@@ -110,6 +110,9 @@ h1 em{font-style:normal;color:var(--acc)}
 .step p{margin:6px 0 0;font-size:14px;color:var(--sub)}
 .tip{margin-top:18px;background:var(--warn-bg);color:#5C2E04;border-radius:14px;padding:14px 16px;font-size:14.5px}
 .tip b{color:var(--warn)}
+.step .txt p b{display:inline;font-size:inherit;margin:0}
+.tip.warn{margin:0 0 18px;background:#FFE9E6;color:#6B1A10;border:1.5px solid #F4B4AA}
+.tip.warn b{color:#C8321E}
 
 /* 질문 */
 .faq details{border:1px solid var(--line);border-radius:14px;background:#fff;margin-top:10px}
@@ -225,10 +228,11 @@ footer{padding:22px 0 32px;color:var(--mute);font-size:13px;text-align:center}
       </div>
 
       <div class="panel" id="p-ios" role="tabpanel" aria-labelledby="t-ios">
+        <div class="tip warn"><b>꼭 '자동화' 탭에서 만드세요</b> · 단축어 앱의 첫 화면(<b>단축어</b> 탭)에서 만든 단축어는 직접 눌러야만 실행돼요. 차에 탈 때 저절로 켜지게 하려면 아래 가운데 <b>자동화</b> 탭에서 만들어야 해요.</div>
         <ol class="steps">
           <li class="step">
             <div class="pic"><div class="mini"><div class="h">단축어</div><div class="row">나의 단축어</div><div class="row">갤러리</div><div class="tabbar"><span>단축어</span><b>자동화</b><span>갤러리</span></div></div></div>
-            <div class="txt"><span class="n">1단계</span><b>'단축어' 앱 → 아래 '자동화'</b><p>아이폰에 기본으로 있는 앱이에요. 없으면 앱스토어에서 '단축어'를 받으세요.</p></div>
+            <div class="txt"><span class="n">1단계</span><b>'단축어' 앱 → 맨 아래 가운데 '자동화' 탭</b><p>아래에 [단축어] [자동화] [갤러리] 세 칸이 있어요. 가운데 <b>자동화</b>를 누르세요. 앱이 없으면 앱스토어에서 '단축어'를 받으세요.</p></div>
           </li>
           <li class="step">
             <div class="pic"><div class="mini"><div class="h" style="display:flex;align-items:center">자동화<span class="plus">+</span></div><div class="row hl">새로운 자동화</div><div class="row">개인용 자동화</div></div></div>
@@ -240,18 +244,19 @@ footer{padding:22px 0 32px;color:var(--mute);font-size:13px;text-align:center}
           </li>
           <li class="step">
             <div class="pic"><div class="mini"><div class="h">CarPlay</div><div class="row"><span>연결될 때</span><span class="chk"></span></div><div class="row">연결 해제될 때</div><div class="row on">즉시 실행</div><div class="row">실행 전 확인</div></div></div>
-            <div class="txt"><span class="n">4단계</span><b>'연결될 때' + '즉시 실행' → 다음</b><p>'즉시 실행'을 꼭 고르세요. 그래야 묻지 않고 바로 열려요.</p></div>
+            <div class="txt"><span class="n">4단계</span><b>'연결될 때' + '즉시 실행' → 다음</b><p>'즉시 실행'을 꼭 고르세요. '실행 전 확인'이면 탈 때마다 폰을 눌러야 해요.</p></div>
           </li>
           <li class="step">
             <div class="pic"><div class="mini"><div class="h">동작 추가</div><div class="row hl">🔎 URL 열기</div><div class="row">앱 열기</div><div class="row">메시지 보내기</div></div></div>
-            <div class="txt"><span class="n">5단계</span><b>'새로운 빈 자동화' → 'URL 열기' 검색</b><p>동작 검색 칸에 'URL'을 치면 'URL 열기'가 나와요.</p></div>
+            <div class="txt"><span class="n">5단계</span><b>'새로운 빈 자동화' → 'URL 열기' 검색</b><p>동작 검색 칸에 'URL'을 치면 'URL 열기'가 나와요. 마이플래너 단축어를 미리 만들어 두셨다면, 이 화면에서 그 <b>단축어를 골라도</b> 돼요.</p></div>
           </li>
           <li class="step">
             <div class="pic"><div class="mini"><div class="h">URL 열기</div><div class="url">myplanner://next</div><div class="row on" style="margin-top:10px;justify-content:center">완료</div></div></div>
-            <div class="txt"><span class="n">6단계</span><b>복사한 주소 붙여넣기 → 완료</b><p>아이폰 앱이면 <span class="mono">myplanner://next</span>, 사파리로 쓰면 https 주소를 넣으세요.</p></div>
+            <div class="txt"><span class="n">6단계</span><b>복사한 주소 붙여넣기 → 완료</b><p>아이폰 앱이면 <span class="mono">myplanner://next</span>를 넣으세요. 앱이 바로 열려요. 사파리(https 주소)로 쓰면 탈 때마다 'TMAP에서 열기'를 한 번 눌러야 해요.</p></div>
           </li>
         </ol>
-        <div class="tip"><b>확인하는 법</b> · 차에 타기 전에 단축어 앱에서 방금 만든 자동화를 눌러 보세요. 마이플래너가 열리고 다음 일정이 뜨면 성공이에요.</div>
+        <div class="tip"><b>확인하는 법</b> · 오늘 일정이 있는 날, 시동을 끄고 내렸다가 다시 타서 휴대폰을 연결해 보세요. <b>폰은 건드리지 말고</b> 기다렸을 때 마이플래너가 저절로 열리고 내비 안내가 시작되면 성공이에요. 아무 일도 없으면 자동화가 '즉시 실행'인지 확인해 주세요.</div>
+        <div class="tip"><b>차 화면에 내비가 안 보이면</b> · 휴대폰에서는 안내가 시작됐는데 차 화면은 그대로일 수 있어요. 아이폰은 다른 앱이 차 화면을 마음대로 바꿀 수 없게 되어 있어서예요. 차 화면에서 <b>티맵(카카오맵) 아이콘을 한 번</b> 누르면 진행 중인 안내가 바로 보여요. CarPlay <b>대시보드</b> 화면(지도·음악이 나뉜 화면)에 두면 지도 칸에 안내가 자동으로 보이는 경우가 많아요.</div>
       </div>
 
       <div class="panel" id="p-and" role="tabpanel" aria-labelledby="t-and" hidden>
@@ -288,6 +293,8 @@ footer{padding:22px 0 32px;color:var(--mute);font-size:13px;text-align:center}
     <h2>자주 묻는 질문</h2>
     <details><summary>오늘 일정이 없으면 어떻게 되나요?</summary><p>"오늘 남은 일정이 없어요"라고 한 번 알려 주고 끝나요. 내비는 켜지지 않아요.</p></details>
     <details><summary>일정이 끝났는데 또 안내하나요?</summary><p>아니요. 지난 구간은 건너뛰고 지금 가야 할 곳으로만 안내해요. 오늘 이동이 다 끝났으면 "수고하셨어요"로 끝나요.</p></details>
+    <details><summary>휴대폰에서는 내비가 켜졌는데 차 화면엔 안 나와요</summary><p>아이폰 CarPlay는 앱이 차 화면을 직접 바꿀 수 없게 되어 있어요. 차 화면에서 티맵(카카오맵) 아이콘을 한 번 누르면 이미 진행 중인 안내가 보여요. 대시보드 화면을 쓰면 지도 칸에 바로 보이는 경우가 많아요.</p></details>
+    <details><summary>단축어를 만들었는데 차에 타도 안 켜져요</summary><p>'단축어' 탭에서 만든 단축어는 직접 눌러야 실행돼요. 단축어 앱 아래 가운데 <b>자동화</b> 탭에서 'CarPlay → 연결될 때 → 즉시 실행'으로 자동화를 하나 더 만들고, 그 단축어를 고르면 돼요.</p></details>
     <details><summary>가족 차를 탈 때도 켜지나요?</summary><p>등록한 차(CarPlay 또는 고른 블루투스 기기)에 연결될 때만 켜져요. 원하지 않을 땐 내비를 닫으면 돼요.</p></details>
     <details><summary>웹 주소로 열면 내 일정이 보이나요?</summary><p>아이폰 앱은 myplanner://next 주소를 쓰면 앱이 바로 열려요. 웹 주소는 일정을 등록한 그 브라우저에서 열려야 일정이 보여요.</p></details>
     <details><summary>무료로도 쓸 수 있나요?</summary><p>네. 자동 길안내는 무료로 쓸 수 있어요.</p></details>
