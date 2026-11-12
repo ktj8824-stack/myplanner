@@ -39,7 +39,7 @@ const Home = {
 
       <div class="acts">
         <button class="act" onclick="App.navigate('register')"><span class="ic-box bg-blue"><img src="img/icons/register.png" alt=""></span><b>일정 추가</b><small>도착 시간만 넣으면 끝</small></button>
-        <button class="act" onclick="App.navigate('assistant')"><span class="ic-box ai-orb">${App.micSvg()}</span><b class="ai-name">AI 비서</b><small><span class="pro">${Pro.promo() ? '3/31까지 무료' : '프리미엄'}</span> 말로 일정 등록</small></button>
+        <button class="act" onclick="App.navigate('assistant')"><span class="ic-box ai-orb">${App.micSvg()}</span><b class="ai-name">AI 비서</b><small><span class="pro">${Pro.promo() ? `${Pro.promoShort()}까지 무료` : '프리미엄'}</span> 말로 일정 등록</small></button>
       </div>
       ${Points.homeStrip()}
       <div class="card mini">

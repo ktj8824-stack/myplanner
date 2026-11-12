@@ -502,7 +502,9 @@ const Alarm = {
     if (mins.length < this.HABIT_MIN) return null;
     const sorted = mins.slice(-7).sort((a, b) => a - b), mid = sorted[Math.floor(sorted.length / 2)];
     const sug = Math.round(mid / 5) * 5;
-    return Math.abs(sug - Number(prepMin ?? 60)) >= 10 ? { min: sug, n: mins.length } : null;
+    // 출발 기록이 '실제로 나간 시각'이 아니라 출발 알람을 끈 시각이라, 늦게 일어난 날은 준비가 짧게 잡힘
+    // → 줄이자는 제안은 하지 않고, 실제로 더 걸린 경우(늘리기)만 제안 (2026-11-12 점검)
+    return sug - Number(prepMin ?? 60) >= 10 ? { min: sug, n: mins.length } : null;
   },
   /** 일정 s에 대한 제안 (이미 '괜찮아요' 한 값이면 안 보임) */
   prepFor(s) {

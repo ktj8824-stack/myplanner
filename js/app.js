@@ -104,7 +104,7 @@ const App = {
       ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
       ['points', 'img/icons/raffle.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
       ['raffle', 'img/icons/raffle.png', '럭키드로우', '모은 포인트로 경품 응모'],
-      ['pro', 'img/icons/settings.png', '이용권', '3월 31일까지 출시 기념 무료'],
+      ['pro', 'img/icons/settings.png', '이용권', Pro.promo() ? `${Pro.promoText().replace(/^\d+년 /, '')}까지 출시 기념 무료` : '플러스·프리미엄'],
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
       ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
     ];
@@ -305,7 +305,7 @@ const Welcome = {
 
         <div class="card">
           <label class="lbl">이름 <small class="muted">(선택)</small></label>
-          <input id="wName" class="input" placeholder="예: 김민지" value="${U.esc(st.name)}" autocomplete="name">
+          <input id="wName" class="input" maxlength="20" placeholder="예: 김민지" value="${U.esc(st.name)}" autocomplete="name">
           <label class="lbl">집 <small class="muted">출발지로 써요</small></label>
           <button id="wHome" class="input place-btn ${st.home ? '' : 'empty'}" onclick="Welcome.pickHome()">${U.icon('home')} ${st.home ? U.esc(st.home.name) : '집 주소 검색'}</button>
           <label class="lbl">글자 크기</label>
@@ -320,7 +320,7 @@ const Welcome = {
   },
   keepName() {
     const el = document.getElementById('wName');
-    if (el) State.settings.name = el.value.trim();
+    if (el) State.settings.name = el.value.trim().slice(0, 20);
   },
   setText(k) {
     this.keepName();

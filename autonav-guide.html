@@ -310,9 +310,11 @@ footer{padding:22px 0 32px;color:var(--mute);font-size:13px;text-align:center}
 
 <script>
 (function () {
-  var app = 'https://ktj8824-stack.github.io/myplanner/';
-  document.getElementById('lk-web').value = app + '?go=next';
-  document.getElementById('open-app').href = app;
+  var WEB = 'https://ktj8824-stack.github.io/myplanner/';
+  var here = /^https?:$/.test(location.protocol) ? location.origin + location.pathname.replace(/autonav-guide\.html$/, '') : '';
+  // 웹(다른 배포 주소 포함)은 지금 주소, 앱 안(capacitor://)에서는 단축어용 링크는 웹 주소, '열기'는 앱 첫 화면
+  document.getElementById('lk-web').value = (here || WEB) + '?go=next';
+  document.getElementById('open-app').href = here || 'index.html';
   var isAnd = /Android/i.test(navigator.userAgent);
   var tabs = [['t-ios', 'p-ios'], ['t-and', 'p-and']];
   function pick(i) {

@@ -54,7 +54,7 @@ const Timeline = {
         <div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>
       </div>
 
-      ${(() => { const n = State.byDate(s.date).length; return n > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${s.date}',from:'timeline:${U.esc(s.occId || s.id)}'})">🗓️ 이 날 일정 ${n}개 · 하루 동선 보기</button>` : ''; })()}
+      ${(() => { const n = State.byDate(s.date).length; return n > 1 ? `<button class="notice" onclick="App.navigate('day',{date:'${s.date}',from:'timeline:${U.esc(s.occId || s.id)}'})">${Icons.svg('calendar')} 이 날 일정 ${n}개 · 하루 동선 보기</button>` : ''; })()}
       ${plan.weather ? `<div class="note">${U.esc(Weather.label(plan))}</div>` : ''}
       ${Planner.rideFor(s) ? `<div class="note live">🚌 ${U.esc(Live.rideLabel(s))}</div>` : (Planner.rideLeg(s) && Routes.proxy() && !s.alarmOff ? `<div class="note dim">🚌 출발 1시간 전부터 실시간 버스 위치로 타는 시간을 다시 계산해요</div>` : '')}
       ${plan.live ? `<div class="note live">📡 ${U.esc(Live.label(s))}</div>` : (Planner.liveLeg(s) && Routes.can('tmap') && !s.alarmOff ? `<div class="note dim">📡 기상 20분 전·출발 30분 전에 실시간 교통으로 다시 계산해요</div>` : '')}
@@ -84,7 +84,7 @@ const Timeline = {
       ${s.memo ? `<div class="card"><div class="q">메모</div><div style="color:var(--ink-2)">${U.esc(s.memo).replace(/\n/g, '<br>')}</div></div>` : ''}
 
       <div class="card">
-        <label class="toggle-row" style="padding-top:0"><span>🔔 ${rep ? '이 반복 일정 알람' : '이 일정 알람'}</span><input type="checkbox" ${s.alarmOff ? '' : 'checked'} onchange="Timeline.toggleAlarm(this.checked)"></label>
+        <label class="toggle-row" style="padding-top:0"><span>${Icons.svg('bell')} ${rep ? '이 반복 일정 알람' : '이 일정 알람'}</span><input type="checkbox" ${s.alarmOff ? '' : 'checked'} onchange="Timeline.toggleAlarm(this.checked)"></label>
         <div id="alarmList"></div>
       </div>
 
@@ -410,7 +410,7 @@ const Settings = {
     const reps = State.repeating();
     App.setMain(`
       <div class="profile-head">
-        <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2) : st.name) : '🙂'}</div>
+        <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2) : st.name) : Icons.svg('smile')}</div>
         <div><small>마이</small><div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div></div>
       </div>
       <div class="pro-card"><div><small>내 이용권 · ${Pro.tier() === 'free' && Pro.promo() ? '출시 기념 무료' : { free: '무료', plus: '플러스', premium: '프리미엄' }[Pro.tier()]}</small><b>${Pro.tier() === 'premium' ? '광고 없이 AI 비서까지 쓰는 중' : Pro.tier() === 'plus' ? '광고 없이 쓰는 중' : Pro.promo() ? `${Pro.promoText()}까지 모든 기능 무료` : '플러스 1,900원 · 프리미엄 4,900원'}</b></div><button onclick="App.navigate('pro')">${Pro.tier() === 'free' ? '이용권 보기' : '관리'}</button></div>
@@ -418,7 +418,7 @@ const Settings = {
 
       <div class="card">
         <label class="lbl q-lbl">이름</label>
-        <input class="input" value="${U.esc(st.name)}" onchange="State.settings.name=this.value.trim();State.save()">
+        <input class="input" maxlength="20" value="${U.esc(st.name)}" onchange="State.settings.name=this.value.trim().slice(0,20);State.save()">
         <label class="lbl q-lbl">집 <small>기본 출발지</small></label>
         <button class="input place-btn ${st.home ? '' : 'empty'}" onclick="Settings.pickHome()">${U.icon('home')} ${st.home ? U.esc(st.home.name) : '집 주소 검색'}</button>
       </div>
@@ -479,7 +479,7 @@ const Settings = {
       <div class="card">
         <label class="lbl">예시 일정</label>
         <p class="muted small" style="margin-top:0">병원(버스·지하철·비 예보), 평일 출근(자가용·실시간 교통), 부산 출장(KTX) 일정으로 기능을 둘러볼 수 있어요. 서버에는 올라가지 않아요.</p>
-        ${Demo.has() ? `<button class="btn ghost" onclick="Demo.remove()">예시 일정 지우기</button>` : `<button class="btn ghost" onclick="Demo.add()">✨ 예시 일정 3개 넣기</button>`}
+        ${Demo.has() ? `<button class="btn ghost" onclick="Demo.remove()">예시 일정 지우기</button>` : `<button class="btn ghost" onclick="Demo.add()">${Icons.svg('sparkles')} 예시 일정 3개 넣기</button>`}
       </div>
 
       <div class="card">

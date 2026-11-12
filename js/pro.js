@@ -56,6 +56,8 @@ const Pro = {
     return c.PROMO_UNTIL || '2027-03-31T23:59:59+09:00';
   },
   promo() { return Date.now() < Date.parse(this.promoUntil()); },
+  /** 무료 기간 끝 날짜 짧게: '3/31' */
+  promoShort() { const d = new Date(this.promoUntil()); return `${d.getMonth() + 1}/${d.getDate()}`; },
   promoText() { const d = new Date(this.promoUntil()); return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`; },
 
   /** 지금 이용권: free | plus | premium */
@@ -118,14 +120,14 @@ const Pro = {
       <header class="subhead"><button class="back" onclick="App.navigate('settings')" aria-label="뒤로"></button><h1>이용권</h1><span></span></header>
       ${this.promo() && !has ? `<div class="card">${action}</div>` : ''}
       <div class="plans">
-        ${card('free', '무료', '0원', this.promo() ? '광고 있음 · 3/31까지 AI 비서 하루 20번' : '광고 있음 · AI 비서 하루 5번')}
+        ${card('free', '무료', '0원', this.promo() ? `광고 있음 · ${this.promoShort()}까지 AI 비서 하루 20번` : '광고 있음 · AI 비서 하루 5번')}
         ${card('plus', '플러스', `월 ${P.plus.price.toLocaleString()}원`, '광고 없음')}
         ${card('premium', '프리미엄', `월 ${P.premium.price.toLocaleString()}원`, '광고 없음 + AI 비서')}
       </div>
       <div class="pro-hero ${sel}">
         <small>마이플래너 ${plan.name}</small>
         <div class="pro-price"><b>월 ${plan.price.toLocaleString()}원</b><span>부가세 포함</span></div>
-        <p class="pro-sub">매달 자동결제 · 언제든 해지</p>
+        <p class="pro-sub">${this.promo() ? `${this.promoText()}까지 무료 · 자동결제 없음` : '매달 자동결제 · 언제든 해지'}</p>
         <ul class="pro-perks">${plan.perks.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ul>
       </div>
       ${this.resultCard()}

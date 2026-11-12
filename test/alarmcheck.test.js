@@ -18,8 +18,9 @@ console.log('알람 점검 테스트 완료');
 // 준비 시간 제안: 5번 이상 기록, 지금과 10분 이상 차이 날 때만
 {
   const T = 1794380000000, rec = m => ({ up: T, go: T + m * 60000 });
-  assert.strictEqual(Alarm.prepSuggest([rec(40), rec(42), rec(38), rec(41)], 60), null);          // 4번 → 아직
-  assert.deepStrictEqual(Alarm.prepSuggest([rec(40), rec(42), rec(38), rec(41), rec(39)], 60), { min: 40, n: 5 });
+  assert.strictEqual(Alarm.prepSuggest([rec(80), rec(82), rec(78), rec(81)], 60), null);          // 4번 → 아직
+  assert.strictEqual(Alarm.prepSuggest([rec(40), rec(42), rec(38), rec(41), rec(39)], 60), null);              // 줄이자는 제안은 안 함 (늦게 일어난 날일 수 있음)
+  assert.deepStrictEqual(Alarm.prepSuggest([rec(75), rec(72), rec(78), rec(74), rec(76)], 60), { min: 75, n: 5 }); // 더 걸리면 늘리기 제안
   assert.strictEqual(Alarm.prepSuggest([rec(55), rec(57), rec(53), rec(56), rec(54)], 60), null); // 차이 작음
   assert.strictEqual(Alarm.prepSuggest([rec(40), rec(2), rec(400), { up: T }, rec(41)], 60), null); // 이상한 값·짝 없는 기록은 뺌
   console.log('✓ 준비 시간 제안 기준');

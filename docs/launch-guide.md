@@ -112,6 +112,19 @@ Supabase 무료 플랜의 프로젝트 2개가 이미 차 있어서, **버디플
 
 ---
 
+## 2-3. 이용권 결제 · 광고 포인트 — 배포 순서 (2026-11-12)
+
+순서를 바꾸면 결제·적립이 막혀요.
+
+1. **DB 먼저**: `supabase/migrations/005_myplanner_points_raffle.sql` 적용 → 이 SQL이 결제 표의 `plan` 제약을 `pro·plus·premium`으로 풀어 줘요.
+   이걸 하기 전에 새 결제 함수를 올리면 플러스 결제가 '저장소 오류'로 막혀요. ✅ 적용 완료
+2. **결제 함수**: `supabase/functions/payments` → `myplanner-payments` (verify_jwt=true). ✅ v6 (가상계좌 차단 포함)
+3. **광고 포인트 서버 확인(SSV)**: `supabase/functions/admob-ssv` → `myplanner-admob-ssv` (**verify_jwt=false** — 구글이 직접 부름). ✅ v1
+4. **애드몹 콘솔**: 보상형 광고 단위 → 서버 측 확인 → 콜백 URL에
+   `https://iaccdqcthhtvvetmbryr.supabase.co/functions/v1/myplanner-admob-ssv` 입력 → '확인'.
+5. **적립 방식 전환**: `update mp_settings set value='ssv' where key='ad_reward_mode';` ✅ 2026-11-12 전환
+   (되돌리면 앱이 직접 적립 → 광고 없이 함수만 불러도 포인트가 쌓일 수 있어요. 애드몹 테스트 때만 잠깐 'client')
+
 ## 3. 구글 플레이 콘솔 — 권한 신고 (출시할 때)
 
 플레이 콘솔 → 앱 → **앱 콘텐츠(Monitor and improve > App content)**

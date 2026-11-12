@@ -189,6 +189,14 @@ const Cloud = {
     if (body !== undefined && typeof body !== 'string') { headers['Content-Type'] = 'application/json'; body = JSON.stringify(body); }
     const res = await U.fetchT(`${url}/${path}`, { method: opts.method || 'GET', headers, body });
     const text = await res.text();
+    if (res.status === 401 && !path.startsWith('auth/v1/logout')) {
+      const s = this.session();
+      if (s && !opts._retried) { localStorage.setItem(this.SESSION_KEY, JSON.stringify({ ...s, expires_at: 0 })); return this._api(path, { ...opts, _retried: true }); }
+      if (s) {
+        localStorage.removeItem(this.SESSION_KEY); this.status = 'signed_out';
+        if (typeof U !== 'undefined') U.toast('로그인이 풀렸어요. 다시 로그인해 주세요');
+      }
+    }
     if (!res.ok) {
       let msg = text;
       try { const j = JSON.parse(text); msg = j.message || j.msg || text; } catch (e) {}
@@ -265,7 +273,8 @@ const Cloud = {
         return true;
       } catch (e) {
         this._firstUp = 0;
-        if (!e.noServer) this.status = navigator.onLine === false ? 'offline' : 'error';
+        if (!this.session()) this.status = 'signed_out';   // 로그인이 풀린 경우 '동기화 오류' 대신 다시 로그인 안내
+        else if (!e.noServer) this.status = navigator.onLine === false ? 'offline' : 'error';
         console.warn('[Cloud] 동기화 실패', e);
         throw e;
       } finally { this._syncing = null; if (App.current === 'settings') Settings.cloudCard(); }
