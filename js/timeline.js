@@ -470,7 +470,7 @@ const Settings = {
 
       <div class="card">
         <label class="lbl q-lbl">새 일정의 기본 알림</label>
-        ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람 (전체 화면)'], ['preDepart', '출발 10분 전'], ['depart', '출발 알람 (전체 화면)']].map(([k, l]) => `
+        ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람 (전체 화면)'], ['preDepart', '출발 1시간·10분 전'], ['depart', '출발 알람 (전체 화면)']].map(([k, l]) => `
           <label class="toggle-row"><span>${l}</span><input type="checkbox" ${st.alarm[k] ? 'checked' : ''} onchange="State.settings.alarm['${k}']=this.checked;State.save()"></label>`).join('')}
         <button class="btn ghost" onclick="Settings.test()">🔊 알람 미리 듣기</button>
       </div>

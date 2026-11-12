@@ -426,6 +426,10 @@ const Planner = {
     }
     if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
       body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}${packTxt}` });
+    // 출발 1시간 전 '다음 일정' 안내: 알림 목록에 남겨 두면 차에 타서(집을 나서며) 눌러 바로 길안내. 일어나기 전이면 넣지 않음
+    const nextAt = this.addMin(plan.departAt, -60);
+    if (opt.preDepart && (plan.chained || plan.wakeAt.getTime() <= nextAt.getTime())) out.push({ key: 'next', at: nextAt, title: `🚗 다음 일정 · ${hm(plan.departAt)} 출발`,
+      body: `${s.title}${dest ? ' · ' + dest : ''}\n나갈 때 눌러서 바로 길안내` });
     if (opt.preDepart) out.push({ key: 'pre', at: this.addMin(plan.departAt, -10), title: '출발 10분 전',
       body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
     const bus = this.busLeaveFor(s);

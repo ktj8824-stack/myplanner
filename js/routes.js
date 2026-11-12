@@ -139,9 +139,12 @@ const Routes = {
         if (res.ok) docs = (await res.json()).documents || [];
       } catch (e) { console.warn('카카오 장소 검색 실패', e); }
     }
-    if (docs && docs.length) {
+    // 주소처럼 쳤으면 (역삼동 824, 테헤란로 114) 그 주소 자체를 맨 위에 — 지번·도로명을 같이 보여 줌
+    const addr = this.looksLikeAddress(keyword) ? await this.searchAddress(keyword) : [];
+    if ((docs && docs.length) || addr.length) {
       this.lastSource = 'kakao';
-      return docs.map(d => ({ name: d.place_name, address: d.road_address_name || d.address_name, lat: +d.y, lng: +d.x }));
+      const pois = (docs || []).map(d => this.withJibun({ name: d.place_name, address: d.road_address_name || d.address_name, lat: +d.y, lng: +d.x }, d.road_address_name, d.address_name));
+      return addr.concat(pois);
     }
     // 2) 티맵 장소 검색 (카카오가 안 되거나 결과가 없을 때)
     if (this.can('tmap')) {
@@ -149,11 +152,13 @@ const Routes = {
       const pois = data?.searchPoiInfo?.pois?.poi || [];
       if (pois.length) {
         this.lastSource = 'tmap';
-        return pois.map(p => ({
-          name: p.name,
-          address: [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' '),
-          lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon)
-        })).filter(p => isFinite(p.lat) && isFinite(p.lng));
+        return pois.map(p => {
+          const na = p.newAddressList && p.newAddressList.newAddress && p.newAddressList.newAddress[0];
+          const road = (na && na.fullAddressRoad) || [p.upperAddrName, p.middleAddrName, p.roadName, p.firstBuildNo].filter(Boolean).join(' ');
+          const no = p.firstNo && p.firstNo !== '0' ? (p.mlClass === '2' ? '산 ' : '') + p.firstNo + (p.secondNo && p.secondNo !== '0' ? '-' + p.secondNo : '') : '';
+          const jibun = [p.upperAddrName, p.middleAddrName, p.lowerAddrName, p.detailAddrName, no].filter(Boolean).join(' ');
+          return this.withJibun({ name: p.name, address: road || jibun, lat: parseFloat(p.frontLat || p.noorLat), lng: parseFloat(p.frontLon || p.noorLon) }, road, jibun);
+        }).filter(p => isFinite(p.lat) && isFinite(p.lng));
       }
       if (data) { this.lastSource = 'tmap'; return []; }
     }
@@ -163,6 +168,43 @@ const Routes = {
     this.lastSource = (px || kakao) ? 'offline' : 'sample';
     return this.SAMPLE_PLACES.filter(p => p.name.includes(keyword) || keyword.includes(p.name)
       || keyword.replace(/\s/g, '') === p.name.replace(/역$|공항.*$/, ''));
+  },
+
+  /** 도로명 주소와 지번 주소가 다르면 지번도 같이 들고 있음 (검색 결과에 둘 다 보여 주려고) */
+  withJibun(p, road, jibun) {
+    road = (road || '').trim(); jibun = (jibun || '').trim();
+    if (road && jibun && road !== jibun) p.jibun = jibun;
+    return p;
+  },
+
+  /** '역삼동 824', '역삼동824-1', '테헤란로 114' 처럼 주소로 친 검색어 */
+  looksLikeAddress(q) {
+    return /(동|가|리|읍|면|로|길)\s*(산\s*)?\d+(-\d+)?(번지)?$/.test((q || '').trim());
+  },
+
+  /** 카카오 주소 검색 → 그 주소 자체를 장소로 (건물 이름이 있으면 이름으로). 서버 함수 → 직접 키 순서 */
+  async searchAddress(q) {
+    const keyword = q.trim().replace(/([^\s\d])(\d)/, '$1 $2').replace(/번지$/, ''); // '역삼동824' → '역삼동 824'
+    let docs = null;
+    if (this.proxy()) {
+      const data = await this.api('kakao_address', { keyword });
+      if (data && Array.isArray(data.documents)) docs = data.documents;
+    }
+    const kakao = this.key('KAKAO_REST_KEY');
+    if (!docs && kakao) {
+      try {
+        const res = await U.fetchT('https://dapi.kakao.com/v2/local/search/address.json?size=5&query=' + encodeURIComponent(keyword),
+          { headers: { Authorization: 'KakaoAK ' + kakao } });
+        if (res.ok) docs = (await res.json()).documents || [];
+      } catch (e) { console.warn('카카오 주소 검색 실패', e); }
+    }
+    return (docs || []).map(d => {
+      const road = (d.road_address && d.road_address.address_name) || '';
+      const jibun = (d.address && d.address.address_name) || (d.address_type !== 'ROAD_ADDR' ? d.address_name : '') || '';
+      const bld = d.road_address && d.road_address.building_name;
+      const short = (jibun || d.address_name).split(' ').slice(-2).join(' '); // '역삼동 824'
+      return this.withJibun({ name: bld || short, address: road || jibun || d.address_name, lat: +d.y, lng: +d.x, isAddr: true }, road, jibun);
+    }).filter(p => isFinite(p.lat) && isFinite(p.lng));
   },
 
   /* ---------- 거리 기반 추정 (키 없음/실패 시) ---------- */

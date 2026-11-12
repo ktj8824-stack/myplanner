@@ -36,6 +36,11 @@ const AutoNav = {
   },
 
   init() {
+    if (!this._watching) {
+      this._watching = true;
+      document.addEventListener('visibilitychange', () => { if (document.hidden) this.keepNotice(); });
+      window.addEventListener('pagehide', () => this.keepNotice());
+    }
     if (this._consumeFlag()) { this._run(); return; }
     const A = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
     if (!A) return;
@@ -149,11 +154,59 @@ const AutoNav = {
       <button type="button" class="an-link" onclick="AutoNav.cancel()">닫기</button>`, true);
   },
 
+  /* ── 출발 1시간 전부터 '다음 일정' 알림을 알림 목록에 남겨 두기 ──
+     미리 눌러서 사라졌으면 앱을 떠날 때 다시 올려 두고(소리 없이), 길안내를 시작하면 지움 */
+  _noticeInfo(now = new Date()) {
+    const r = this.nextLeg(now);
+    const l = r && (r.leg || r.later);
+    if (!l || !l.s || l.home) return null;
+    const left = (l.dep.getTime() - now.getTime()) / 60000;
+    if (left > 65 || left < -20) return null;
+    const sid = l.s.occId || l.s.id;
+    try { if (localStorage.getItem('mp_autonav_gone') === sid) return null; } catch (e) { }
+    return { sid, title: `🚗 다음 일정 · ${U.hm(l.dep)} 출발`, body: `${l.s.title || '일정'}${l.to && l.to.name ? ' · ' + l.to.name : ''}\n나갈 때 눌러서 바로 길안내` };
+  },
+  _ln() { const C = window.Capacitor; return C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.LocalNotifications; },
+  async keepNotice() {
+    try {
+      const n = this._noticeInfo();
+      const LN = this._ln();
+      if (LN) {   // 아이폰 앱(로컬 알림): 1시간 전 알림이 이미 떠 있거나 아직 예약돼 있으면 그대로, 없으면 지금 다시 올림
+        if (!n || !this._isIOSApp() || typeof Alarm === 'undefined') return;
+        const id = Alarm.numId(n.sid + 'next');
+        const d = await LN.getDeliveredNotifications();
+        if ((d && d.notifications || []).some(x => Number(x.id) === id)) return;
+        const p = await LN.getPending();
+        if ((p && p.notifications || []).some(x => Number(x.id) === id)) return;
+        await LN.schedule({ notifications: [{ id, title: n.title, body: n.body, schedule: { at: new Date(Date.now() + 1500) }, extra: { scheduleId: n.sid, kind: 'next', at: Date.now() } }] });
+        return;
+      }
+      if (!('Notification' in window) || Notification.permission !== 'granted' || !('serviceWorker' in navigator)) return;
+      const reg = await navigator.serviceWorker.getRegistration();
+      if (!reg || !reg.showNotification) return;
+      const tag = n ? 'next-' + n.sid : '';
+      const all = await reg.getNotifications();
+      all.forEach(x => { if (/^next-/.test(x.tag || '') && x.tag !== tag) x.close(); });
+      if (!n || all.some(x => x.tag === tag)) return;
+      await reg.showNotification(n.title, { body: n.body, tag, silent: true, icon: new URL('icon-192.png', reg.scope).href,
+        data: { url: new URL('./?go=next', reg.scope).href } });
+    } catch (e) { }
+  },
+  async clearNotice(sid) {
+    try {
+      const LN = this._ln();
+      if (LN) { if (typeof Alarm !== 'undefined') { const id = Alarm.numId(sid + 'next'); await LN.removeDeliveredNotifications({ notifications: [{ id }] }).catch(() => { }); } return; }
+      const reg = 'serviceWorker' in navigator && await navigator.serviceWorker.getRegistration();
+      if (reg && reg.getNotifications) (await reg.getNotifications()).forEach(x => { if (/^next-/.test(x.tag || '')) x.close(); });
+    } catch (e) { }
+  },
+
   go(app) {
     clearTimeout(this._timer);
     const l = this._leg;
     this._close();
     if (!l) return;
+    if (l.s && !l.home) { const sid = l.s.occId || l.s.id; try { localStorage.setItem('mp_autonav_gone', sid); } catch (e) { } this.clearNotice(sid); }   // 길안내 시작 = 출발 → 남겨 둔 알림 지움
     // 차에서 일정 장소로 길안내를 켠 순간 = 실제로 집을 나선 시각 (준비 시간 제안에 씀)
     if (l.s && !l.home && typeof Alarm !== 'undefined' && Alarm.habitMark) { try { Alarm.habitMark(l.s.occId || l.s.id, 'go', 'car'); } catch (e) { } }
     // 출발지는 넘기지 않음 → 지금 있는 곳(현재 위치)에서 안내
