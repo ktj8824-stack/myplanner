@@ -1,0 +1,53 @@
+# 안드로이드 앱(APK) 자동 만들기 — 로드플래너와 같은 방식
+# 결과: Releases 의 'android-latest' 에 MyPlanner.apk (폰에서 바로 내려받아 설치)
+name: Android APK
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Android project (Capacitor) + 네이티브 알람
+        run: |
+          npx cap add android
+          npm run cap-sync
+      - name: Build APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Rename
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk MyPlanner.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyPlanner-apk
+          path: MyPlanner.apk
+      - name: Publish to release 'android-latest'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: android-latest
+          name: 마이플래너 안드로이드 (테스트)
+          body: |
+            폰에서 MyPlanner.apk 를 눌러 내려받고 설치하세요. (처음 한 번 '출처를 알 수 없는 앱 설치 허용' 필요)
+            빌드: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          files: MyPlanner.apk
