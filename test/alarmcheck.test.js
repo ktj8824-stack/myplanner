@@ -25,3 +25,11 @@ console.log('알람 점검 테스트 완료');
   assert.strictEqual(Alarm.prepSuggest([rec(40), rec(2), rec(400), { up: T }, rec(41)], 60), null); // 이상한 값·짝 없는 기록은 뺌
   console.log('✓ 준비 시간 제안 기준');
 }
+// 실제로 나간 시각(지금 출발·차 자동 길안내) 기록이 5번이면 그것만 쓰고, 줄이는 제안도 함
+{
+  const T = 1794380000000, real = m => ({ up: T, go: T + m * 60000, goSrc: 'btn' }), est = m => ({ up: T, go: T + m * 60000 });
+  assert.deepStrictEqual(Alarm.prepSuggest([real(40), real(42), real(38), real(41), real(39)], 60), { min: 40, n: 5, real: true });
+  assert.strictEqual(Alarm.prepSuggest([real(40), real(42), est(38), est(41), est(39)], 60), null); // 실제 기록 2번뿐 → 추정치는 줄이기 제안 안 함
+  assert.strictEqual(Alarm.prepSuggest([real(58), real(62), real(60), real(57), real(61)], 60), null);
+  console.log('✓ 준비 시간 제안: 실제로 나간 시각 기준');
+}

@@ -64,7 +64,7 @@ const AutoNav = {
     const home = (gh && gh.to) || State.settings.home;
     if (plan.homeDepartAt && gh && gh.on && home && isFinite(home.lat)) {
       legs.push({ dep: plan.homeDepartAt, until: new Date(plan.homeDepartAt.getTime() + this.HOME_GRACE * 60000), to: home,
-        mode: gh.mode || 'transit', label: '집으로 귀가' });
+        mode: gh.mode || 'transit', label: '집으로 귀가', home: true });
     }
     return legs;
   },
@@ -154,6 +154,8 @@ const AutoNav = {
     const l = this._leg;
     this._close();
     if (!l) return;
+    // 차에서 일정 장소로 길안내를 켠 순간 = 실제로 집을 나선 시각 (준비 시간 제안에 씀)
+    if (l.s && !l.home && typeof Alarm !== 'undefined' && Alarm.habitMark) { try { Alarm.habitMark(l.s.occId || l.s.id, 'go', 'car'); } catch (e) { } }
     // 출발지는 넘기지 않음 → 지금 있는 곳(현재 위치)에서 안내
     Routes.openNav(app, l.mode, null, l.to);
   },
@@ -170,8 +172,28 @@ const AutoNav = {
 
   _message(title, sub) {
     clearTimeout(this._timer);
+    const home = this._homeFallback();
     this._overlay(`<div class="an-t">${title}</div>${sub ? `<div class="an-d">${sub}</div>` : ''}
-      <div class="an-b"><button type="button" class="an-go" onclick="AutoNav.cancel()">확인</button></div>`, true);
+      <div class="an-b">${home ? `<button type="button" class="an-x" onclick="AutoNav.cancel()">닫기</button>
+      <button type="button" class="an-go" onclick="AutoNav.goHome()">집으로 안내</button>` : `<button type="button" class="an-go" onclick="AutoNav.cancel()">확인</button>`}</div>`, true);
+  },
+
+  /** 갈 일정이 없을 때: 오후 3시 이후 + 집 주소가 있으면 '집으로 안내' */
+  _homeFallback() {
+    const h = State.settings && State.settings.home;
+    return h && isFinite(h.lat) && new Date().getHours() >= 15 ? h : null;
+  },
+  goHome() {
+    const h = this._homeFallback() || (State.settings && State.settings.home);
+    if (!h) return this.cancel();
+    this._leg = { to: h, mode: 'car', home: true, label: '집으로 귀가', s: null };
+    const pref = this.pref();
+    if (pref === 'tmap' || pref === 'kakaomap') return this.go(pref);
+    this._overlay(`<div class="an-t">집으로 안내할게요</div><div class="an-d">📍 ${this._esc(h.name || '집')}</div>
+      <div class="an-c">어느 내비로 안내할까요?</div>
+      <div class="an-b"><button type="button" class="an-go an-tmap" onclick="AutoNav.go('tmap')">티맵</button>
+      <button type="button" class="an-go an-kakao" onclick="AutoNav.go('kakaomap')">카카오맵</button></div>
+      <button type="button" class="an-link" onclick="AutoNav.cancel()">닫기</button>`, true);
   },
 
   _overlay(html, closable) {

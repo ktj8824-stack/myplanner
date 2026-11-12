@@ -130,6 +130,18 @@ const U = {
     clearTimeout(U._t);
     U._t = setTimeout(() => el.classList.remove('show'), 2600);
   },
+  /** 아래쪽 띠 + [되돌리기] (ms 동안). 누르면 fn 실행 */
+  undoBar(msg, fn, ms = 5000) {
+    let el = document.getElementById('undoBar');
+    if (!el) { el = document.createElement('div'); el.id = 'undoBar'; el.setAttribute('role', 'status'); document.body.appendChild(el); }
+    el.innerHTML = `<span></span><button type="button">되돌리기</button>`;
+    el.firstChild.textContent = msg;
+    clearTimeout(U._ub);
+    const hide = () => el.classList.remove('show');
+    el.querySelector('button').onclick = () => { clearTimeout(U._ub); hide(); fn(); };
+    requestAnimationFrame(() => el.classList.add('show'));
+    U._ub = setTimeout(hide, ms);
+  },
   /** 입체 아이콘 (img/icons) — 같은 뜻이면 앱 어디서나 같은 그림 */
   icon(name, cls = '') { return `<img class="emo ${cls}" src="img/icons/${name}.png" alt="">`; },
   MODE_ICON: { transit: 'bus', bus: 'bus', subway: 'subway', car: 'car', taxi: 'taxi', walk: 'walk', train: 'train', flight: 'plane' },

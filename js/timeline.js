@@ -387,10 +387,18 @@ const Timeline = {
 
   async removeAll() {
     Sheet.close();
-    State.remove(this.base().id);
+    const bak = JSON.parse(JSON.stringify(this.base()));
+    State.remove(bak.id);
     await Alarm.rescheduleAll();
-    U.toast('삭제했어요.');
     App.navigate('home');
+    // 잘못 눌렀을 때 5초 안에 되살리기 (알람도 다시 맞춤)
+    U.undoBar('삭제했어요', async () => {
+      if (State.get(bak.id)) return;
+      State.upsert(bak);
+      await Alarm.rescheduleAll();
+      U.toast('일정을 되살렸어요. 알람도 다시 맞췄어요');
+      App.navigate('timeline', { id: bak.id });
+    });
   }
 };
 
@@ -580,10 +588,15 @@ const Settings = {
     catch (e) { U.toast('지우지 못했어요: ' + e.message); }
   },
   async signOut() {
-    if (!confirm('로그아웃할까요? 내 일정은 이 폰에 남고, 가족이 공유한 일정은 사라져요.')) return;
-    try { await Cloud.sync(); } catch (e) {} // 아직 못 올린 변경을 먼저 올림
+    let n = 0; try { n = Object.keys(Cloud._dirty() || {}).length; } catch (e) {}
+    if (!confirm('로그아웃할까요? 내 일정은 이 폰에 남고, 가족이 공유한 일정은 사라져요.' + (n ? `\n\n아직 서버에 안 올린 변경이 ${n}개 있어요. 지금 올리고, 못 올리면 다음에 로그인할 때 올라가요.` : ''))) return;
+    let failed = false;
+    if (n) {
+      U.toast(`변경 ${n}개를 올리는 중…`);
+      try { await Cloud.sync(); } catch (e) { failed = true; } // 아직 못 올린 변경을 먼저 올림
+    }
     await Cloud.signOut();
-    U.toast('로그아웃했어요');
+    U.toast(failed ? '로그아웃했어요. 못 올린 변경은 인터넷 연결 뒤 다시 로그인하면 올라가요' : '로그아웃했어요');
     App.navigate('start'); // 로그인 화면으로 (다시 카카오로 로그인하거나 '로그인 없이 시작')
   },
 

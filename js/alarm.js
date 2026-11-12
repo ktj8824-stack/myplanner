@@ -370,7 +370,8 @@ const Alarm = {
         <div class="ring-time">${U.hm(new Date())}</div>
         <div class="ring-title">${U.esc(title)}</div>
         <div class="ring-body">${U.esc(body)}</div>
-        <button class="btn primary big" onclick="Alarm.stop(true)">확인 · 일정 보기</button>
+        ${kind === 'depart' && this._canGoNow(scheduleId) ? `<button class="btn primary big" onclick="Alarm.goNow()">지금 출발 · 길안내</button>
+        <button class="btn ghost" onclick="Alarm.stop(true)">일정 보기</button>` : `<button class="btn primary big" onclick="Alarm.stop(true)">확인 · 일정 보기</button>`}
         <button class="btn ghost" onclick="Alarm.snooze()">5분 뒤 다시 알림</button>
       </div>`;
     el.classList.add('show'); if (typeof Ads !== 'undefined') Ads.sync();
@@ -394,7 +395,7 @@ const Alarm = {
     U.toast('좋은 아침이에요. 출발 전에 다시 알려 드릴게요');
   },
 
-  stop(open) {
+  stop(open, nav) {
     clearInterval(this._clockTimer);
     this.beep(false);
     document.getElementById('ringing').classList.remove('show');
@@ -406,8 +407,22 @@ const Alarm = {
       if (LN && id && kind) {
         try { LN.cancel({ notifications: this.IOS_REPEAT.map(m => ({ id: this.numId(id + kind + 'r' + m) })) }).catch(() => {}); } catch (e) {}
       }
-      this.openSchedule(id);
+      if (!nav) this.openSchedule(id);
     }
+  },
+
+  /** 출발 알람 '지금 출발 · 길안내': 알람 끄고 바로 내비 → 이 시각을 '실제로 나간 시각'으로 기록 */
+  goNow() {
+    const id = this._ringId;
+    let s = null; try { s = Recur.resolve(id); } catch (e) {}
+    this.stop(true, true);
+    if (!s) return this.openSchedule(id);
+    this.habitMark(id, 'go', 'btn');
+    const mode = s.mode || 'transit';
+    if (mode === 'taxi') return Routes.openNav('kakaot');
+    const pref = (State.settings && State.settings.navApp) || 'choice';
+    const app = mode === 'car' ? (pref === 'tmap' || pref === 'kakaomap' ? pref : 'tmap') : 'kakaomap';
+    Routes.openNav(app, mode, null, s.dest);
   },
 
   async snooze() {
@@ -482,7 +497,11 @@ const Alarm = {
   /* ---------- 준비 시간 제안 (실제 '일어났어요' ~ 출발 알람 확인 사이) ---------- */
   HABIT_MIN: 5,
   habitAll() { try { return JSON.parse(localStorage.getItem('mp_habit') || '{}') || {}; } catch (e) { return {}; } },
-  habitMark(sid, what) {
+  _canGoNow(id) {
+    try { const s = Recur.resolve(id); return !!(s && (s.mode === 'taxi' || (s.dest && isFinite(s.dest.lat)))); } catch (e) { return false; }
+  },
+  /** src: 'btn'(지금 출발 버튼)·'car'(차에서 자동 길안내) = 실제로 나간 시각. 없으면 출발 알람을 끈 시각(추정) */
+  habitMark(sid, what, src) {
     if (!sid) return;
     let s = null; try { s = Recur.resolve(sid); } catch (e) {}
     if (!s || s.chained || Planner.isTrip(s.mode)) return;
@@ -492,13 +511,21 @@ const Alarm = {
     const all = this.habitAll(), base = s.baseId || s.id, list = all[base] || (all[base] = []);
     let rec = list.find(r => r.occ === sid && r.day === s.date);
     if (!rec) { rec = { occ: sid, day: s.date }; list.push(rec); }
-    if (!rec[what]) rec[what] = now;
+    if (src && what === 'go') { if (!rec.goSrc) { rec.go = now; rec.goSrc = src; } }
+    else if (!rec[what]) rec[what] = now;
     all[base] = list.slice(-10);
     try { localStorage.setItem('mp_habit', JSON.stringify(all)); } catch (e) {}
   },
   /** 기록 → 제안할 준비 시간(분) 또는 null. 5번 이상, 지금과 10분 이상 차이 날 때만 */
   prepSuggest(records, prepMin) {
-    const mins = (records || []).filter(r => r.up && r.go && r.go > r.up).map(r => (r.go - r.up) / 60000).filter(m => m >= 10 && m <= 240);
+    const ok = r => r.up && r.go && r.go > r.up && (r.go - r.up) / 60000 >= 10 && (r.go - r.up) / 60000 <= 240;
+    // 실제로 나간 시각(지금 출발 버튼·차 자동 길안내) 기록이 5번 모이면 그것만 쓰고, 줄이자는 제안도 함
+    const real = (records || []).filter(r => ok(r) && r.goSrc);
+    if (real.length >= this.HABIT_MIN) {
+      const m = real.map(r => (r.go - r.up) / 60000).slice(-7).sort((a, b) => a - b), mid = Math.round(m[Math.floor(m.length / 2)] / 5) * 5;
+      return Math.abs(mid - Number(prepMin ?? 60)) >= 10 ? { min: mid, n: real.length, real: true } : null;
+    }
+    const mins = (records || []).filter(ok).map(r => (r.go - r.up) / 60000);
     if (mins.length < this.HABIT_MIN) return null;
     const sorted = mins.slice(-7).sort((a, b) => a - b), mid = sorted[Math.floor(sorted.length / 2)];
     const sug = Math.round(mid / 5) * 5;
