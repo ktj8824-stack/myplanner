@@ -22,7 +22,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: android-actions/setup-android@v3
       - name: Install
         run: npm install --no-audit --no-fund
       - name: Android project (Capacitor) + 네이티브 알람
