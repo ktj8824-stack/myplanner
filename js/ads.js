@@ -32,6 +32,7 @@ const Ads = {
   wanted() {
     if (this.isPro()) return false;
     if (this.HIDDEN.includes(App.current)) return false;
+    if (document.body.classList.contains('guide-open')) return false;   // 자동 길안내 가이드를 보는 중
     const ring = document.getElementById('ringing'), sheet = document.getElementById('sheet');
     if (ring && ring.classList.contains('show')) return false;
     if (sheet && sheet.classList.contains('show')) return false;

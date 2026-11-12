@@ -20,7 +20,7 @@ a{color:var(--acc)}
 .mono{font-family:'IBM Plex Mono',ui-monospace,monospace}
 :focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:6px}
 
-.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line)}
+.top{position:sticky;top:0;z-index:20;padding-top:env(safe-area-inset-top);background:rgba(255,255,255,.96);border-bottom:1px solid var(--line)}
 .top .in{display:flex;align-items:center;justify-content:space-between;min-height:60px;gap:12px}
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink)}
 .brand img{width:30px;height:30px;border-radius:8px}
@@ -146,6 +146,8 @@ footer{padding:22px 0 32px;color:var(--mute);font-size:13px;text-align:center}
   .panel[hidden]{display:block!important}
   .step,.card,.flow li{break-inside:avoid}
 }
+/* 앱 안에 띄울 때(embed=1): 앱이 위 막대를 그리므로 이 페이지 머리는 숨김 */
+html.embed .top{display:none}
 </style>
 </head>
 <body>
@@ -317,6 +319,15 @@ footer{padding:22px 0 32px;color:var(--mute);font-size:13px;text-align:center}
 
 <script>
 (function () {
+  // 앱 화면 위에 띄운 경우: '마이플래너 열기'·로고는 가이드를 닫고 앱으로
+  var embed = new URLSearchParams(location.search).get('embed') === '1' && window.parent !== window;
+  if (embed) {
+    document.documentElement.classList.add('embed');
+    var closeIt = function (e) { e.preventDefault(); e.stopImmediatePropagation(); try { window.parent.AutoNav.closeGuide(); } catch (x) { } };
+    var oa = document.getElementById('open-app');
+    if (oa) { oa.textContent = '마이플래너로 돌아가기'; oa.addEventListener('click', closeIt, true); }
+    document.querySelectorAll('.top a.brand').forEach(function (a) { a.addEventListener('click', closeIt, true); });
+  }
   var WEB = 'https://ktj8824-stack.github.io/myplanner/';
   var here = /^https?:$/.test(location.protocol) ? location.origin + location.pathname.replace(/autonav-guide\.html$/, '') : '';
   // 웹(다른 배포 주소 포함)은 지금 주소, 앱 안(capacitor://)에서는 단축어용 링크는 웹 주소, '열기'는 앱 첫 화면

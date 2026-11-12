@@ -934,3 +934,11 @@ body.scr-ai::after { height: calc(max(10px, env(safe-area-inset-bottom) - 12px) 
 #undoBar button { height: 44px; padding: 0 16px; border-radius: 12px; background: rgba(255,255,255,.14); color: #FFD15C; font-weight: 700; font-size: 15px; }
 @media (prefers-reduced-motion: reduce) { #undoBar { transition: none; } }
 body.ad-on #undoBar { bottom: calc(env(safe-area-inset-bottom, 0px) + 154px); }
+
+/* 앱 안 자동 길안내 가이드: 위 시계 줄은 비우고, 아래 메뉴(떠 있는 막대)는 보이게 */
+#an-guide{position:fixed;inset:0;z-index:26;background:#fff;display:flex;flex-direction:column;padding-bottom:calc(env(safe-area-inset-bottom) + 88px)}
+#an-guide .ang-bar{flex:none;display:flex;align-items:center;gap:4px;padding:calc(env(safe-area-inset-top, 0px) + 6px) 12px 6px 4px;border-bottom:1px solid #e5e7eb;background:#fff}
+#an-guide .ang-bar b{font-size:17px;font-weight:800;color:#0f172a}
+#an-guide .ang-back{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border:0;background:none;color:#0f172a;cursor:pointer}
+#an-guide iframe{flex:1;width:100%;border:0;display:block}
+body.guide-open #nav{z-index:28}

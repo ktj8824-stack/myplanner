@@ -52,6 +52,7 @@ const App = {
   },
 
   navigate(name, params = {}) {
+    if (typeof AutoNav !== 'undefined' && AutoNav.closeGuide) AutoNav.closeGuide(true);   // 자동 길안내 가이드가 떠 있으면 닫고 이동
     this.current = name;
     this.params = params;
     const view = this.screens[name]();
