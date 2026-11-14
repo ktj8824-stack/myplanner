@@ -582,6 +582,8 @@ const Register = {
       try { if (Planner.compute(d).departAt.getTime() < Date.now()) d.leftAt = Date.now(); } catch (e) {}
     }
     d.updatedAt = Date.now();
+    const fromShare = !!d._fromShare;
+    delete d._fromShare;
     State.upsert(d);
     // 저장하자마자 날씨까지 반영해서 알람·안내 시각이 처음부터 맞도록
     await U.quickWeather();
@@ -602,6 +604,8 @@ const Register = {
     // 반복 일정이면 가장 가까운 회차로 이동
     const next = Recur.isRepeating(d) ? State.upcoming().find(x => x.s.baseId === d.id) : null;
     App.navigate('timeline', { id: next ? next.s.occId : d.id });
+    // 링크로 받아 저장한 사람(웹)에게: 앱 설치 · 홈 화면에 추가 (버디플래너와 같은 저장 후 창)
+    if (fromShare && !(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())) setTimeout(() => Share.offer(d.id), 700);
   }
 };
 
