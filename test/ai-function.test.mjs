@@ -2,7 +2,7 @@
 import assert from 'node:assert';
 import { handle, checkAction, calendarTable, systemPrompt, stripLeak, hasLeak, claimsCard } from '../supabase/functions/ai/index.ts';
 
-const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk', MYPLANNER_PROMO_UNTIL: '2000-01-01T00:00:00Z' }; // 기본 시험은 출시 기념 무료가 끝난 뒤로
+const env = { SUPABASE_URL: 'https://x.supabase.co', SUPABASE_ANON_KEY: 'anon', SUPABASE_SERVICE_ROLE_KEY: 'svc', ANTHROPIC_API_KEY: 'sk', MYPLANNER_PROMO_UNTIL: '2000-01-01T00:00:00Z', MYPLANNER_PAYMENTS_OPEN: 'true' }; // 기본 시험은 출시 기념 무료가 끝난 뒤로
 const ctx = { today: '2026-11-03', weekday: '화', upcoming: [{ idx: 0, title: '판교 출근', date: '2026-11-04' }] };
 let usage = 0, claudeCalls = [], script = [];
 const fake = (opts = {}) => async (url, init = {}) => {

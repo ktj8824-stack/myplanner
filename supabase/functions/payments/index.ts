@@ -65,7 +65,7 @@ D.serve(async (req: Request) => {
       body: JSON.stringify({ cancelReason: reason }),
     });
     const store = () => revenueCat(user.id, env.MYPLANNER_REVENUECAT_SECRET_KEY, fetch);
-    return reply(200, await handle(String(body.action || ""), body, user.id, db, toss, store, mode, new Date(), env.MYPLANNER_PROMO_UNTIL || undefined));
+    return reply(200, await handle(String(body.action || ""), body, user.id, db, toss, store, mode, new Date(), env.MYPLANNER_PROMO_UNTIL || undefined, env.MYPLANNER_PAYMENTS_OPEN === "true"));
   } catch (e) {
     if (e instanceof PayError) return reply(e.status, { error: { code: e.code, message: e.message } });
     console.error("payments error", e instanceof Error ? e.message : e);
