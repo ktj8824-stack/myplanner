@@ -11,6 +11,7 @@ const App = {
     State.load();
     this.trackViewport();
     this.applyTextSize();
+    addEventListener('resize', () => this.fitTimes());
     // 화면에 들어간 이모지는 모두 같은 선 아이콘으로 (앱 전체 통일)
     ['topbar', 'main', 'sheet', 'ringing', 'toast'].forEach(id => { const el = document.getElementById(id); Icons.apply(el); Icons.watch(el); });
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
@@ -126,7 +127,18 @@ const App = {
     document.documentElement.style.setProperty('--zoom', this.TEXT_SIZES[k] || 1);
   },
 
-  setMain(html) { document.getElementById('main').innerHTML = html; }
+  setMain(html) { document.getElementById('main').innerHTML = html; this.fitTimes(); },
+
+  /** 기상·출발·약속 큰 시각이 칸을 넘으면 글자를 줄임 (아이폰 '아주 크게'에서 08:00이 잘리던 문제).
+   *  CSS 계산이 브라우저마다 달라(아이폰 WebKit은 확대 배율이 두 번 들어감) 실제로 재서 맞춤 */
+  fitTimes(root = document) {
+    requestAnimationFrame(() => root.querySelectorAll('.tri b').forEach(b => {
+      b.style.fontSize = '';
+      let size = parseFloat(getComputedStyle(b).fontSize), n = 0;
+      const over = () => b.scrollWidth > b.clientWidth + 1;
+      while (over() && size > 14 && n++ < 40) { size -= 1; b.style.fontSize = size + 'px'; }
+    }));
+  }
 };
 
 /* ---------- 아래에서 올라오는 시트 (장소 검색 등) ---------- */
