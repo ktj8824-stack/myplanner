@@ -70,9 +70,8 @@ const Share = {
     const plan = Planner.compute(s);
     const m = Planner.MODES[s.mode];
     const when = Planner.isTrip(s.mode) ? `${s.trip.departTime} ${m.label} 출발` : `${s.arriveBy} 도착`;
-    const text = `[마이플래너] ${s.title}\n${U.dateLabel(s.date).split(' · ')[0]} ${when}${s.dest ? ' · ' + s.dest.name : ''}\n`
-      + `⏰ 기상 ${U.hm(plan.wakeAt)} · 🚪 출발 ${U.hm(plan.departAt)} (${m.label})\n`
-      + `링크를 누르면 내 폰 알람에 추가돼요 👇`;
+    const text = `⏰ [마이플래너] 약속 일정\n▪ 일정  ${s.title}\n▪ 일시  ${U.dateLabel(s.date).split(' · ')[0]} ${when}${s.dest ? `\n▪ 장소  ${s.dest.name}` : ''}\n`
+      + `출발지만 고르면 출발 시간·알람이 맞춰져요\n\n▶ 눌러서 받기`;
     // 이 날 바뀐 시간(이 날만 변경)이 링크에도 그대로 들어가도록 회차 값으로. 반복은 원본 규칙 유지
     // 메모는 개인 내용일 수 있어서 물어보고 넣음
     const memo = !!(s.memo && String(s.memo).trim()) && confirm(`메모도 같이 보낼까요?\n\n"${String(s.memo).slice(0, 60)}"`);
@@ -90,30 +89,120 @@ const Share = {
     }
   },
 
-  /** 받은 일정 미리보기 → 내 일정 추가 화면으로 */
+  /** 받은 일정: 확인 + 단계 안내 ① 출발지 → ② 준비 시간 → ③ 이동 수단 → ④ 알람에 추가 (버디플래너와 같은 틀) */
   openImport(o) {
+    this._incoming = o;
+    const trip = Planner.isTrip(o.mode);
+    // 받은 사람이 직접 고르게: 미리 골라 두지 않음 (기차·비행기는 이동 수단 단계 없음)
+    this._g = { origin: null, originLabel: '', prep: null, mode: trip ? o.mode : null, trip };
+    this.drawImport();
+  },
+
+  _row(icon, label, value) {
+    return `<div class="ss-row"><span class="ss-i">${Icons.svg(icon)}</span><div><small>${label}</small><b>${U.esc(value)}</b></div></div>`;
+  },
+
+  _step() {
+    const g = this._g || {};
+    if (!g.origin) return 'origin';
+    if (g.prep == null) return 'prep';
+    if (!g.mode) return 'mode';
+    return 'done';
+  },
+
+  drawImport(scroll) {
+    const o = this._incoming; if (!o) return;
+    const g = this._g;
+    const m = Planner.MODES[o.mode];
+    const trip = g.trip;
+    const when = trip ? `${o.trip.departTime} ${m.label} 출발` : `${o.arriveBy} 도착`;
+    const home = State.settings.home;
+    const work = (State.settings.places || {})['회사'] || null;
+    const now = this._step();
+    const order = trip ? ['origin', 'prep'] : ['origin', 'prep', 'mode'];
+    const ni = now === 'done' ? 99 : order.indexOf(now);
+    const cls = (k) => { const i = order.indexOf(k); return i === ni ? 'now' : i < ni ? 'done' : 'wait'; };
+    const num = (k) => { const i = order.indexOf(k); return i < ni ? '✓' : String(i + 1); };
+    const P = [20, 30, 40, 50, 60, 70, 80, 90];
+    const MODES = ['transit', 'car', 'taxi', 'walk'];
+    const dup = this.existing(o);
+    Sheet.open(`
+      <div class="sheet-head"><b>공유받은 일정</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+      <div class="ss-rows">
+        ${this._row('calendar', '일정', o.title)}
+        ${this._row('alarm', '일시', `${U.dateLabel(o.date).split(' · ')[0]} ${when}`)}
+        ${o.dest ? this._row('pin', trip ? '도착지' : '목적지', o.dest.name) : ''}
+      </div>
+      ${dup ? `<p class="small">이미 내 일정에 있어요. 고르고 추가하면 그 일정을 새 내용으로 바꿔요.</p>` : ''}
+      <div class="rs-step ${cls('origin')}" id="mp-st-origin">
+        <div class="rs-q"><em>${num('origin')}</em>어디서 출발하세요?</div>
+        <div class="rs-now">출발지를 골라 주세요</div>
+        <div class="seg">
+          ${home ? `<button class="${g.originLabel === '집' ? 'on' : ''}" onclick="Share.pickOrigin('home')">집</button>` : ''}
+          ${work ? `<button class="${g.originLabel === '회사' ? 'on' : ''}" onclick="Share.pickOrigin('work')">회사</button>` : ''}
+          <button class="${g.originLabel === '직접' ? 'on' : ''}" onclick="Share.pickOrigin('custom')">${g.originLabel === '직접' && g.origin ? U.esc(g.origin.name) : '직접 입력'}</button>
+        </div>
+      </div>
+      <div class="rs-step ${cls('prep')}" id="mp-st-prep">
+        <div class="rs-q"><em>${num('prep')}</em>나가기 전 준비 시간</div>
+        <div class="rs-now">준비 시간을 골라 주세요</div>
+        <div class="seg">${P.map(v => `<button class="${g.prep === v ? 'on' : ''}" onclick="Share.pickPrep(${v})">${v}분</button>`).join('')}</div>
+      </div>
+      ${trip ? '' : `<div class="rs-step ${cls('mode')}" id="mp-st-mode">
+        <div class="rs-q"><em>${num('mode')}</em>무엇을 타고 가세요?</div>
+        <div class="rs-now">이동 수단을 골라 주세요</div>
+        <div class="seg">${MODES.map(k => `<button class="${g.mode === k ? 'on' : ''}" onclick="Share.pickMode('${k}')">${Icons.svg(Icons.mode ? Icons.mode(k) : k)} ${Planner.MODES[k].label}</button>`).join('')}</div>
+      </div>`}
+      <div class="rs-go ${now === 'done' ? 'show' : ''}"><em>${order.length + 1}</em>다 됐어요! 아래 버튼을 눌러 주세요</div>
+      <button class="btn primary big ${now === 'done' ? 'rs-ready' : ''}" id="mp-accept" onclick="Share.acceptGuided()">내 알람에 추가</button>
+      ${this.quickNavHTML(o)}`);
+    if (scroll) setTimeout(() => {
+      const t = now === 'done' ? document.getElementById('mp-accept') : document.getElementById('mp-st-' + now);
+      if (t) t.scrollIntoView({ behavior: 'smooth', block: now === 'done' ? 'center' : 'start' });
+    }, 120);
+  },
+
+  pickOrigin(k) {
+    const g = this._g; if (!g) return;
+    const first = !g.origin;
+    if (k === 'home' && State.settings.home) { g.origin = { ...State.settings.home }; g.originLabel = '집'; return this.drawImport(first); }
+    if (k === 'work') { const w = (State.settings.places || {})['회사']; if (w) { g.origin = { ...w }; g.originLabel = '회사'; return this.drawImport(first); } }
+    PlacePicker.open('출발지 검색', (p) => {
+      if (p) { g.origin = { name: p.name, address: p.address || '', lat: p.lat, lng: p.lng }; g.originLabel = '직접'; }
+      setTimeout(() => this.drawImport(!!p), 50);
+    });
+  },
+  pickPrep(v) { const g = this._g; const first = g.prep == null; g.prep = v; this.drawImport(first); },
+  pickMode(k) { const g = this._g; const first = !g.mode; g.mode = k; this.drawImport(first); },
+
+  acceptGuided() {
+    const o = this._incoming, g = this._g;
+    if (!o || !g) return;
+    const st = this._step();
+    const msg = { origin: '① 출발지를 골라 주세요', prep: '② 준비 시간을 골라 주세요', mode: '③ 이동 수단을 골라 주세요' }[st];
+    if (msg) { U.toast(msg); return this.drawImport(true); }
+    Sheet.close();
+    const dup = this.existing(o);
+    const s = State.settings;
+    const draft = {
+      ...o, id: dup ? dup.id : U.uid(), alarm: { ...s.alarm }, skips: [], overrides: {},
+      repeat: o.repeat || { type: 'none', days: [], until: '', skipHolidays: true },
+      trip: o.trip || { accessMode: 'transit', egressMode: 'transit', departTime: '08:00', arriveTime: '', international: false },
+      origin: { ...g.origin }, prepMin: g.prep, mode: g.mode, route: null, accessRoute: null, _fromShare: true
+    };
+    delete draft.v;
+    App.navigate('register', { draft });
+  },
+
+  /* 예전 방식 (이전 링크 호환용으로 남김) */
+  openImportOld(o) {
     this._incoming = o;
     const m = Planner.MODES[o.mode];
     const home = State.settings.home;
     const plan = (() => { try { return Planner.compute({ ...o, alarm: {} }); } catch (e) { return null; } })();
-    const sameHome = home && o.origin && Math.abs(home.lat - o.origin.lat) < 0.002 && Math.abs(home.lng - o.origin.lng) < 0.002;
-    Sheet.open(`
-      <div class="sheet-head"><b>받은 일정</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
-      <div class="card import-card">
-        <div class="muted small">${U.dateLabel(o.date)} · ${m.emoji} ${m.label}${o.repeat ? ' · 🔁 ' + U.esc(Recur.label(o)) : ''}</div>
-        <div class="import-title">${U.esc(o.title)}</div>
-        <div class="small">${o.origin ? '🏠 ' + U.esc(o.origin.name) + ' → ' : ''}${o.dest ? '🎯 ' + U.esc(o.dest.name) : ''}</div>
-        ${plan && o.origin ? `<div class="small muted">기상 ${U.hm(plan.wakeAt)} · 출발 ${U.hm(plan.departAt)}</div>` : ''}
-      </div>
-      ${this.existing(o) ? `<p class="small">이미 내 일정에 있어요. 누르면 그 일정을 열어요.</p>` : ''}
-      ${!o.origin ? `<p class="small">${home ? `내 집(<b>${U.esc(home.name)}</b>)에서 출발로 경로를 찾아요.` : '추가 화면에서 출발지를 골라 주세요.'}</p>` : ''}
-      ${home && !sameHome && o.origin ? `
-        <p class="small">출발지가 보낸 사람 기준(<b>${U.esc(o.origin.name)}</b>)이에요.</p>
-        <button class="btn primary big" onclick="Share.accept(true)">🏠 내 집(${U.esc(home.name)})에서 출발로 추가</button>
-        <button class="btn ghost" onclick="Share.accept(false)">${U.esc(o.origin.name)}에서 출발 그대로 추가</button>`
-      : `<button class="btn primary big" onclick="Share.accept(false)">내 알람에 추가</button>`}
-      <p class="muted small center">추가 화면에서 확인한 뒤 저장하면 알람이 맞춰져요.</p>
-      ${this.quickNavHTML(o)}`);
+    Sheet.open(`<div class="sheet-head"><b>받은 일정</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+      <div class="card import-card"><div class="import-title">${U.esc(o.title)}</div></div>
+      <button class="btn primary big" onclick="Share.accept(${!!home})">내 알람에 추가</button>${plan ? '' : ''}${m ? '' : ''}`);
   },
 
   /** 받은 일정 '바로 길안내': 로그인·추가 없이, 지금 있는 곳에서 목적지까지 */
@@ -126,8 +215,8 @@ const Share = {
     const car = navMode === 'car';
     return `
       <div class="qnav">
-        <div class="qnav-h">🚗 바로 길안내 <small>지금 있는 곳에서 출발해요 · 로그인 없이 돼요</small></div>
-        <div class="qnav-to">📍 <b>${U.esc(dest.name || '목적지')}</b></div>
+        <div class="qnav-h">${Icons.svg('car')} 바로 길안내 <small>지금 있는 곳에서 출발해요 · 로그인 없이 돼요</small></div>
+        <div class="qnav-to">${Icons.svg('pin')} <b>${U.esc(dest.name || '목적지')}</b></div>
         <div class="qnav-b${car ? '' : ' one'}">
           ${car ? `<button class="qnav-btn tmap" onclick="Share.quickNav('tmap')">티맵</button>` : ''}
           <button class="qnav-btn kakao" onclick="Share.quickNav('kakaomap')">${car ? '카카오맵' : '카카오맵 길찾기'}</button>
@@ -165,6 +254,31 @@ const Share = {
       draft.route = null; draft.accessRoute = null; // 내 집 기준으로 경로 다시 찾기
     }
     App.navigate('register', { draft });
+  },
+
+  /** 받은 일정을 저장한 뒤 (웹): 앱 설치(추천) · 홈 화면에 추가 */
+  PLAY_ID: 'kr.myplanner.app',
+  offer(id) {
+    const s = State.get(id); if (!s) return;
+    const ua = navigator.userAgent || '';
+    const android = /Android/i.test(ua);
+    Sheet.open(`
+      <div class="ha-ok">${Icons.svg('check')}</div>
+      <h3 class="center" style="margin:6px 0 2px">일정을 저장했어요</h3>
+      <p class="muted small center" style="margin-bottom:14px">${U.esc(U.dateLabel(s.date).split(' · ')[0])} · ${U.esc(s.title)}</p>
+      <button class="ha-opt on" onclick="Share.installApp()"><span class="i">${Icons.svg('bell')}</span><div><b>앱 설치하고 받기 <em>추천</em></b><small>기상·출발 알람 · 자동 길안내</small></div><span class="go">›</span></button>
+      <button class="ha-opt" onclick="Share.addHome()"><span class="i">${Icons.svg('home')}</span><div><b>홈 화면에 추가</b><small>아이콘 누르면 바로 열려요</small></div><span class="go">›</span></button>
+      <button class="ha-later" onclick="Sheet.close()">나중에 할게요</button>`);
+  },
+  installApp() {
+    const android = /Android/i.test(navigator.userAgent || '');
+    if (android) location.href = 'https://play.google.com/store/apps/details?id=' + this.PLAY_ID;
+    else U.toast('아이폰 앱은 곧 나와요. 지금은 홈 화면에 추가해 주세요');
+  },
+  addHome() {
+    const ios = /iPhone|iPad/i.test(navigator.userAgent || '');
+    Sheet.open(`<div class="sheet-head"><b>홈 화면에 추가</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+      <p>${ios ? '아래 <b>공유 버튼</b> → <b>홈 화면에 추가</b>를 눌러 주세요.' : '오른쪽 위 <b>⋮ 메뉴</b> → <b>홈 화면에 추가</b>를 눌러 주세요.'}</p>`);
   },
 
   /** 앱이 링크로 열렸을 때 */

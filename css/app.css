@@ -964,3 +964,43 @@ body.guide-open #nav{z-index:28}
 .gh-mode b{font-size:17px;font-weight:800}
 .gh-mode small{font-size:13px;color:#55607a}
 .gh-mode:active{background:#f3f6fb}
+
+/* ── 공유받은 일정: 버디플래너와 같은 틀 (확인 줄 · 단계 안내 · 저장 후 창) ── */
+.ss-rows { background: var(--fill, #f4f6f8); border-radius: 16px; padding: 4px 14px; margin-bottom: 14px; }
+.ss-row { display: flex; gap: 12px; align-items: center; padding: 9px 0; }
+.ss-row + .ss-row { border-top: 1px solid #e6e9ee; }
+.ss-i { width: 34px; height: 34px; border-radius: 50%; background: #fff; color: var(--navy, #0b1d4a); display: flex; align-items: center; justify-content: center; flex: none; }
+.ss-i svg { width: 18px; height: 18px; }
+.ss-row small { display: block; font-size: 12px; color: #8a94a6; }
+.ss-row b { font-size: 15px; color: #111; }
+.rs-step { margin: 0 -8px 10px; padding: 12px 10px 12px; border-radius: 14px; border: 2px solid transparent; scroll-margin-top: 12px; transition: background .25s, border-color .25s, opacity .25s; }
+.rs-q { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 16px; margin-bottom: 8px; }
+.rs-q em { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: #cbd5e1; color: #fff; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.rs-now { display: none; font-size: 14px; font-weight: 800; color: #059669; margin: -4px 0 10px 32px; }
+.rs-now::before, .rs-go::after { content: ''; display: inline-block; width: 7px; height: 7px; border-right: 2.5px solid currentColor; border-bottom: 2.5px solid currentColor; transform: rotate(45deg); margin: 0 8px 3px 2px; vertical-align: middle; }
+.rs-step.now { background: #ecfdf5; border-color: #10b981; box-shadow: 0 0 0 4px rgba(16,185,129,.15); }
+.rs-step.now .rs-now { display: block; animation: rsBob 1.2s ease-in-out infinite; }
+.rs-step.now .rs-q em { background: #10b981; animation: rsPulse 1.4s ease-out infinite; }
+.rs-step.done .rs-q em { background: #10b981; }
+.rs-step.wait { opacity: .4; }
+.rs-go { display: none; align-items: center; justify-content: center; gap: 8px; font-size: 15px; font-weight: 800; color: #059669; margin: 4px 0 8px; animation: rsBob 1.2s ease-in-out infinite; }
+.rs-go.show { display: flex; }
+.rs-go em { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: #10b981; color: #fff; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+.btn.rs-ready { background: #10b981 !important; animation: rsPulse 1.4s ease-out infinite; }
+@keyframes rsPulse { 0% { box-shadow: 0 0 0 0 rgba(16,185,129,.55); } 100% { box-shadow: 0 0 0 10px rgba(16,185,129,0); } }
+@keyframes rsBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(3px); } }
+.ha-ok { width: 64px; height: 64px; border-radius: 50%; background: #10b981; color: #fff; display: flex; align-items: center; justify-content: center; margin: 4px auto 6px; }
+.ha-ok svg { width: 32px; height: 32px; stroke-width: 2.6; }
+.ha-opt { width: 100%; display: flex; gap: 14px; align-items: center; border: 1.5px solid #e2e6ec; border-radius: 16px; padding: 14px; margin-bottom: 10px; background: #fff; text-align: left; font-family: inherit; }
+.ha-opt.on { border: 2px solid var(--navy, #0b1d4a); background: #f3f6fc; }
+.ha-opt .i { width: 46px; height: 46px; border-radius: 14px; background: #eef2f8; color: var(--navy, #0b1d4a); display: flex; align-items: center; justify-content: center; flex: none; }
+.ha-opt.on .i { background: var(--navy, #0b1d4a); color: #fff; }
+.ha-opt .i svg { width: 24px; height: 24px; }
+.ha-opt > div { flex: 1; min-width: 0; }
+.ha-opt b { display: block; font-size: 16px; color: #111; }
+.ha-opt b em { font-style: normal; font-size: 11px; font-weight: 800; color: #fff; background: #10b981; border-radius: 8px; padding: 2px 7px; margin-left: 4px; vertical-align: 2px; }
+.ha-opt small { font-size: 13px; color: #666; }
+.ha-opt .go { font-size: 24px; color: #9aa3b2; }
+.ha-later { width: 100%; background: none; border: none; color: #888; font-size: 15px; padding: 10px; }
+.sheet-panel > .btn.big, .sheet-panel > .ss-rows, .sheet-panel > .rs-step, .sheet-panel > .qnav, .sheet-panel > .ha-opt { flex: none; }
+.qnav-h svg, .qnav-to svg { width: 16px; height: 16px; vertical-align: -3px; }
