@@ -539,6 +539,8 @@ const Assistant = {
   cardHtml(c, i, j) {
     if (!c) return '';
     if (c.kind === 'login') return `<div class="ai-c-body">카카오로 로그인하면 바로 쓸 수 있어요.</div><button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
+    if (c.kind === 'pro' && Pro.promo()) return `<div class="ai-c-title">오늘 횟수를 다 썼어요</div><div class="ai-c-body">내일 다시 쓸 수 있어요.</div>
+      <button class="btn ghost" onclick="App.navigate('register')">＋ 일정 추가</button>`;
     if (c.kind === 'pro') return `<div class="ai-c-title">오늘 무료 횟수를 다 썼어요</div><div class="ai-c-body">프리미엄(월 4,900원)은 하루 60번까지 쓸 수 있어요. 지금 이용권은 내일 다시 5번이에요.</div>
       <button class="btn primary" onclick="App.navigate('pro')">프리미엄 알아보기</button>
       <button class="btn ghost" onclick="App.navigate('register')">＋ 일정 추가</button>`;

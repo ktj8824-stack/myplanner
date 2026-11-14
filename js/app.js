@@ -109,7 +109,7 @@ const App = {
       ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
       ['points', 'img/icons/points.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
       ['raffle', 'img/icons/raffle.png', '럭키드로우', '모은 포인트로 경품 응모'],
-      ['pro', 'img/icons/pass.png', '이용권', Pro.promo() ? `${Pro.promoText().replace(/^\d+년 /, '')}까지 출시 기념 무료` : '플러스·프리미엄'],
+      ['pro', 'img/icons/pass.png', '이용권', Pro.promo() ? `출시 기념 · ${Pro.promoWhen().replace(/^\d+년 /, '')} 무료` : '플러스·프리미엄'],
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
       ['settings', 'img/icons/settings.png', '마이', '집 주소 · 알람 · 글자 크기 · 가족']
     ];

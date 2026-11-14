@@ -48,17 +48,23 @@ const Pro = {
     if (Cloud.isSignedIn() && !this.loading) { this.loading = true; this.refresh().finally(() => { this.loading = false; if (App.current === 'pro') this.paint(); }); }
   },
 
-  /** 출시 기념 무료 기간 (기본 2027-03-31까지): 결제 없이 모든 기능, 광고는 나옴 */
+  /** 출시 기념 무료 기간 (안내 날짜 기본 2027-03-31까지): 결제 없이 모든 기능, 광고는 나옴
+      결제 스위치: 서버(비밀값 MYPLANNER_PROMO_UNTIL)가 '무료 기간 끝'이라고 알려 줄 때만 결제가 열림.
+      그 전에는 안내 날짜가 지나도 결제 화면·가격이 나오지 않고 계속 무료 */
   promoUntil() {
-    const s = this.status && this.status.promo;
-    if (s && s.until) return s.until;
     const c = Object.assign({}, window.APP_DEFAULTS || {}, window.APP_CONFIG || {});
     return c.PROMO_UNTIL || '2027-03-31T23:59:59+09:00';
   },
-  promo() { return Date.now() < Date.parse(this.promoUntil()); },
+  /** 결제가 열렸는지 — 서버가 분명히 '무료 기간 아님'이라고 답했을 때만 */
+  payOpen() { const s = this.status && this.status.promo; return !!(s && s.active === false); },
+  /** 안내 날짜가 아직 안 지났는지 */
+  promoDated() { return Date.now() < Date.parse(this.promoUntil()); },
+  promo() { return !this.payOpen(); },
   /** 무료 기간 끝 날짜 짧게: '3/31' */
   promoShort() { const d = new Date(this.promoUntil()); return `${d.getMonth() + 1}/${d.getDate()}`; },
   promoText() { const d = new Date(this.promoUntil()); return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`; },
+  /** 화면에 적는 말: '2027년 3월 31일까지' 또는 (날짜가 지났는데 결제가 닫혀 있으면) '지금은' */
+  promoWhen(short) { return this.promoDated() ? `${short ? this.promoShort() : this.promoText()}까지` : '지금은'; },
 
   /** 지금 이용권: free | plus | premium */
   tier() {
@@ -97,9 +103,9 @@ const Pro = {
     };
     let action = '';
     if (this.promo() && !has) {
-      action = `<div class="pro-promo"><b>출시 기념 무료</b><p>${this.promoText()}까지 AI 비서를 포함한 모든 기능을 결제 없이 쓸 수 있어요. 무료 기간에는 광고가 나와요.</p>
-        <p class="muted small" style="margin:6px 0 0">${this.promoText()} 이후에 플러스·프리미엄 결제가 열려요. 무료 기간이 끝나도 자동으로 결제되지 않아요.</p></div>`
-        + (signed ? '' : `<button class="btn primary" style="width:100%;margin-top:12px" onclick="Cloud.signInKakao()">카카오로 로그인하고 시작하기</button>`);
+      action = `<div class="pro-promo"><b>출시 기념 무료</b><p>${this.promoWhen()} 위 기능을 모두 무료로 쓸 수 있어요.<br>따로 신청하거나 결제할 필요 없어요. 자동으로 결제되는 일도 없어요.</p></div>
+        <button class="btn primary" style="width:100%;margin-top:12px" onclick="App.navigate('home')">바로 써보기</button>`
+        + (signed ? '' : `<button class="btn ghost" style="width:100%;margin-top:8px" onclick="Cloud.signInKakao()">카카오로 로그인</button>`);
     } else if (!signed) {
       action = `<p class="muted small" style="margin:0 0 10px">결제하려면 먼저 카카오로 로그인해 주세요. 폰을 바꿔도 이용권이 그대로 이어져요.</p>
         <button class="btn primary" style="width:100%" onclick="Cloud.signInKakao()">카카오로 로그인</button>`;
@@ -118,22 +124,24 @@ const Pro = {
       `<div class="small" style="display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-top:1px solid var(--line)"><span>${U.esc((p.approved_at || p.created_at || '').slice(0, 10))} · ${p.plan === 'plus' ? '플러스' : '프리미엄'} · ${p.status === 'DONE' ? '결제 완료' : p.status === 'FAILED' ? '실패' : U.esc(p.status)}${p.mode === 'test' ? ' (시험)' : ''}</span><b>${Number(p.amount).toLocaleString()}원</b></div>`).join('')}</div>` : '';
     App.setMain(`
       <header class="subhead"><button class="back" onclick="App.navigate('settings')" aria-label="뒤로"></button><h1>이용권</h1><span></span></header>
-      ${this.promo() && !has ? `<div class="card">${action}</div>` : ''}
-      <div class="plans">
-        ${card('free', '무료', '0원', this.promo() ? `광고 있음 · ${this.promoShort()}까지 AI 비서 하루 20번` : '광고 있음 · AI 비서 하루 5번')}
+      ${this.promo() && !has ? `<div class="card"><div class="lbl" style="margin-bottom:8px">지금 무료로 쓸 수 있는 기능</div><ul class="pro-perks" style="margin:0">
+        <li><b>일정·알람·가족 공유</b><span>출발 시간 계산, 기상·출발 알람, 길안내까지</span></li>
+        <li><b>AI 비서 하루 20번</b><span>"내일 10시 아산병원"처럼 말하면 등록·변경·질문까지</span></li>
+        <li><b>여러 일정도 한 번에</b><span>"병원 갔다가 2시에 회사" 같은 하루 동선을 바로 정리</span></li></ul></div><div class="card">${action}</div>` : `<div class="plans">
+        ${card('free', '무료', '0원', '광고 있음 · AI 비서 하루 5번')}
         ${card('plus', '플러스', `월 ${P.plus.price.toLocaleString()}원`, '광고 없음')}
         ${card('premium', '프리미엄', `월 ${P.premium.price.toLocaleString()}원`, '광고 없음 + AI 비서')}
       </div>
       <div class="pro-hero ${sel}">
         <small>마이플래너 ${plan.name}</small>
         <div class="pro-price"><b>월 ${plan.price.toLocaleString()}원</b><span>부가세 포함</span></div>
-        <p class="pro-sub">${this.promo() ? `${this.promoText()}까지 무료 · 자동결제 없음` : '매달 자동결제 · 언제든 해지'}</p>
+        <p class="pro-sub">매달 자동결제 · 언제든 해지</p>
         <ul class="pro-perks">${plan.perks.map(([t, d]) => `<li><b>${t}</b><span>${d}</span></li>`).join('')}</ul>
-      </div>
+      </div>`}
       ${this.resultCard()}
       ${this.promo() && !has ? '' : `<div class="card">${action}</div>`}
       ${hist}
-      <p class="muted small" style="padding:0 6px">결제·환불 안내는 <a href="terms.html#pay" target="_blank" rel="noopener">이용약관</a>에 있어요. 일정·알람 등 기본 기능은 무료로도 그대로 쓸 수 있어요.</p>`);
+      ${this.promo() && !has ? '' : `<p class="muted small" style="padding:0 6px">결제·환불 안내는 <a href="terms.html#pay" target="_blank" rel="noopener">이용약관</a>에 있어요. 일정·알람 등 기본 기능은 무료로도 그대로 쓸 수 있어요.</p>`}`);
     if (signed && !has && !this.isNative() && !this.promo()) { this.widgets = null; this._ready = false; this.mountToss(); }
   },
 

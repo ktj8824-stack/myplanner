@@ -422,7 +422,7 @@ const Settings = {
         <div class="profile-av">${st.name ? U.esc(st.name.length >= 3 ? st.name.slice(-2) : st.name) : Icons.svg('smile')}</div>
         <div><small>마이</small><div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div></div>
       </div>
-      <div class="pro-card"><div><small>내 이용권 · ${Pro.tier() === 'free' && Pro.promo() ? '출시 기념 무료' : { free: '무료', plus: '플러스', premium: '프리미엄' }[Pro.tier()]}</small><b>${Pro.tier() === 'premium' ? '광고 없이 AI 비서까지 쓰는 중' : Pro.tier() === 'plus' ? '광고 없이 쓰는 중' : Pro.promo() ? `${Pro.promoText()}까지 모든 기능 무료` : '플러스 1,900원 · 프리미엄 4,900원'}</b></div><button onclick="App.navigate('pro')">${Pro.tier() === 'free' ? '이용권 보기' : '관리'}</button></div>
+      <div class="pro-card"><div><small>내 이용권 · ${Pro.tier() === 'free' && Pro.promo() ? '출시 기념 무료' : { free: '무료', plus: '플러스', premium: '프리미엄' }[Pro.tier()]}</small><b>${Pro.tier() === 'premium' ? '광고 없이 AI 비서까지 쓰는 중' : Pro.tier() === 'plus' ? '광고 없이 쓰는 중' : Pro.promo() ? `${Pro.promoWhen()} 무료` : '플러스 1,900원 · 프리미엄 4,900원'}</b></div><button onclick="App.navigate('pro')">${Pro.tier() === 'free' ? '이용권 보기' : '관리'}</button></div>
       <button class="pt-mine" onclick="App.navigate('points')"><span><small>내 포인트</small><b>${Points.available() ? `<span data-points>${Points.balance().toLocaleString()}</span> P` : '<span class="pt-off">로그인하면 쌓여요</span>'}</b></span><span class="pt-mine-go">${Points.meta().attended_today ? '포인트 · 럭키드로우' : '출석 체크하기'}</span></button>
 
       <div class="card">
