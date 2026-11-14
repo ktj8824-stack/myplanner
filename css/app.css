@@ -1004,3 +1004,8 @@ body.guide-open #nav{z-index:28}
 .ha-later { width: 100%; background: none; border: none; color: #888; font-size: 15px; padding: 10px; }
 .sheet-panel > .btn.big, .sheet-panel > .ss-rows, .sheet-panel > .rs-step, .sheet-panel > .qnav, .sheet-panel > .ha-opt { flex: none; }
 .qnav-h svg, .qnav-to svg { width: 16px; height: 16px; vertical-align: -3px; }
+
+/* 일정 추가: 빠진 칸 표시 */
+.input.need, .place-btn.need { box-shadow: 0 0 0 2px var(--red); transition: box-shadow .2s; }
+.pt-bal.pt-bal-off { font-size: 22px; }
+.pt-mine .pt-off { font-size: 15px; font-weight: 700; }

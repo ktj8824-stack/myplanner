@@ -61,7 +61,7 @@ const Raffle = {
     App.setMain(`
       <header class="subhead"><button class="back" onclick="App.navigate('points')" aria-label="뒤로"></button><h1>럭키드로우</h1><span></span></header>
       <button class="rf-points" onclick="App.navigate('points')">
-        <span>내 포인트</span><b><span data-points>${signed ? Points.balance().toLocaleString() : '-'}</span> P</b><small>포인트 모으기</small>
+        <span>내 포인트</span><b>${signed ? `<span data-points>${Points.balance().toLocaleString()}</span> P` : '로그인하면 쌓여요'}</b><small>포인트 모으기</small>
       </button>
       <p class="muted small rf-note">무료로 모은 포인트로만 응모해요. 포인트는 돈으로 팔지 않아요.</p>
       ${body}

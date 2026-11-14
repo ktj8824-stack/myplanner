@@ -20,7 +20,8 @@ const Timeline = {
     const rep = Recur.isRepeating(s);
     const hol = Recur.holiday(s.date);
 
-    const routeLeg = Planner.isTrip(s.mode) ? s.accessRoute : s.route;
+    // 실시간 교통을 반영했으면 그 시간으로 (시각 계산과 같은 숫자 — 2026-11-14 점검: 칩 38분 · 실제 계산 52분)
+    const routeLeg = plan.route || (Planner.isTrip(s.mode) ? s.accessRoute : s.route);
     // 위 칸은 '약속' 시각, 여유를 뺀 실제 도착은 아래 줄에 따로 (홈·AI 카드와 같은 기준)
     const arriveNote = s.bufferMin ? `${U.hm(plan.arriveAt)} 도착 (${s.bufferMin}분 여유)` : `여유 0분`;
     const info = plan.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, arriveNote] : [`준비 ${s.prepMin}분`, arriveNote];
@@ -422,7 +423,7 @@ const Settings = {
         <div><small>마이</small><div class="profile-name">${st.name ? U.esc(st.name) + '님' : '마이플래너'}</div></div>
       </div>
       <div class="pro-card"><div><small>내 이용권 · ${Pro.tier() === 'free' && Pro.promo() ? '출시 기념 무료' : { free: '무료', plus: '플러스', premium: '프리미엄' }[Pro.tier()]}</small><b>${Pro.tier() === 'premium' ? '광고 없이 AI 비서까지 쓰는 중' : Pro.tier() === 'plus' ? '광고 없이 쓰는 중' : Pro.promo() ? `${Pro.promoText()}까지 모든 기능 무료` : '플러스 1,900원 · 프리미엄 4,900원'}</b></div><button onclick="App.navigate('pro')">${Pro.tier() === 'free' ? '이용권 보기' : '관리'}</button></div>
-      <button class="pt-mine" onclick="App.navigate('points')"><span><small>내 포인트</small><b><span data-points>${Points.available() ? Points.balance().toLocaleString() : '-'}</span> P</b></span><span class="pt-mine-go">${Points.meta().attended_today ? '포인트 · 럭키드로우' : '출석 체크하기'}</span></button>
+      <button class="pt-mine" onclick="App.navigate('points')"><span><small>내 포인트</small><b>${Points.available() ? `<span data-points>${Points.balance().toLocaleString()}</span> P` : '<span class="pt-off">로그인하면 쌓여요</span>'}</b></span><span class="pt-mine-go">${Points.meta().attended_today ? '포인트 · 럭키드로우' : '출석 체크하기'}</span></button>
 
       <div class="card">
         <label class="lbl q-lbl">이름</label>

@@ -44,6 +44,7 @@ const App = {
       capApp.addListener('appUrlOpen', ev => {
         const o = Share.detect(ev && ev.url);
         if (o) setTimeout(() => Share.openImport(o), 300);
+        else if (/#mp=/.test(String(ev && ev.url))) U.toast('일정 링크를 열 수 없어요. 링크가 잘렸거나 망가졌어요. 보낸 분께 다시 받아 주세요');
       });
     }
     if ('serviceWorker' in navigator && !(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {

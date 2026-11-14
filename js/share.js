@@ -284,7 +284,14 @@ const Share = {
   /** 앱이 링크로 열렸을 때 */
   fromLocation() {
     const o = this.detect(location.hash);
-    if (!o) return false;
+    if (!o) {
+      // 일정 링크 모양인데 읽을 수 없으면 (잘렸거나 망가진 링크) 알려 줌 — 2026-11-14 점검
+      if (/#mp=/.test(location.hash)) {
+        history.replaceState(null, document.title, location.pathname + location.search);
+        setTimeout(() => U.toast('일정 링크를 열 수 없어요. 링크가 잘렸거나 망가졌어요. 보낸 분께 다시 받아 주세요'), 600);
+      }
+      return false;
+    }
     history.replaceState(null, document.title, location.pathname + location.search);
     setTimeout(() => this.openImport(o), 300);
     return true;

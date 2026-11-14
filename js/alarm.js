@@ -317,6 +317,47 @@ const Alarm = {
   setSnoozeCount(id, n) { try { localStorage.setItem('mp_snooze', JSON.stringify({ id, n, day: U.today() })); } catch (e) {} },
 
   /** 기상 알람 전체 화면: 일정·출발·날씨·교통을 한눈에 */
+  /** 출발 알람 화면: 기상 알람과 같은 틀 + 지금 나가면 몇 시 도착 */
+  departHTML(s, id) {
+    const plan = Planner.compute(s);
+    const now = new Date(), hm = d => U.hm(d), DOW = ['일', '월', '화', '수', '목', '금', '토'];
+    const isTrip = Planner.isTrip(s.mode), m = Planner.MODES[s.mode] || {};
+    const place = isTrip ? ((s.trip && s.trip.departStation && s.trip.departStation.name) || '') : ((s.dest && s.dest.name) || '');
+    const due = isTrip ? Planner.at(s.date, (s.trip && s.trip.departTime) || '00:00') : Planner.at(s.date, s.arriveBy || '00:00');
+    const mins = Math.round((due - now) / 60000);
+    const go = isTrip
+      ? `<b>${U.esc((s.trip && s.trip.departTime) || '')}</b> ${U.esc(m.label || '')} 출발 · 지금 나가면 <b>${hm(plan.arriveAt)}</b>쯤 역에 도착해요`
+      : `지금 나가면 <b>${hm(plan.arriveAt)}</b>쯤 도착해요 · 약속 <b>${U.esc(s.arriveBy || '')}</b>`;
+    const navMode = isTrip ? s.trip.accessMode : s.mode;
+    const r = plan.route;
+    const lines = [];
+    if (r && r.travelMin) lines.push(`<div class="wa-line">${U.modeIcon(navMode)}<span>${U.esc((Planner.MODES[navMode] || {}).label || '')} ${U.durLabel(r.travelMin)}${r.source === 'live' ? ' · 실시간 교통 반영' : ''}</span></div>`);
+    if (plan.weather) lines.push(`<div class="wa-line wx"><span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
+    const can = this._canGoNow(id);
+    const foot = mins > 0 ? `${isTrip ? '출발' : '약속'}까지 ${mins >= 60 ? Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분' : mins + '분'} 남았어요` : '';
+    return `
+      <div class="wa">
+        <div class="wa-top">
+          <div class="wa-date">${now.getMonth() + 1}월 ${now.getDate()}일 (${DOW[now.getDay()]}) · 출발 알람</div>
+          <div class="wa-time">${hm(now)}</div>
+          <div class="wa-msg">나갈 시간이에요</div>
+        </div>
+        <div class="wa-card">
+          <div class="wa-title">${U.esc(s.title || '일정')}${place ? ' · ' + U.esc(place) : ''}</div>
+          <div class="wa-go">${go}</div>
+          ${lines.join('')}
+        </div>
+        <div class="wa-bottom">
+          <button class="wa-up" onclick="${can ? 'Alarm.goNow()' : 'Alarm.stop(true)'}">${can ? '지금 출발 · 길안내' : '확인 · 일정 보기'}</button>
+          <div class="wa-row">
+            <button class="wa-sub" onclick="Alarm.snooze()">5분 뒤 다시</button>
+            <button class="wa-sub" onclick="Alarm.stop(true)">일정 보기</button>
+          </div>
+          ${foot ? `<div class="wa-foot">${foot}</div>` : ''}
+        </div>
+      </div>`;
+  },
+
   wakeHTML(s, id) {
     const plan = Planner.compute(s);
     const now = new Date(), hm = d => U.hm(d), DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -370,9 +411,10 @@ const Alarm = {
     if (!el) return;
     this._ringId = scheduleId || '';
     this._ringKind = kind || '';
-    const s = kind === 'wake' && scheduleId ? Recur.resolve(scheduleId) : null;
+    const s = (kind === 'wake' || kind === 'depart') && scheduleId ? Recur.resolve(scheduleId) : null;
     let html = '';
-    if (s) { try { html = this.wakeHTML(s, scheduleId); } catch (e) { html = ''; } }
+    // 기상·출발 알람은 같은 틀 (2026-11-14 점검: 출발 알람만 모양이 다르고 도착 정보가 없었음)
+    if (s) { try { html = kind === 'wake' ? this.wakeHTML(s, scheduleId) : this.departHTML(s, scheduleId); } catch (e) { html = ''; } }
     el.classList.toggle('wake', !!html);
     if (html) {
       el.innerHTML = html;

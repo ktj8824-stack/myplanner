@@ -32,7 +32,9 @@
 
   <!-- API 키 (js/config.js는 깃허브에 올리지 않음, 없으면 추정치로 동작) -->
   <script src="js/defaults.js"></script>
-  <script src="js/config.js" onerror="window.APP_CONFIG=window.APP_CONFIG||{}"></script>
+  <script>window.APP_CONFIG = window.APP_CONFIG || {};
+    // 배포된 웹(github.io)에는 config.js가 없음 → 매번 404가 나지 않게 앱·개발 환경에서만 읽음 (2026-11-14 점검)
+    if (!/\.github\.io$/.test(location.hostname)) document.write('<script src="js/config.js" onerror="window.APP_CONFIG=window.APP_CONFIG||{}"><\/script>');</script>
   <script src="js/icons.js"></script>
   <script src="js/core.js"></script>
   <script src="js/pack.js"></script>

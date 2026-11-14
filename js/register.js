@@ -555,17 +555,34 @@ const Register = {
     }
   },
 
+  /** 빠진 칸: 화면 가운데로 내려 주고 잠깐 빨간 테두리 */
+  mark(sel) {
+    const el = document.querySelector('#app ' + sel) || document.querySelector(sel);
+    if (!el) return;
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) { el.scrollIntoView(); }
+    el.classList.add('need');
+    if (el.id === 'rTitle') setTimeout(() => { try { el.focus({ preventScroll: true }); } catch (e) {} }, 350);
+    clearTimeout(this._needT);
+    this._needT = setTimeout(() => el.classList.remove('need'), 2600);
+  },
+
   async _save() {
     const d = this.d;
     d.title = (d.title || '').trim();
-    if (!d.title) return U.toast('일정 이름을 적어 주세요.');
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date || '')) return U.toast('날짜를 골라 주세요.');
-    if (!d.origin) return U.toast('출발지를 골라 주세요.');
+    // 화면 위에서부터 순서대로 확인하고, 빠진 칸으로 내려가 표시 (2026-11-14 점검: 이름부터 묻던 순서)
+    const need = (sel, msg) => { this.mark(sel); return U.toast(msg); };
     if (Planner.isTrip(d.mode)) {
-      if (!d.trip.departStation || !d.trip.departTime) return U.toast('출발 역·공항과 시각을 넣어 주세요.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date || '')) return need('input[type=date]', '날짜를 골라 주세요.');
+      if (!d.title) return need('#rTitle', '일정 이름을 적어 주세요.');
+      if (!d.origin) return need(`[onclick^="Register.pick('origin'"]`, '출발지를 골라 주세요.');
+      if (!d.trip.departStation) return need(`[onclick*="departStation"]`, d.mode === 'flight' ? '출발 공항을 골라 주세요.' : '출발 역을 골라 주세요.');
+      if (!d.trip.departTime) return need(`[onchange*="departTime"]`, '출발 시각을 넣어 주세요.');
     } else {
-      if (!d.dest) return U.toast('목적지를 골라 주세요.');
-      if (!d.arriveBy) return U.toast('도착 시간을 넣어 주세요.');
+      if (!d.dest) return need(`[onclick^="Register.pick('dest'"]`, '어디로 가는지 골라 주세요.');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d.date || '')) return need('input[type=date]', '날짜를 골라 주세요.');
+      if (!d.arriveBy) return need(`[onchange^="Register.set('arriveBy'"]`, '도착 시간을 넣어 주세요.');
+      if (!d.title) return need('#rTitle', '일정 이름을 적어 주세요.');
+      if (!d.origin) return need(`[onclick^="Register.pick('origin'"]`, '출발지를 골라 주세요.');
     }
     if (d.repeat.type === 'weekly' && !(d.repeat.days || []).length) return U.toast('반복할 요일을 골라 주세요.');
     if (d.repeat.until && d.repeat.until < d.date) return U.toast('반복 종료일이 시작일보다 빨라요.');
