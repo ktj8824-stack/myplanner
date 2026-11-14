@@ -135,7 +135,7 @@ const Timeline = {
     const ro = !!s._shared;
     return `
       <div class="card pack">
-        <div class="ct"><b>🎒 챙길 것</b><span>${list.length ? (left ? `${left}개 남음` : '다 챙겼어요 👍') : ''}</span></div>
+        <div class="ct"><b>🎒 챙길 것</b><span>${list.length ? (left ? `${left}개 남음` : '다 챙겼어요') : ''}</span></div>
         ${list.length ? list.map(x => `
           <div class="pk-row ${x.done ? 'done' : ''}">
             <button class="pk-check" ${ro ? 'disabled' : ''} onclick="Timeline.packToggle(${U.esc(JSON.stringify(x.name))})" aria-label="${U.esc(x.name)} 챙김">${x.done ? '✓' : ''}</button>
@@ -434,7 +434,7 @@ const Settings = {
           const sel = (k, v) => `<select class="input hw-sel" onchange="Settings.setHomeWin('${k}', this.value)" ${w.on ? '' : 'disabled'}>${hours.map(t => `<option value="${t}" ${t === v ? 'selected' : ''}>${+t.slice(0, 2) < 12 ? '오전' : '오후'} ${(+t.slice(0, 2)) % 12 || 12}시</option>`).join('')}</select>`;
           return `<label class="lbl">홈에 '집으로' 버튼 보이는 시간</label>
           <div class="seg">${[[true, '켜기'], [false, '끄기']].map(([v, l]) => `<button class="${w.on === v ? 'on' : ''}" onclick="Settings.setHomeWin('on', ${v})">${l}</button>`).join('')}</div>
-          <div class="hw-row">${sel('from', w.from)}<span>부터</span>${sel('to', w.to)}<span>까지</span></div>
+          <div class="hw-row"><div class="hw-pair">${sel('from', w.from)}<span>부터</span></div><div class="hw-pair">${sel('to', w.to)}<span>까지</span></div></div>
           <p class="muted small" style="margin:8px 0 0">이 시간에 홈 맨 위에 '집으로'가 떠요. 누르면 지금 있는 곳에서 집까지 바로 내비가 켜져요.</p>`; })()}
       </div>
 

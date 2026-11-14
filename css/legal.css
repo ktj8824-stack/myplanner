@@ -14,3 +14,4 @@ th, td { border: 1px solid var(--line); padding: 8px; text-align: left; vertical
 th { background: rgba(37, 99, 235, .08); }
 a { color: var(--accent); }
 .links { margin-top: 36px; color: var(--muted); }
+.links a { display: inline-block; padding: 12px 4px; }

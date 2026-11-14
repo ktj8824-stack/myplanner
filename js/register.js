@@ -103,7 +103,7 @@ const Register = {
       <div class="card">
         <div class="q">어떻게 가세요?</div>
         <div class="modes">${Object.entries(Planner.MODES).map(([k, m]) =>
-          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k)}${m.label}</button>`).join('')}</div>
+          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k, '3d')}${m.label}</button>`).join('')}</div>
         ${isTrip ? this.tripForm() : ''}
         <div id="routeBox">${this.routeBox()}</div>
         <div id="preview">${this.preview()}</div>
@@ -159,7 +159,7 @@ const Register = {
     }
     return `<div class="card">
       <div class="q">끝나고 집에 갈 때</div>
-      <label class="toggle-row"><span class="tr-2">집에 가는 시간도 알려 주기<small>${!d.endBy ? '위에서 끝나는 시간을 넣으면 켤 수 있어요' : !home ? '설정에서 집 주소를 넣으면 정확해요' : '일정이 끝나면 집 도착 시각과 함께 알려 드려요'}</small></span>
+      <label class="toggle-row"><span class="tr-2">집에 가는 시간도 알려 주기<small>${!d.endBy ? '위에서 끝나는 시간을 넣으면 켤 수 있어요' : !home ? '마이에서 집 주소를 넣으면 정확해요' : '일정이 끝나면 집 도착 시각과 함께 알려 드려요'}</small></span>
         <input type="checkbox" ${gh.on && can ? 'checked' : ''} ${can ? '' : 'disabled'} onchange="Register.toggleHome(this.checked)"></label>
       ${body}
     </div>`;
@@ -192,7 +192,7 @@ const Register = {
   async fetchHome() {
     const d = this.d, gh = d.goHome, home = this.homePlace();
     if (!gh || !d.dest) return;
-    if (!home) return U.toast('설정에서 집 주소를 먼저 넣어 주세요.');
+    if (!home) return U.toast('마이에서 집 주소를 먼저 넣어 주세요.');
     this.homeLoading = true; this.draw();
     try {
       const list = await Routes.options(d.dest, home, gh.mode || 'transit', null);

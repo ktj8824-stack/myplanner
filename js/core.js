@@ -143,7 +143,14 @@ const U = {
     U._ub = setTimeout(hide, ms);
   },
   /** 입체 아이콘 (img/icons) — 같은 뜻이면 앱 어디서나 같은 그림 */
-  icon(name, cls = '') { return `<img class="emo ${cls}" src="img/icons/${name}.png" alt="">`; },
+  /** 글자 사이 작은 아이콘은 선 아이콘으로 통일. 큰 그림(이동수단 고르기·목록 그림)만 cls에 '3d'를 넣어 입체 그림으로 */
+  icon(name, cls = '') {
+    if (!/\b3d\b/.test(cls) && typeof Icons !== 'undefined') {
+      const svg = Icons.svg({ group: 'users' }[name] || name, cls);
+      if (svg) return svg;
+    }
+    return `<img class="emo ${cls}" src="img/icons/${name}.png" alt="">`;
+  },
   MODE_ICON: { transit: 'bus', bus: 'bus', subway: 'subway', car: 'car', taxi: 'taxi', walk: 'walk', train: 'train', flight: 'plane' },
   modeIcon(mode, cls = '') { return U.icon(U.MODE_ICON[mode] || 'bus', cls); },
   durLabel(min) {

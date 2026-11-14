@@ -11,6 +11,8 @@ const App = {
     State.load();
     this.trackViewport();
     this.applyTextSize();
+    // 화면에 들어간 이모지는 모두 같은 선 아이콘으로 (앱 전체 통일)
+    ['topbar', 'main', 'sheet', 'ringing', 'toast'].forEach(id => { const el = document.getElementById(id); Icons.apply(el); Icons.watch(el); });
     await Cloud.init(); // 웹 카카오 로그인에서 돌아온 경우 로그인을 마친 뒤 첫 화면을 고름
     const payBack = await Pro.consumeReturn(); // 토스 결제창에서 돌아온 경우 서버 승인 → PRO 화면
     Pro.refresh(); // 플러스·프리미엄이면 광고 없음 (확인 뒤 광고 정리)
@@ -105,11 +107,11 @@ const App = {
       ['paste', 'img/icons/message.png', '받은 문자로 등록', 'KTX·항공권·병원 예약 문자'],
       ['assistant', 'img/icons/community.png', 'AI 비서', '말로 일정 등록 · 질문'],
       ['calendar', 'img/icons/calendar.png', '캘린더', '월별 일정 보기'],
-      ['points', 'img/icons/raffle.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
+      ['points', 'img/icons/points.png', '포인트 · 출석 체크', '출석하고 포인트 모아 럭키드로우 응모'],
       ['raffle', 'img/icons/raffle.png', '럭키드로우', '모은 포인트로 경품 응모'],
-      ['pro', 'img/icons/settings.png', '이용권', Pro.promo() ? `${Pro.promoText().replace(/^\d+년 /, '')}까지 출시 기념 무료` : '플러스·프리미엄'],
+      ['pro', 'img/icons/pass.png', '이용권', Pro.promo() ? `${Pro.promoText().replace(/^\d+년 /, '')}까지 출시 기념 무료` : '플러스·프리미엄'],
       ['market', 'img/icons/market.png', '마켓', '출퇴근·여행 필수템'],
-      ['settings', 'img/icons/settings.png', '설정', '집 주소 · 알람 · 글자 크기 · 가족']
+      ['settings', 'img/icons/settings.png', '마이', '집 주소 · 알람 · 글자 크기 · 가족']
     ];
     Sheet.open(`<div class="sheet-head"><b>전체 메뉴</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="menu-list">${items.map(([k, img, t, d]) => `<button class="menu-item" onclick="Sheet.close();${k === 'paste' ? "App.navigate('register',{paste:true})" : `App.navigate('${k}')`}"><img src="${img}" alt=""><span>${t}<small>${d}</small></span></button>`).join('')}
@@ -164,7 +166,7 @@ const PlacePicker = {
       <div class="sheet-head"><b>${U.esc(title)}</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <div class="search-row">
         <div class="search-box">${Icons.svg('search')}
-          <input id="ppInput" class="input" placeholder="장소·역·주소 (예: 서울아산병원)" enterkeyhint="search" autocomplete="off"
+          <input id="ppInput" class="input" placeholder="장소·역·주소 검색" enterkeyhint="search" autocomplete="off"
             onkeydown="if(event.key==='Enter'){PlacePicker.search()}" oninput="PlacePicker.debounced()"></div>
         <button class="btn primary" onclick="PlacePicker.search()">검색</button>
       </div>

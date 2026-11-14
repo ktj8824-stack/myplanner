@@ -247,7 +247,7 @@ const AutoNav = {
     if (!h) { this.cancel(); U.toast('집 주소를 먼저 등록해 주세요'); return App.navigate('settings'); }
     if (!isFinite(h.lat)) { U.toast('집 주소를 다시 골라 주세요'); return App.navigate('settings'); }
     this._home = h;
-    const ic = n => `<span class="gh-ic" aria-hidden="true">${U.modeIcon(n)}</span>`;
+    const ic = n => `<span class="gh-ic" aria-hidden="true">${U.modeIcon(n, "3d")}</span>`;
     this._overlay(`<div class="an-t">집으로 가요</div><div class="an-d">📍 ${this._esc(h.name || '집')} · 지금 있는 곳에서 출발</div>
       <div class="an-c">무엇으로 갈까요?</div>
       <div class="gh-modes">

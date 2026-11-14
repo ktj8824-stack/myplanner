@@ -82,7 +82,8 @@ const Icons = {
     '🔎': 'search', '🔍': 'search', '🌙': 'moon', '☀️': 'sun', '☀': 'sun', '🗺️': 'map', '🗺': 'map', '🧭': 'navigation', '⏱': 'clock', '⏱️': 'clock',
     '⏭': 'skip', '⏭️': 'skip', '📤': 'share', '⏳': 'hourglass', '📴': 'belloff', '🛠': 'tool', '🛠️': 'tool', '👑': 'crown', '⭐': 'star',
     '✨': 'sparkles', '🅿️': 'parking', '🅿': 'parking', '✎': 'pencil', '✏️': 'pencil', '🗑': 'trash', '🗑️': 'trash', '↻': 'refresh', '↺': 'undo',
-    '➡️': 'arrowRight', '👇': 'arrowDown', '🙂': 'smile', '📱': 'phone', '🔑': 'key'
+    '➡️': 'arrowRight', '👇': 'arrowDown', '🙂': 'smile', '📱': 'phone', '🔑': 'key',
+    '🎒': 'bag', '🏁': 'flag', '🔈': 'volume', '✏': 'pencil', '🔂': 'repeat'
   },
 
   svg(name, cls = '') {

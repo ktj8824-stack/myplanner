@@ -32,11 +32,13 @@ const Home = {
       ${typeof AutoNav !== 'undefined' && AutoNav.homeCardHtml ? AutoNav.homeCardHtml() : ''}
       ${this.snoozeStrip()}
       ${next ? this.nextCard(next) : this.emptyCard()}
-      ${next ? this.prepTip(next.s) : ''}
-      <div id="permNotice"></div>
+      <div id="notes" class="notes">
+        <div id="permNotice"></div>
+        ${next ? this.prepTip(next.s) : ''}
+        ${!State.settings.home ? `<button class="notice" onclick="App.navigate('settings')">${U.icon('home')} 집 주소를 등록하면 출발지가 자동으로 들어가요</button>` : ''}
+        ${typeof AutoNav !== 'undefined' && AutoNav.promoHtml ? AutoNav.promoHtml() : ''}
+      </div>
       <div id="alarmLine"></div>
-      ${typeof AutoNav !== 'undefined' && AutoNav.promoHtml ? AutoNav.promoHtml() : ''}
-      ${!State.settings.home ? `<button class="notice" onclick="App.navigate('settings')">${U.icon('home')} 집 주소를 등록하면 출발지가 자동으로 들어가요</button>` : ''}
 
       <div class="acts">
         <button class="act" onclick="App.navigate('register')"><span class="ic-box bg-blue"><img src="img/icons/register.png" alt=""></span><b>일정 추가</b><small>도착 시간만 넣으면 끝</small></button>
@@ -58,8 +60,22 @@ const Home = {
       ${this.week()}
       ${Briefing.card()}
     `);
-    this.checkPermission().then(ok => { if (ok && up.length) this.alarmLine(); });
+    this.foldNotes();
+    this.checkPermission().then(ok => { this.foldNotes(); if (ok && up.length) this.alarmLine(); });
     if (next) Bus.renderInto('heroBus', next.s, next.plan);
+  },
+
+  /** 안내 카드는 한 번에 하나만: 중요한 순서(권한 → 준비시간 → 집 주소 → 자동 길안내)로 첫 장만 보이고 나머지는 접기 */
+  foldNotes(open) {
+    const box = document.getElementById('notes');
+    if (!box) return;
+    const old = box.querySelector('.notes-more'); if (old) old.remove();
+    const items = [...box.children].filter(el => el.id !== 'permNotice' || el.innerHTML.trim());
+    box.querySelectorAll('#permNotice:empty').forEach(el => el.hidden = true);
+    items.forEach((el, i) => { el.hidden = !open && i > 0; });
+    if (!open && items.length > 1) {
+      box.insertAdjacentHTML('beforeend', `<button class="notes-more" onclick="Home.foldNotes(true)">안내 ${items.length - 1}개 더 보기</button>`);
+    }
   },
 
   /** 남색 '다음 일정' 카드 */
@@ -143,7 +159,7 @@ const Home = {
           <b>${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}${s.demo ? ' <span class="tag demo">예시</span>' : ''}</b>
           <small>${day} · ${timeLabel}${extra}</small>
         </div>
-        <div class="row-ic">${s._shared ? U.icon('group') : U.modeIcon(s.mode)}</div>
+        <div class="row-ic">${s._shared ? U.icon('group', '3d') : U.modeIcon(s.mode, '3d')}</div>
       </button>`;
   },
 
@@ -292,7 +308,7 @@ const CalendarView = {
         return `<button class="wk-ev" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
           <span class="wk-t"><b>${U.hm(plan.chained ? plan.departAt : plan.wakeAt)}</b><small>${plan.chained ? '출발' : '기상'}</small></span>
           <span class="wk-m"><b>${U.esc(s.title)}</b><small>${trip ? `${U.esc(s.trip.departTime)} 탑승` : `${U.esc(s.arriveBy)} 도착`}${s.endBy && !trip ? ` · ${U.esc(s.endBy)} 끝` : ''}${plan.homeAt ? ` · ${U.hm(plan.homeAt)} 집` : ''}</small></span>
-          ${U.modeIcon(s.mode, 'wk-ic')}
+          ${U.modeIcon(s.mode, 'wk-ic 3d')}
         </button>`;
       }).join('');
       return `<div class="wk-day ${k === today ? 'today' : ''} ${k < today ? 'gone' : ''}">
