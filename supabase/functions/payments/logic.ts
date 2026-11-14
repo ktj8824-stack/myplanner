@@ -38,8 +38,9 @@ export function makeOrderId(now: Date) {
   return `MP-${k}-${Array.from(r, (b) => abc[b % abc.length]).join("")}`;
 }
 
-export async function handle(action: string, body: Record<string, unknown>, userId: string, db: any, toss: any, store: any, mode: string, now = new Date(), promoUntil = PROMO_UNTIL) {
-  const promo = now.getTime() < Date.parse(promoUntil);
+export async function handle(action: string, body: Record<string, unknown>, userId: string, db: any, toss: any, store: any, mode: string, now = new Date(), promoUntil = PROMO_UNTIL, payOpen = false) {
+  // 결제 스위치(payOpen)가 닫혀 있으면 날짜가 지나도 계속 무료 기간 — 결제를 받지 않음
+  const promo = !payOpen || now.getTime() < Date.parse(promoUntil);
   if (action === "prepare") {
     if (promo) throw new PayError(403, "PROMO_FREE", "지금은 출시 기념 무료 기간이라 결제하지 않아도 돼요.");
     const plan = planOf(body.plan), p = PLANS[plan];

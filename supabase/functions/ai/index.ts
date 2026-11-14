@@ -317,7 +317,8 @@ export async function handle(req: Request, env: Env, f: Fetch = fetch): Promise<
 
   const pro = await isPro(env, user.id, f);
   // 출시 기념 무료 기간(기본 2027-03-31까지): 결제 없이 누구나 AI 비서를 넉넉히 (광고는 그대로)
-  const promo = !pro && Date.now() < Date.parse(env.MYPLANNER_PROMO_UNTIL || PROMO_UNTIL);
+  // 결제 스위치: 비밀값 MYPLANNER_PAYMENTS_OPEN 이 "true" 가 되기 전에는 날짜가 지나도 계속 무료 기간으로 봄
+  const promo = !pro && (env.MYPLANNER_PAYMENTS_OPEN !== "true" || Date.now() < Date.parse(env.MYPLANNER_PROMO_UNTIL || PROMO_UNTIL));
   const limit = pro ? parseInt(env.MYPLANNER_AI_PRO_DAILY || "60", 10)
     : promo ? parseInt(env.MYPLANNER_AI_PROMO_DAILY || "20", 10)
     : parseInt(env.MYPLANNER_AI_FREE_DAILY || "5", 10);

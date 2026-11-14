@@ -15,7 +15,7 @@ const toss = async () => tossRes;
 const noStore = async () => null;
 const now = new Date('2026-11-10T02:00:00Z');
 // 결제 흐름 시험은 출시 기념 무료 기간이 끝난 것으로 보고 함
-const H = (a, b, u, d, t, s, m, n) => handle(a, b, u, d, t, s, m, n, '2000-01-01T00:00:00Z');
+const H = (a, b, u, d, t, s, m, n) => handle(a, b, u, d, t, s, m, n, '2000-01-01T00:00:00Z', true);   // 결제 스위치 열림 + 무료 기간 끝난 뒤
 
 assert.strictEqual(PRICE, 4900);
 // 1) 주문: 금액은 서버가 정함
@@ -79,7 +79,12 @@ assert.strictEqual(addMonth(new Date('2026-01-31T00:00:00Z')).toISOString().slic
 await assert.rejects(handle('prepare', { plan: 'premium' }, 'u5', db, toss, noStore, 'test', now), e => e.code === 'PROMO_FREE');
 const ps = await handle('status', {}, 'u5', db, toss, noStore, 'test', now);
 assert.strictEqual(ps.promo.active, true);
-assert.strictEqual((await handle('status', {}, 'u5', db, toss, noStore, 'test', new Date('2027-04-01T00:00:00+09:00'))).promo.active, false);
+// 결제 스위치가 닫혀 있으면(기본) 날짜가 지나도 계속 무료 기간 · 결제 안 받음
+assert.strictEqual((await handle('status', {}, 'u5', db, toss, noStore, 'test', new Date('2027-04-01T00:00:00+09:00'))).promo.active, true);
+await assert.rejects(handle('prepare', { plan: 'premium' }, 'u5', db, toss, noStore, 'test', new Date('2027-04-01T00:00:00+09:00')), e => e.code === 'PROMO_FREE');
+// 스위치를 열면 날짜가 지난 뒤부터 결제가 열림
+assert.strictEqual((await handle('status', {}, 'u5', db, toss, noStore, 'test', new Date('2027-04-01T00:00:00+09:00'), undefined, true)).promo.active, false);
+assert.strictEqual((await handle('status', {}, 'u5', db, toss, noStore, 'test', now, undefined, true)).promo.active, true);
 // 9) 같은 주문 승인이 거의 동시에 두 번 와도 1개월만 (2026-11-11 점검: 예전엔 2개월이 됨)
 {
   const rr = {}; const tk = () => new Promise(r => setTimeout(r, 5));
