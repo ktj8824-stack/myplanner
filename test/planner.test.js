@@ -33,6 +33,7 @@ p = Planner.compute(s);
 assert.strictEqual(hm(p.departAt), '07:00');   // 08:00 - 15 - 10 - 25 - 10
 assert.strictEqual(hm(p.wakeAt), '06:15');
 assert.strictEqual(hm(p.arriveAt), '10:40');
+assert.strictEqual(hm(p.stationAt), '07:35'); // 출발역 도착 (출발 알람 화면 '지금 나가면 …쯤 역에 도착')
 console.log('✓ 기차', hm(p.wakeAt), hm(p.departAt), hm(p.arriveAt));
 
 // 4) 국제선: 수속 150분

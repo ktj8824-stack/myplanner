@@ -325,9 +325,13 @@ const Alarm = {
     const place = isTrip ? ((s.trip && s.trip.departStation && s.trip.departStation.name) || '') : ((s.dest && s.dest.name) || '');
     const due = isTrip ? Planner.at(s.date, (s.trip && s.trip.departTime) || '00:00') : Planner.at(s.date, s.arriveBy || '00:00');
     const mins = Math.round((due - now) / 60000);
+    // '지금 나가면' = 지금 시각 + 계획한 이동 시간 (기차·비행기는 출발역·공항까지)
+    const target = isTrip ? (plan.stationAt || plan.arriveAt) : plan.arriveAt;
+    const leg = plan.departAt && target ? Math.max(0, target - plan.departAt) : 0;
+    const eta = leg ? new Date(Math.max(now.getTime(), plan.departAt.getTime()) + leg) : target;
     const go = isTrip
-      ? `<b>${U.esc((s.trip && s.trip.departTime) || '')}</b> ${U.esc(m.label || '')} 출발 · 지금 나가면 <b>${hm(plan.arriveAt)}</b>쯤 역에 도착해요`
-      : `지금 나가면 <b>${hm(plan.arriveAt)}</b>쯤 도착해요 · 약속 <b>${U.esc(s.arriveBy || '')}</b>`;
+      ? `<b>${U.esc((s.trip && s.trip.departTime) || '')}</b> ${U.esc(m.label || '')} 출발 · 지금 나가면 <b>${hm(eta)}</b>쯤 역에 도착해요`
+      : `지금 나가면 <b>${hm(eta)}</b>쯤 도착해요 · 약속 <b>${U.esc(s.arriveBy || '')}</b>`;
     const navMode = isTrip ? s.trip.accessMode : s.mode;
     const r = plan.route;
     const lines = [];
