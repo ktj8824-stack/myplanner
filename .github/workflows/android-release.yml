@@ -22,13 +22,16 @@ jobs:
           distribution: temurin
           java-version: '21'
       - name: Check secrets
+        id: keys
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           if [ -z "$KS" ] || [ -z "$PW" ]; then
-            echo "::error::저장소 Secrets에 ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD 를 먼저 넣어 주세요."
-            exit 1
+            echo "::warning::업로드 키(Secrets)가 아직 없어 '시험용 키'로 만들어요. 이 AAB는 플레이에 올리지 마세요 (빌드가 되는지 확인용)."
+            echo "test=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "test=0" >> "$GITHUB_OUTPUT"
           fi
       - name: Install
         run: npm install --no-audit --no-fund
@@ -40,7 +43,11 @@ jobs:
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         run: |
-          echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          if [ "${{ steps.keys.outputs.test }}" = "1" ]; then
+            keytool -genkeypair -keystore "$RUNNER_TEMP/upload.jks" -alias upload -keyalg RSA -keysize 2048 -validity 1 -storepass testtest -keypass testtest -dname "CN=TEST" >/dev/null
+          else
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          fi
           # 버전 번호: 실행할 때마다 1씩 올라감 (플레이는 같은 번호를 두 번 받지 않음)
           CODE=$((100 + ${{ github.run_number }}))
           NAME="1.0.${{ github.run_number }}"
@@ -71,18 +78,19 @@ jobs:
       - name: Build AAB
         env:
           UPLOAD_KS: ${{ runner.temp }}/upload.jks
-          UPLOAD_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          UPLOAD_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          UPLOAD_PW: ${{ steps.keys.outputs.test == '1' && 'testtest' || secrets.ANDROID_KEYSTORE_PASSWORD }}
+          UPLOAD_ALIAS: ${{ steps.keys.outputs.test == '1' && 'upload' || secrets.ANDROID_KEY_ALIAS }}
         run: |
           cd android
           chmod +x gradlew
           ./gradlew bundleRelease --no-daemon --stacktrace
-          cp app/build/outputs/bundle/release/app-release.aab ../MyPlanner-release.aab
+          if [ "${{ steps.keys.outputs.test }}" = "1" ]; then OUT=MyPlanner-TEST-ONLY.aab; else OUT=MyPlanner-release.aab; fi
+          cp app/build/outputs/bundle/release/app-release.aab ../$OUT
       - name: Clean key
         if: always()
         run: rm -f "$RUNNER_TEMP/upload.jks"
       - uses: actions/upload-artifact@v4
         with:
-          name: MyPlanner-release-aab
-          path: MyPlanner-release.aab
+          name: ${{ steps.keys.outputs.test == '1' && 'TEST-ONLY-do-not-upload' || 'MyPlanner-release-aab' }}
+          path: MyPlanner-*.aab
           retention-days: 30
