@@ -15,3 +15,5 @@ th { background: rgba(37, 99, 235, .08); }
 a { color: var(--accent); }
 .links { margin-top: 36px; color: var(--muted); }
 .links a { display: inline-block; padding: 12px 4px; }
+.legal ol { padding-left: 22px; line-height: 1.7; }
+.legal a.btn { display: inline-flex; align-items: center; min-height: 48px; padding: 0 20px; border-radius: 12px; background: #3182F6; color: #fff; font-weight: 700; text-decoration: none; }

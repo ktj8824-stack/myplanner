@@ -444,6 +444,20 @@ const Cloud = {
     await this.signOut();
   },
 
+  /** 계정 삭제 (구글 플레이 요건): 서버(myplanner-account)가 일정·공유·가족·포인트·응모·AI 기록·프로필을 모두 지움.
+      결제 기록은 법에 따라 5년 남음. 카카오 로그인은 다른 플래너 앱과 같이 쓰므로 로그인 연결만 끊음 */
+  async deleteAccount() {
+    const { url, key } = this.cfg();
+    const res = await U.fetchT(`${url}/functions/v1/myplanner-account`, { method: 'POST',
+      headers: { apikey: key, Authorization: `Bearer ${await this._token()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete' }) }, 30000);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error((data.error && data.error.message) || '지우지 못했어요');
+    localStorage.removeItem(this.LAST_KEY);
+    try { localStorage.removeItem('mp_tier'); } catch (e) {}
+    await this.signOut();
+    return data;
+  },
+
   /** 공유받은 일정 그만 받기 */
   async declineShare(s) {
     await this._api(`rest/v1/mp_schedule_shares?owner_id=eq.${s._shared.ownerId}&schedule_id=eq.${encodeURIComponent(s._shared.scheduleId)}&target_id=eq.${this.userId()}`, { method: 'DELETE' });

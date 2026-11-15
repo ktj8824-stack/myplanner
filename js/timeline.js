@@ -562,7 +562,7 @@ const Settings = {
         <button class="btn ghost" onclick="Settings.joinFamily()">코드로 참여</button>
       </div>
       <div class="row-between"><button class="link" onclick="Settings.signOut()">로그아웃</button>
-        <button class="link danger-link" onclick="Settings.deleteData()">서버 데이터 삭제</button></div>`;
+        <button class="link danger-link" onclick="Settings.deleteData()">계정 삭제</button></div>`;
   },
 
   async newFamily() {
@@ -590,9 +590,11 @@ const Settings = {
     try { await navigator.clipboard.writeText(text); U.toast('초대 문구를 복사했어요'); } catch (e) { prompt('복사해서 보내 주세요', f.invite_code); }
   },
   async deleteData() {
-    if (!confirm('서버에 올린 마이플래너 일정·가족·공유를 모두 지우고 로그아웃할까요? 이 폰의 일정은 남아요. 되돌릴 수 없어요.')) return;
-    try { await Cloud.deleteMyData(); U.toast('서버 데이터를 지웠어요'); App.navigate('start'); }
-    catch (e) { U.toast('지우지 못했어요: ' + e.message); }
+    if (!Cloud.isSignedIn()) { U.toast('로그인한 계정이 없어요. 이 폰의 일정은 마이 > 모든 일정 지우기로 지울 수 있어요.'); return; }
+    if (!confirm('마이플래너 계정을 삭제할까요?\n\n서버에 있는 일정·가족·공유·포인트·응모 기록·AI 비서 기록이 모두 지워지고 로그아웃돼요. 되돌릴 수 없어요.\n\n· 이 폰에 저장된 일정은 남아요 (따로 지울 수 있어요)\n· 이용권 결제 기록은 법에 따라 5년 보관돼요\n· 카카오 로그인은 다른 플래너 앱과 함께 쓰여서 연결만 끊겨요')) return;
+    U.toast('계정을 지우는 중…');
+    try { await Cloud.deleteAccount(); U.toast('마이플래너 계정을 삭제했어요'); App.navigate('start'); }
+    catch (e) { U.toast('지우지 못했어요: ' + e.message + ' 잠시 뒤 다시 해 주세요.'); }
   },
   async signOut() {
     let n = 0; try { n = Object.keys(Cloud._dirty() || {}).length; } catch (e) {}

@@ -28,6 +28,18 @@ const App = {
     try { after = sessionStorage.getItem('mp_after_login'); sessionStorage.removeItem('mp_after_login'); } catch (e) {}
     this.navigate(payBack && !first ? payBack : first ? (seen || Cloud.isSignedIn() ? 'welcome' : 'start') : (after && Cloud.isSignedIn() && this.screens[after] ? after : 'home'));
     Share.fromLocation(); // 카톡으로 받은 일정 링크로 열렸으면
+    // 계정 삭제 요청 페이지(delete-account.html)에서 넘어온 경우: 로그인돼 있으면 바로 확인 창, 아니면 로그인 뒤 이어서
+    let wantDelete = /delete-account/.test(location.hash);
+    try { if (sessionStorage.getItem('mp_want_delete')) { wantDelete = true; sessionStorage.removeItem('mp_want_delete'); } } catch (e) {}
+    if (wantDelete) {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+      this.navigate('settings');
+      if (Cloud.isSignedIn()) setTimeout(() => Settings.deleteData(), 400);
+      else {
+        try { sessionStorage.setItem('mp_want_delete', '1'); sessionStorage.setItem('mp_after_login', 'settings'); } catch (e) {}
+        U.toast('계정을 삭제하려면 먼저 마이 화면에서 카카오로 로그인해 주세요');
+      }
+    }
     if (typeof AutoNav !== 'undefined') AutoNav.init(); // 차에 타면 자동 길안내 (?go=next · myplanner://next)
     await Alarm.init();
     if (this.current === 'home') Home.render();
