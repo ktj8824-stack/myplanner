@@ -203,9 +203,35 @@ if (kakaoKey) {
   console.warn('⚠️  카카오 네이티브 앱 키를 찾지 못해 카카오 로그인 설정을 건너뛰어요 (js/defaults.js의 KAKAO_NATIVE_APP_KEY)');
 }
 
+// 구글 애드몹: 앱 ID가 매니페스트에 없으면 앱이 켜지자마자 꺼짐 → 꼭 넣음
+// js/defaults.js 의 ADMOB_APP_ID_ANDROID (애드몹에 마이플래너 앱을 등록하면 나오는 ca-app-pub-…~… 번호), 없으면 구글 공식 테스트 앱 ID
+const ADMOB_TEST_APP = 'ca-app-pub-3940256099942544~3347511713';
+const admobApp = readConfig(/ADMOB_APP_ID_ANDROID\s*:\s*'(ca-app-pub-\d+~\d+)'/) || ADMOB_TEST_APP;
+if (fs.existsSync(path.join(root, 'node_modules', '@capacitor-community', 'admob'))) {
+  if (man.includes('com.google.android.gms.ads.APPLICATION_ID')) {
+    man = man.replace(/(android:name="com\.google\.android\.gms\.ads\.APPLICATION_ID"\s+android:value=")[^"]*"/, `$1${admobApp}"`);
+  } else {
+    man = man.replace('</application>', `        <!-- 구글 애드몹 앱 ID -->
+        <meta-data android:name="com.google.android.gms.ads.APPLICATION_ID" android:value="${admobApp}"/>
+    </application>`);
+  }
+  console.log(admobApp === ADMOB_TEST_APP ? '⚠️  애드몹: 테스트 앱 ID로 설치 (출시 전 js/defaults.js 의 ADMOB_APP_ID_ANDROID 채우기)' : '✅ 애드몹 앱 ID 설정');
+}
+
 fs.writeFileSync(manPath, man);
 console.log('✅ AndroidManifest 권한·알람 구성요소 확인 완료');
 console.log('🎉 전체 화면 기상 알람 설치 끝. 안드로이드 스튜디오에서 실행해 보세요.');
+
+/** js/config.js(있으면) → js/defaults.js 순서로 설정값 하나 */
+function readConfig(re) {
+  for (const f of ['config.js', 'defaults.js']) {
+    const fp = path.join(root, 'js', f);
+    if (!fs.existsSync(fp)) continue;
+    const m = fs.readFileSync(fp, 'utf8').match(re);
+    if (m) return m[1];
+  }
+  return '';
+}
 
 /** js/config.js(있으면) → js/defaults.js 순서로 카카오 네이티브 앱 키 */
 function readKakaoKey() {

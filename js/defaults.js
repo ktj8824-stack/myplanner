@@ -18,6 +18,8 @@ window.APP_DEFAULTS = {
   REVENUECAT_IOS_KEY: '',
   REVENUECAT_ANDROID_KEY: '',
   // 광고 — 구글 애드몹 '광고 단위 ID'(공개 값). 비어 있으면 구글 테스트 광고(Test Ad)로 나옴
+  ADMOB_APP_ID_ANDROID: '',  // 애드몹에 마이플래너 앱을 등록하면 나오는 앱 ID (ca-app-pub-…~…). 비우면 구글 테스트 앱 ID
+  ADMOB_APP_ID_IOS: '',
   ADMOB_BANNER_IOS: '',
   ADMOB_BANNER_ANDROID: '',
   ADMOB_REWARD_IOS: '',      // 보상형(포인트) 광고 단위 — 비워 두면 구글 테스트 광고
