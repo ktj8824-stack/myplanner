@@ -262,7 +262,8 @@ const Register = {
       delete d.leftAt;
       d.prepMin = 0;
       d.alarm = { ...d.alarm, wake: false, nightBefore: false, depart: true };
-      if (!d.date || d.date < U.today()) d.date = U.today();
+      // '지금 위치에서 바로 출발'은 지금 나가는 것 → 새 일정이면 날짜를 오늘로 (기본값이 내일이라 급한 약속이 내일로 저장되던 문제)
+      if (!d.date || d.date < U.today() || !this.editing) d.date = U.today();
       d.route = null; this.opts = []; this.taxiAlt = null;
       this.draw(); this.fetchRoutes();
     }, () => U.toast('위치 권한을 허용해 주세요. 또는 출발지를 직접 골라 주세요.'), { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });

@@ -329,7 +329,7 @@ const Timeline = {
     const people = Cloud.familyPeople();
     if (!people.length) {
       Sheet.open(`<div class="sheet-head"><b>가족 공유</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
-        <p>아직 가족이 없어요. <b>설정 &gt; 가족</b>에서 가족을 만들고 초대 코드를 보내 주세요.</p>
+        <p>아직 가족이 없어요. <b>마이 &gt; 가족</b>에서 가족을 만들고 초대 코드를 보내 주세요.</p>
         <button class="btn primary big" onclick="Sheet.close();App.navigate('settings')">가족 만들러 가기</button>`);
       return;
     }
@@ -585,7 +585,7 @@ const Settings = {
   async sendInvite(id) {
     const f = Cloud.families.find(x => x.id === id);
     if (!f) return;
-    const text = `[마이플래너] '${f.name}' 가족 초대\n초대 코드: ${f.invite_code}\n마이플래너 > 설정 > 가족 > 코드로 참여에 입력해 주세요.\n${Share.WEB}`;
+    const text = `[마이플래너] '${f.name}' 가족 초대\n초대 코드: ${f.invite_code}\n마이플래너 > 마이 > 가족 > 코드로 참여에 입력해 주세요.\n${Share.WEB}`;
     try { if (navigator.share) { await navigator.share({ title: '마이플래너 가족 초대', text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
     try { await navigator.clipboard.writeText(text); U.toast('초대 문구를 복사했어요'); } catch (e) { prompt('복사해서 보내 주세요', f.invite_code); }
   },

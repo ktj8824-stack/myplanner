@@ -88,7 +88,7 @@ const Cloud = {
 
   /** 카카오 로그인: 앱은 카카오 SDK → ID 토큰, 웹은 카카오 로그인 페이지로 이동 */
   async signInKakao() {
-    if (!this.isConfigured()) return U.toast('서버 설정이 없어요 (설정 > 개발자 설정)');
+    if (!this.isConfigured()) return U.toast('서버 설정이 없어요 (마이 > 개발자 설정)');
     const K = this.isNative() && window.Capacitor.Plugins && (window.Capacitor.Plugins.CapacitorKakaoLogin
       || (window.Capacitor.registerPlugin && window.Capacitor.registerPlugin('CapacitorKakaoLogin')));
     if (K && K.login) {

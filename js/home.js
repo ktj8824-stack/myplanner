@@ -83,6 +83,13 @@ const Home = {
     const now = Date.now();
     const wakePassed = plan.wakeAt.getTime() < now;
     const moving = plan.departAt.getTime() < now;
+    // 실제로 나갔는지('지금 출발' 버튼·차에서 자동 길안내 기록). 기록이 없으면 '이동 중'이라고 단정하지 않고 지난 시간을 알려 줌
+    let hasLeft = false;
+    try {
+      const recs = (Alarm.habitAll()[s.baseId || s.id] || []);
+      hasLeft = recs.some(r => r && r.day === s.date && r.go && r.goSrc);
+    } catch (e) { hasLeft = false; }
+    const lateMin = Math.max(1, Math.round((now - plan.departAt.getTime()) / 60000));
     const left = Math.max(0, Math.round(((wakePassed ? plan.departAt : plan.wakeAt) - now) / 60000));
     const m = Planner.MODES[s.mode];
     const trip = Planner.isTrip(s.mode);
@@ -113,7 +120,7 @@ const Home = {
         ${info.length ? `<div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
         <div id="heroBus"></div>
         ${far ? `<div class="info"><span>${Ico('alarm')} 알람은 일정 2주 전부터 자동으로 맞춰져요</span></div>` : ''}
-        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${far ? Ico('calendar') + ' D-' + dday : moving ? Ico('walk') + ' 이동 중이에요' : Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
+        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${far ? Ico('calendar') + ' D-' + dday : moving ? (hasLeft ? Ico('walk') + ' 이동 중이에요' : Ico('alarm') + ` 출발 시각 ${U.durLabel ? U.durLabel(lateMin) : lateMin + '분'} 지났어요`) : Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
       </div>`;
   },
 

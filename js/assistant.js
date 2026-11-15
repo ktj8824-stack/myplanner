@@ -198,7 +198,7 @@ const Assistant = {
       const day = /내일/.test(text) ? Recur.shift(U.today(), 1) : U.today();
       return this.reply(Briefing.text(day));
     }
-    if (!Cloud.isConfigured()) return this.reply('AI 비서를 쓰려면 서버 연결이 필요해요. 설정 > 개발자 설정을 확인해 주세요.');
+    if (!Cloud.isConfigured()) return this.reply('AI 비서를 쓰려면 서버 연결이 필요해요. 마이 > 개발자 설정을 확인해 주세요.');
     if (!Cloud.isSignedIn()) {
       return this.reply('AI 비서는 카카오로 로그인한 뒤 쓸 수 있어요. 로그인하면 폰을 바꿔도 일정이 그대로예요.', [{ kind: 'login', state: 'ready' }]);
     }
