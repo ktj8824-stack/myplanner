@@ -42,11 +42,14 @@ jobs:
       - name: Signing + version
         env:
           KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          UPLOAD_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           if [ "${{ steps.keys.outputs.test }}" = "1" ]; then
             keytool -genkeypair -keystore "$RUNNER_TEMP/upload.jks" -alias upload -keyalg RSA -keysize 2048 -validity 1 -storepass testtest -keypass testtest -dname "CN=TEST" >/dev/null
           else
-            echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks"
+            # 붙여 넣을 때 섞인 줄바꿈·공백은 빼고 풀기
+            printf '%s' "$KS" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/upload.jks" || { echo "::error::ANDROID_KEYSTORE_B64 값을 풀 수 없어요. txt 파일 내용 전체를 그대로 다시 붙여 넣어 주세요."; exit 1; }
+            keytool -list -keystore "$RUNNER_TEMP/upload.jks" -storepass "$UPLOAD_PW" >/dev/null || { echo "::error::키 파일 비밀번호(ANDROID_KEYSTORE_PASSWORD)가 맞지 않아요."; exit 1; }
           fi
           # 버전 번호: 실행할 때마다 1씩 올라감 (플레이는 같은 번호를 두 번 받지 않음)
           CODE=$((100 + ${{ github.run_number }}))
