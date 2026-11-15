@@ -263,7 +263,7 @@ const Planner = {
     const buffer = Number(s.bufferMin ?? 10);
     const warnings = [];
     let items = [];
-    let departAt, arriveAt, usedRoute = null; // usedRoute = 실제 계산에 쓴 경로(실시간·버스 보정 반영)
+    let departAt, arriveAt, stationAt = null, usedRoute = null; // usedRoute = 실제 계산에 쓴 경로(실시간·버스 보정 반영)
     let wx = 0;
 
     if (this.isTrip(s.mode)) {
@@ -287,6 +287,7 @@ const Planner = {
       items.push(...access.items);
       if (wx) { items.push(this.weatherItem(s, access.endAt, wx)); access.endAt = this.addMin(access.endAt, wx); }
       const stName = (trip.departStation && trip.departStation.name) || (s.mode === 'flight' ? '출발 공항' : '출발역');
+      stationAt = access.endAt; // 출발역·공항에 닿는 시각 (출발 알람 화면에서 씀)
       items.push({ at: access.endAt, kind: 'arrive', icon: '📍', title: `${stName} 도착`, detail: `${marginLabel} ${margin}분 + 여유 ${buffer}분 전` });
       items.push({ at: vehicleDep, kind: 'board', icon: def.emoji, title: `${trip.number || def.label} 탑승·출발`, detail: stName });
       const arrName = (trip.arriveStation && trip.arriveStation.name) || (s.mode === 'flight' ? '도착 공항' : '도착역');
@@ -399,7 +400,7 @@ const Planner = {
     if (broken) warnings.unshift(why === 'order'
       ? `앞 일정보다 먼저 시작해서 이어서 갈 수 없어요. 일정을 수정해 출발지를 집으로 바꿔 주세요. (기상 알람은 다시 켰어요)`
       : `앞 일정이 이 날 없어져서 ${(s.origin && s.origin.name) || '출발지'}에서 따로 출발하는 것으로 계산했어요. 출발지를 확인해 주세요.`);
-    return { invalid, chained, wakeAt, departAt, arriveAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt, route: usedRoute };
+    return { invalid, chained, wakeAt, departAt, arriveAt, stationAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt, route: usedRoute };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
