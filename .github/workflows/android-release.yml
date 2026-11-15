@@ -41,19 +41,27 @@ jobs:
           npm run cap-sync
       - name: Signing + version
         env:
-          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-          UPLOAD_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          S1: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          S2: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          S3: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           if [ "${{ steps.keys.outputs.test }}" = "1" ]; then
             keytool -genkeypair -keystore "$RUNNER_TEMP/upload.jks" -alias upload -keyalg RSA -keysize 2048 -validity 1 -storepass testtest -keypass testtest -dname "CN=TEST" >/dev/null
+            KS_PW=testtest; KS_ALIAS=upload
           else
-            # 진단: 값의 길이와 글자 종류만 출력 (값 자체는 출력하지 않음)
-            CLEAN=$(printf '%s' "$KS" | tr -d ' \r\n\t')
-            echo "B64 길이=${#CLEAN} (정상 3512 안팎), base64 아닌 글자 수=$(printf '%s' "$CLEAN" | tr -d 'A-Za-z0-9+/=' | wc -c), 비밀번호 길이=${#UPLOAD_PW} (정상 24)"
-            # 붙여 넣을 때 섞인 줄바꿈·공백은 빼고 풀기
-            printf '%s' "$KS" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/upload.jks" || { echo "::error::ANDROID_KEYSTORE_B64 값을 풀 수 없어요. txt 파일 내용 전체를 그대로 다시 붙여 넣어 주세요."; exit 1; }
-            keytool -list -keystore "$RUNNER_TEMP/upload.jks" -storepass "$UPLOAD_PW" >/dev/null || { echo "::error::키 파일 비밀번호(ANDROID_KEYSTORE_PASSWORD)가 맞지 않아요."; exit 1; }
+            # 세 값이 서로 다른 이름 칸에 들어가 있어도 알아서 찾기: 긴 글자 = 키 파일, 'upload' = 키 이름, 나머지 = 비밀번호
+            KS=""; KS_PW=""; KS_ALIAS="upload"
+            for V in "$S1" "$S2" "$S3"; do
+              C=$(printf '%s' "$V" | tr -d ' \r\n\t')
+              if [ ${#C} -gt 500 ]; then KS="$C"; elif [ "$C" = "upload" ]; then KS_ALIAS="$C"; elif [ -n "$C" ]; then KS_PW="$C"; fi
+            done
+            echo "키 파일 글자 수=${#KS}, 비밀번호 글자 수=${#KS_PW}"
+            printf '%s' "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks" || { echo "::error::키 파일 값을 풀 수 없어요. ANDROID_KEYSTORE_B64.txt 내용 전체를 다시 넣어 주세요."; exit 1; }
+            keytool -list -keystore "$RUNNER_TEMP/upload.jks" -storepass "$KS_PW" >/dev/null || { echo "::error::키 파일 비밀번호가 맞지 않아요."; exit 1; }
           fi
+          echo "::add-mask::$KS_PW"
+          echo "UPLOAD_PW=$KS_PW" >> "$GITHUB_ENV"
+          echo "UPLOAD_ALIAS=$KS_ALIAS" >> "$GITHUB_ENV"
           # 버전 번호: 실행할 때마다 1씩 올라감 (플레이는 같은 번호를 두 번 받지 않음)
           CODE=$((100 + ${{ github.run_number }}))
           NAME="1.0.${{ github.run_number }}"
@@ -84,8 +92,6 @@ jobs:
       - name: Build AAB
         env:
           UPLOAD_KS: ${{ runner.temp }}/upload.jks
-          UPLOAD_PW: ${{ steps.keys.outputs.test == '1' && 'testtest' || secrets.ANDROID_KEYSTORE_PASSWORD }}
-          UPLOAD_ALIAS: ${{ steps.keys.outputs.test == '1' && 'upload' || secrets.ANDROID_KEY_ALIAS }}
         run: |
           cd android
           chmod +x gradlew
