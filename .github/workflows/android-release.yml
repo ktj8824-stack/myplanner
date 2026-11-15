@@ -1,0 +1,88 @@
+# 플레이 스토어 출시용 AAB 만들기 (손으로 실행: Actions > Android Release (AAB) > Run workflow)
+# 결과: 이 실행의 Artifacts 에 MyPlanner-release.aab — 플레이 콘솔 '비공개 테스트'에 올리는 파일
+# 필요한 저장소 Secrets (Settings > Secrets and variables > Actions):
+#   ANDROID_KEYSTORE_B64       업로드 키 파일(.jks)을 base64로 바꾼 글자
+#   ANDROID_KEYSTORE_PASSWORD  키 파일 비밀번호 (키 비밀번호도 같음)
+#   ANDROID_KEY_ALIAS          키 이름 (기본 upload)
+name: Android Release (AAB)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Check secrets
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KS" ] || [ -z "$PW" ]; then
+            echo "::error::저장소 Secrets에 ANDROID_KEYSTORE_B64, ANDROID_KEYSTORE_PASSWORD 를 먼저 넣어 주세요."
+            exit 1
+          fi
+      - name: Install
+        run: npm install --no-audit --no-fund
+      - name: Android project (Capacitor) + 네이티브 알람
+        run: |
+          npx cap add android
+          npm run cap-sync
+      - name: Signing + version
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.jks"
+          # 버전 번호: 실행할 때마다 1씩 올라감 (플레이는 같은 번호를 두 번 받지 않음)
+          CODE=$((100 + ${{ github.run_number }}))
+          NAME="1.0.${{ github.run_number }}"
+          cat >> android/app/build.gradle <<EOF
+
+          android {
+              defaultConfig {
+                  versionCode $CODE
+                  versionName "$NAME"
+              }
+              signingConfigs {
+                  upload {
+                      storeFile file(System.getenv("UPLOAD_KS"))
+                      storePassword System.getenv("UPLOAD_PW")
+                      keyAlias System.getenv("UPLOAD_ALIAS") ?: "upload"
+                      keyPassword System.getenv("UPLOAD_PW")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.upload
+                  }
+              }
+          }
+          EOF
+          echo "versionCode=$CODE versionName=$NAME"
+          grep -n "targetSdkVersion\|compileSdkVersion\|minSdkVersion" android/variables.gradle
+      - name: Build AAB
+        env:
+          UPLOAD_KS: ${{ runner.temp }}/upload.jks
+          UPLOAD_PW: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          UPLOAD_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew bundleRelease --no-daemon --stacktrace
+          cp app/build/outputs/bundle/release/app-release.aab ../MyPlanner-release.aab
+      - name: Clean key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/upload.jks"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MyPlanner-release-aab
+          path: MyPlanner-release.aab
+          retention-days: 30
