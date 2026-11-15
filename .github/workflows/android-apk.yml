@@ -24,6 +24,9 @@ jobs:
           java-version: '21'
       - name: Install
         run: npm install --no-audit --no-fund
+      - name: 테스트 APK는 광고를 테스트 광고로 (내 폰에서 실제 광고를 누르면 애드몹 정책 위반)
+        run: |
+          echo 'window.APP_CONFIG = Object.assign(window.APP_CONFIG || {}, { ADS_TEST_MODE: true });' > js/config.js
       - name: Android project (Capacitor) + 네이티브 알람
         run: |
           npx cap add android
