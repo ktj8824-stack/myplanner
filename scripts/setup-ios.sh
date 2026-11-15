@@ -61,6 +61,12 @@ $PB_ -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes: string myplanner" "$PL"
 if [ -n "$KAKAO_KEY" ]; then
   $PB_ -c "Add :CFBundleURLTypes:0:CFBundleURLSchemes: string kakao$KAKAO_KEY" "$PL"
 fi
+# 구글 애드몹(@capacitor-community/admob): Info.plist 에 앱 ID(GADApplicationIdentifier)가 없으면 광고를 준비할 때 앱이 꺼짐
+# js/defaults.js 의 ADMOB_APP_ID_IOS (ca-app-pub-…~…), 비어 있으면 구글 공식 아이폰 테스트 앱 ID
+ADMOB_IOS_APP_ID=$(node -e "global.window={};eval(require('fs').readFileSync('js/defaults.js','utf8'));process.stdout.write((window.APP_DEFAULTS||{}).ADMOB_APP_ID_IOS||'')")
+if [ -z "$ADMOB_IOS_APP_ID" ]; then ADMOB_IOS_APP_ID="ca-app-pub-3940256099942544~1458002511"; echo "⚠️  애드몹: 아이폰은 테스트 앱 ID로 (출시 전 js/defaults.js 의 ADMOB_APP_ID_IOS 채우기)"; fi
+$PB_ -c "Delete :GADApplicationIdentifier" "$PL" 2>/dev/null || true
+$PB_ -c "Add :GADApplicationIdentifier string $ADMOB_IOS_APP_ID" "$PL"
 $PB_ -c "Delete :NSLocationWhenInUseUsageDescription" "$PL" 2>/dev/null || true
 $PB_ -c "Add :NSLocationWhenInUseUsageDescription string 지금 있는 곳을 출발지로 쓰려면 위치가 필요해요." "$PL"
 
