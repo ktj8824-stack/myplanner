@@ -524,6 +524,7 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
   box-shadow: 0 8px 14px -8px rgba(20, 28, 48, .75), inset 0 2px 3px rgba(255, 255, 255, .28), inset 0 -4px 6px rgba(0, 0, 0, .35); }
 .ai-mic .mic3d { width: 32px; height: 32px; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .35)); }
 .ai-mic:active { transform: translateY(1px) scale(.97); }
+.ai-mic.busy { opacity: .55; pointer-events: none; }
 .ai-mic.on { background: radial-gradient(circle at 32% 26%, #FF7A70 0%, #F04452 45%, #B5202C 100%); animation: pulse 1s infinite; }
 .ai-report { align-self: flex-start; margin: 6px 0 0 6px; padding: 4px 6px; font-size: 13px; font-weight: 600; color: var(--faint); text-decoration: underline; text-underline-offset: 3px; }
 .ai-report.done { text-decoration: none; }
