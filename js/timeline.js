@@ -540,7 +540,7 @@ const Settings = {
     if (!Cloud.isSignedIn()) {
       el.innerHTML = `<label class="lbl">로그인 · 가족 공유</label>
         <p class="small">로그인하면 폰을 바꿔도 일정이 그대로고, <b>가족 폰에 내 일정 알람</b>을 보낼 수 있어요. (예: 엄마 병원 일정을 등록하면 엄마 폰에서 알람)</p>
-        <button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>`;
+        <button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 시작하기</button>${Cloud.appleBtn('apple-btn small-gap')}`;
       return;
     }
     const st = { synced: '✅ 동기화됨', syncing: '⏳ 맞추는 중…', offline: '📴 오프라인', error: '⚠️ 동기화 오류', no_server: '🛠 서버 준비 중 (가족 공유 테이블 설정 필요)' }[Cloud.status] || '';

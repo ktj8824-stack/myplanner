@@ -56,7 +56,9 @@ const Cloud = {
       access_token: data.access_token,
       refresh_token: data.refresh_token || prev.refresh_token,
       expires_at: data.expires_at ? data.expires_at * 1000 : Date.now() + (data.expires_in || 3600) * 1000,
-      user: u ? { id: u.id, name: (u.user_metadata && (u.user_metadata.name || u.user_metadata.full_name || u.user_metadata.nickname)) || '' } : prev.user
+      user: u ? { id: u.id, name: (u.user_metadata && (u.user_metadata.name || u.user_metadata.full_name || u.user_metadata.nickname)) || '' } : prev.user,
+      // 어떤 로그인인지 (애플이면 계정 삭제 때 애플 연결도 끊어야 함)
+      provider: (u && u.app_metadata && u.app_metadata.provider) || data.provider || prev.provider || ''
     };
     localStorage.setItem(this.SESSION_KEY, JSON.stringify(s));
     return s;
@@ -132,6 +134,94 @@ const Cloud = {
   },
 
   /** 웹: 카카오 로그인에서 ?code=…&state=…로 돌아온 경우 → 서버 함수로 로그인 */
+  /* ---------- Apple 로그인 (아이폰 앱에서만) ----------
+     애플 심사 지침 4.8: 카카오 같은 다른 회사 로그인이 있으면 Apple 로그인도 함께 있어야 함.
+     버디플래너와 같은 방식(@capgo/capacitor-social-login) → Supabase 에 Apple 토큰으로 로그인 */
+  socialPlugin() {
+    const C = window.Capacitor;
+    if (!C || !C.Plugins) return null;
+    if (!C.Plugins.SocialLogin && C.registerPlugin) C.Plugins.SocialLogin = C.registerPlugin('SocialLogin');
+    return C.Plugins.SocialLogin || null;
+  },
+  appleOn() {
+    const C = window.Capacitor;
+    return this.isNative() && !!(C.getPlatform && C.getPlatform() === 'ios') && this.isConfigured();
+  },
+  /** 카카오 버튼 아래에 붙이는 Apple 버튼 (아이폰 앱이 아니면 빈 글자) */
+  appleBtn(cls = 'apple-btn') {
+    if (!this.appleOn()) return '';
+    return `<button class="${cls}" onclick="Cloud.signInApple()"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.6c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.87-.76-1.47.02-2.83.86-3.59 2.18-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.86.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.33-3.52zM14.2 6.13c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.65-1.05 1.68-.92 2.67.97.08 1.96-.49 2.56-1.22z"/></svg>Apple로 계속하기</button>`;
+  },
+  _randomNonce() {
+    const a = new Uint8Array(24); crypto.getRandomValues(a);
+    return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
+  },
+  async _sha256Hex(t) {
+    const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t));
+    return Array.from(new Uint8Array(h), b => b.toString(16).padStart(2, '0')).join('');
+  },
+  async _appleReadyP(P) {
+    if (!this._appleReady) this._appleReady = P.initialize({ apple: {} }).catch(e => { this._appleReady = null; throw e; });
+    return this._appleReady;
+  },
+  async signInApple() {
+    if (!this.isConfigured()) return U.toast('서버 설정이 없어요 (마이 > 개발자 설정)');
+    const P = this.socialPlugin();
+    if (!P) return U.toast('Apple 로그인을 쓸 수 없어요. 앱을 업데이트해 주세요.');
+    if (this._appleBusy) return;
+    this._appleBusy = true;
+    try {
+      await this._appleReadyP(P);
+      // 애플에는 해시한 값을, 서버(Supabase)에는 원래 값을 보내 토큰 재사용을 막음
+      const raw = this._randomNonce();
+      const res = await P.login({ provider: 'apple', options: { scopes: ['email', 'name'], nonce: await this._sha256Hex(raw) } });
+      const r = (res && res.result) || {};
+      const idToken = r.idToken || '';
+      if (!idToken) throw new Error('애플 확인 값이 없어요');
+      const data = await this._auth('token?grant_type=id_token', { provider: 'apple', id_token: idToken, nonce: raw });
+      data.provider = 'apple';
+      const s = this._save(data);
+      // 애플은 이름을 처음 로그인 때 한 번만 알려 줌 → 비어 있으면 그 이름으로 (가족에게 보이는 이름)
+      const p = r.profile || {};
+      const name = [p.familyName, p.givenName].filter(Boolean).join('') || p.name || '';
+      if (s && s.user && !s.user.name && name) { s.user.name = name; localStorage.setItem(this.SESSION_KEY, JSON.stringify(s)); }
+      this.status = 'synced';
+      U.toast('로그인했어요');
+      await this.sync();
+      if (typeof Pro !== 'undefined') Pro.refresh();
+      if (typeof Points !== 'undefined') Points.refresh();
+      if (typeof StartScreen !== 'undefined' && typeof App !== 'undefined' && App.current === 'start') { StartScreen.seen(); App.navigate(StartScreen.next()); }
+      else if (typeof App !== 'undefined' && App.refresh) App.refresh();
+    } catch (e) {
+      const msg = String((e && (e.message || e.code)) || e || '');
+      if (/cancel|1001/i.test(msg)) U.toast('Apple 로그인을 취소했어요');
+      else { console.warn('Apple login', e); U.toast('Apple 로그인 실패: ' + msg); }
+    } finally { this._appleBusy = false; }
+  },
+  /** 계정 삭제 때 Apple 연결 끊기 (애플 심사 지침 5.1.1(v)). 'ok' | 'cancel' | 'fail' */
+  async _revokeApple() {
+    const P = this.socialPlugin();
+    if (!P) return 'fail';
+    let code = '';
+    try {
+      await this._appleReadyP(P);
+      const res = await P.login({ provider: 'apple', options: { scopes: [] } });
+      const r = (res && res.result) || {};
+      code = r.authorizationCode || (r.accessToken && r.accessToken.token) || '';
+    } catch (e) {
+      if (/cancel|1001/i.test(String((e && (e.message || e.code)) || e || ''))) return 'cancel';
+      console.warn('Apple revoke login', e); return 'fail';
+    }
+    if (!code) return 'fail';
+    try {
+      const { url, key } = this.cfg();
+      const res = await U.fetchT(`${url}/functions/v1/apple-revoke`, { method: 'POST',
+        headers: { apikey: key, Authorization: `Bearer ${await this._token()}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, client_id: 'kr.myplanner.app' }) });
+      return res.ok ? 'ok' : 'fail';
+    } catch (e) { console.warn('apple-revoke', e); return 'fail'; }
+  },
+
   async _consumeKakaoCode() {
     const q = new URLSearchParams(location.search);
     if (!q.has('state') || !(q.has('code') || q.has('error'))) return false;
@@ -447,6 +537,12 @@ const Cloud = {
   /** 계정 삭제 (구글 플레이 요건): 서버(myplanner-account)가 일정·공유·가족·포인트·응모·AI 기록·프로필을 모두 지움.
       결제 기록은 법에 따라 5년 남음. 카카오 로그인은 다른 플래너 앱과 같이 쓰므로 로그인 연결만 끊음 */
   async deleteAccount() {
+    // 애플로 로그인한 계정은 애플 확인을 한 번 더 받아 애플 쪽 연결도 끊음
+    const ss = this.session() || {};
+    if (ss.provider === 'apple' && this.appleOn()) {
+      const r = await this._revokeApple();
+      if (r === 'cancel') throw new Error('애플 확인을 취소해서 삭제하지 않았어요.');
+    }
     const { url, key } = this.cfg();
     const res = await U.fetchT(`${url}/functions/v1/myplanner-account`, { method: 'POST',
       headers: { apikey: key, Authorization: `Bearer ${await this._token()}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete' }) }, 30000);

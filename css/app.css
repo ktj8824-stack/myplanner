@@ -695,6 +695,10 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .kakao-btn { width: 100%; height: 56px; border-radius: 14px; background: #FEE500; color: rgba(0, 0, 0, .85); font-size: 17px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
 .kakao-btn svg { width: 20px; height: 20px; fill: #000; }
 .kakao-btn:active { filter: brightness(.96); }
+.apple-btn { width: 100%; height: 56px; margin-top: 10px; border-radius: 14px; background: #000; color: #fff; font-size: 17px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; border: 0; }
+.apple-btn svg { width: 20px; height: 20px; fill: #fff; }
+.apple-btn:active { opacity: .85; }
+.apple-btn.small-gap { margin-top: 8px; height: 50px; font-size: 16px; }
 .start-skip { width: 100%; height: 52px; margin-top: 8px; border-radius: 14px; font-size: 17px; font-weight: 700; color: var(--ink-2); }
 .start-note { margin: 10px 0 0; font-size: 13px; color: var(--muted); line-height: 1.55; }
 

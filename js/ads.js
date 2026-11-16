@@ -53,6 +53,20 @@ const Ads = {
     return Math.max(0, Math.round(navTop + this.GAP - safe));
   },
 
+  /** 애드몹 준비 (한 번만). 아이폰은 처음 광고 전에 '추적 허용' 여부를 물음 (애플 ATT, 개인정보처리방침 2-2)
+   *  허용하지 않아도 광고는 나오고, 광고 ID만 쓰지 않음 */
+  async initOnce(A) {
+    if (this._init) return;
+    if (this.platform() === 'ios' && A.trackingAuthorizationStatus && A.requestTrackingAuthorization) {
+      try {
+        const t = await A.trackingAuthorizationStatus();
+        if (t && t.status === 'notDetermined') await A.requestTrackingAuthorization();
+      } catch (e) { console.warn('[Ads] ATT', e && e.message); }
+    }
+    await A.initialize({});
+    this._init = true;
+  },
+
   /** 화면이 바뀔 때마다 부름 */
   async sync() {
     const want = this.wanted();
@@ -63,7 +77,7 @@ const Ads = {
       if (want) {
         if (this.state === 'off') {
           this.state = 'loading';
-          if (!this._init) { await A.initialize({}); this._init = true; }
+          await this.initOnce(A);
           const b = this.bannerId();
           await A.showBanner({ adId: b.id, adSize: 'BANNER', position: 'BOTTOM_CENTER', margin: this.margin(), isTesting: b.testing });
           this.state = 'shown';
@@ -87,7 +101,7 @@ const Ads = {
     if (this._rewarding) return;
     this._rewarding = true;
     try {
-      if (!this._init) { await A.initialize({}); this._init = true; }
+      await this.initOnce(A);
       if (!this._rewardHooked) {
         // 끝까지 본 경우에만 불림 → 서버에 적립 요청 (포인트는 서버 장부가 기준)
         A.addListener('onRewardedVideoAdReward', () => { this._gotReward = true; Points.onAdRewarded(); });

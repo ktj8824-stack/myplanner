@@ -302,6 +302,7 @@ const StartScreen = {
           <button class="kakao-btn" onclick="StartScreen.kakao()">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3C6.48 3 2 6.58 2 11c0 2.83 1.84 5.31 4.6 6.73l-.93 3.43c-.08.3.25.54.51.37l4.08-2.7c.57.08 1.15.12 1.74.12 5.52 0 10-3.58 10-8S17.52 3 12 3z"/></svg>
             카카오로 시작하기</button>
+          ${Cloud.appleBtn()}
           <button class="start-skip" onclick="StartScreen.skip()">로그인 없이 시작하기</button>
           <p class="start-note">로그인 없이도 일정·알람은 모두 쓸 수 있어요.<br>나중에 마이 화면에서 언제든 로그인할 수 있어요.</p>
         </div>

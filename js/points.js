@@ -63,7 +63,7 @@ const Points = {
     if (this.available()) return true;
     Sheet.open(`<div class="sheet-head"><b>로그인이 필요해요</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
       <p class="muted" style="margin:0 0 14px">${what}는 계정에 안전하게 보관돼요. 폰을 바꿔도 그대로 이어져요.</p>
-      <button class="btn kakao big" onclick="Sheet.close();Cloud.signInKakao()">카카오로 로그인</button>
+      <button class="btn kakao big" onclick="Sheet.close();Cloud.signInKakao()">카카오로 로그인</button>${Cloud.appleBtn('apple-btn small-gap').replace('onclick="', 'onclick="Sheet.close();')}
       <button class="btn ghost" onclick="Sheet.close()">나중에</button>`);
     return false;
   },
@@ -165,7 +165,7 @@ const PointsView = {
         <div class="pt-hero"><small>내 포인트</small><div class="pt-bal pt-bal-off">로그인하면 쌓여요</div>
           <p>출석 체크, 광고 보기, 일정 등록으로 포인트를 모아 럭키드로우에 응모해요.</p></div>
         <div class="card"><p class="muted small" style="margin:0 0 10px">포인트는 계정에 보관돼요. 카카오로 로그인하면 바로 출석 체크할 수 있어요.</p>
-          <button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 로그인</button></div>
+          <button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 로그인</button>${Cloud.appleBtn('apple-btn small-gap')}</div>
         ${this.howCard(m)}`);
       return;
     }

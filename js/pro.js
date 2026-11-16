@@ -105,10 +105,10 @@ const Pro = {
     if (this.promo() && !has) {
       action = `<div class="pro-promo"><b>출시 기념 무료</b><p>${this.promoWhen()} 위 기능을 모두 무료로 쓸 수 있어요.<br>따로 신청하거나 결제할 필요 없어요. 자동으로 결제되는 일도 없어요.</p></div>
         <button class="btn primary" style="width:100%;margin-top:12px" onclick="App.navigate('home')">바로 써보기</button>`
-        + (signed ? '' : `<button class="btn ghost" style="width:100%;margin-top:8px" onclick="Cloud.signInKakao()">카카오로 로그인</button>`);
+        + (signed ? '' : `<button class="btn ghost" style="width:100%;margin-top:8px" onclick="Cloud.signInKakao()">카카오로 로그인</button>${Cloud.appleBtn('apple-btn small-gap')}`);
     } else if (!signed) {
       action = `<p class="muted small" style="margin:0 0 10px">결제하려면 먼저 카카오로 로그인해 주세요. 폰을 바꿔도 이용권이 그대로 이어져요.</p>
-        <button class="btn primary" style="width:100%" onclick="Cloud.signInKakao()">카카오로 로그인</button>`;
+        <button class="btn primary" style="width:100%" onclick="Cloud.signInKakao()">카카오로 로그인</button>${Cloud.appleBtn('apple-btn small-gap')}`;
     } else if (has) {
       action = `<div class="pro-on">${P[tier].name} 이용 중${untilTxt ? ' · ' + U.esc(untilTxt) : ''}</div>`
         + (st.web && st.web.active && !this.isNative() ? `<p class="muted small" style="margin:8px 0 0">해지해도 ${this.until(st.web.until)}까지 계속 쓸 수 있어요.</p>` : '')

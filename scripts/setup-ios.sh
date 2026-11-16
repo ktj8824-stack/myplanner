@@ -63,6 +63,43 @@ if [ -n "$KAKAO_KEY" ]; then
 fi
 $PB_ -c "Delete :NSLocationWhenInUseUsageDescription" "$PL" 2>/dev/null || true
 $PB_ -c "Add :NSLocationWhenInUseUsageDescription string 지금 있는 곳을 출발지로 쓰려면 위치가 필요해요." "$PL"
+# 광고(애드몹): 앱 ID · 추적 허용 질문 문구 · 구글 광고 네트워크 (앱 ID가 아직 없으면 구글 시험용 ID)
+ADMOB_IOS=$(node -e "global.window={};eval(require('fs').readFileSync('js/defaults.js','utf8'));process.stdout.write((window.APP_DEFAULTS||{}).ADMOB_APP_ID_IOS||'')")
+[ -z "$ADMOB_IOS" ] && ADMOB_IOS="ca-app-pub-3940256099942544~1458002511"
+$PB_ -c "Delete :GADApplicationIdentifier" "$PL" 2>/dev/null || true
+$PB_ -c "Add :GADApplicationIdentifier string $ADMOB_IOS" "$PL"
+$PB_ -c "Delete :NSUserTrackingUsageDescription" "$PL" 2>/dev/null || true
+$PB_ -c "Add :NSUserTrackingUsageDescription string 허용하면 관심 있을 만한 광고가 나와요. 허용하지 않아도 앱은 그대로 쓸 수 있어요." "$PL"
+$PB_ -c "Delete :SKAdNetworkItems" "$PL" 2>/dev/null || true
+$PB_ -c "Add :SKAdNetworkItems array" "$PL"
+$PB_ -c "Add :SKAdNetworkItems:0 dict" "$PL"
+$PB_ -c "Add :SKAdNetworkItems:0:SKAdNetworkIdentifier string cstr6suwn9.skadnetwork" "$PL"
+# 암호화: 일반 HTTPS만 씀 → 업로드 때마다 묻는 수출 규정 질문 생략
+$PB_ -c "Delete :ITSAppUsesNonExemptEncryption" "$PL" 2>/dev/null || true
+$PB_ -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PL"
+# Apple 로그인 (Sign in with Apple) 권한
+cat > ios/App/App/App.entitlements <<'ENT'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.developer.applesignin</key>
+	<array>
+		<string>Default</string>
+	</array>
+</dict>
+</plist>
+ENT
+if ! grep -q "CODE_SIGN_ENTITLEMENTS = App/App.entitlements" "$PB"; then
+  sed -i '' "s/\(PRODUCT_BUNDLE_IDENTIFIER = $BUNDLE_ID;\)/\1\\
+				CODE_SIGN_ENTITLEMENTS = App\/App.entitlements;/g" "$PB"
+fi
+# 버전: 보이는 버전 1.0.0, 빌드 번호는 실행한 시각 (앱스토어는 올릴 때마다 더 큰 번호가 필요)
+MV="${MP_VERSION:-1.0.0}"
+BUILD=$(date +%Y%m%d%H%M)
+sed -i '' "s/MARKETING_VERSION = [^;]*;/MARKETING_VERSION = $MV;/g" "$PB"
+sed -i '' "s/CURRENT_PROJECT_VERSION = [^;]*;/CURRENT_PROJECT_VERSION = $BUILD;/g" "$PB"
+echo "   버전 $MV (빌드 $BUILD)"
 
 step "6/6 엑스코드 열기"
 open ios/App/App.xcodeproj
