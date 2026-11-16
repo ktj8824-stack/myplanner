@@ -27,7 +27,7 @@ const Voice = {
   listen(onText, onDone, onEnd) {
     if (!this.Rec) return null;
     const r = new this.Rec();
-    r.lang = 'ko-KR'; r.interimResults = true; r.maxAlternatives = 1;
+    r.lang = 'ko-KR'; r.interimResults = true; r.maxAlternatives = 1; r.continuous = true;   // 잠깐 쉬어도 끊지 않음
     let final = '';
     r.onresult = e => {
       let interim = '';
@@ -35,9 +35,10 @@ const Voice = {
         if (e.results[i].isFinal) final += e.results[i][0].transcript; else interim += e.results[i][0].transcript;
       }
       onText((final + interim).trim());
+      clearTimeout(r._quiet); r._quiet = setTimeout(() => { try { r.stop(); } catch (e) {} }, 2500);   // 2.5초 조용하면 끝
     };
     r.onerror = e => { if (e.error === 'not-allowed') U.toast('마이크 권한을 허용해 주세요'); };
-    r.onend = () => { onEnd && onEnd(); if (final.trim()) onDone(final.trim()); };
+    r.onend = () => { clearTimeout(r._quiet); onEnd && onEnd(); if (final.trim()) onDone(final.trim()); };
     try { r.start(); } catch (e) { return null; }
     return r;
   }
@@ -71,8 +72,8 @@ const Assistant = {
       <div id="aiLog" class="ai-log">${this.msgs.length ? this.msgs.map((m, i) => this.bubble(m, i)).join('') : this.welcome()}</div>
       <div class="ai-suggest" id="aiSuggest">${this.SUGGEST.map(s => `<button class="chip" onclick="Assistant.send(${JSON.stringify(s).replace(/"/g, '&quot;')})">${U.esc(s)}</button>`).join('')}</div>
       <div class="ai-input">
-        ${Voice.canListen() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">${App.micSvg()}</button>` : ''}
-        <input id="aiText" class="input" placeholder="${Voice.canListen() ? '말하거나 여기에 쓰세요' : '여기에 쓰세요'}"
+        ${this.canMic() ? `<button class="ai-mic" id="aiMic" onclick="Assistant.mic()" aria-label="말하기">${App.micSvg()}</button>` : ''}
+        <input id="aiText" class="input" placeholder="${this.canMic() ? '말하거나 여기에 쓰세요' : '여기에 쓰세요'}"
           enterkeyhint="send" onkeydown="if(event.key==='Enter'){Assistant.send()}">
         <button class="btn primary" onclick="Assistant.send()">보내기</button>
       </div>`);
@@ -101,16 +102,53 @@ const Assistant = {
     document.getElementById('aiSpeakBtn').textContent = this.speakOn ? '🔊' : '🔇';
   },
 
-  mic() {
+  canMic() { return Voice.canListen() || (typeof ServerVoice !== 'undefined' && ServerVoice.supported()); },
+
+  /* 음성 입력: 1순위 고음질 서버 받아쓰기(js/voice-stt.js), 안 되면 기기 받아쓰기
+     받아쓴 글은 입력창에 넣고, 확인한 뒤 '보내기' */
+  _voiceOpts() {
+    const { url, key } = Cloud.cfg();
+    return { url, anon: key, token: () => Cloud._token(), app: 'my' };
+  },
+  _voiceHints() {
+    const n = [];
+    try { (State.schedules || []).slice(-40).forEach(s => { const p = s && (s.place || s.dest || s.to); const name = p && (p.name || p.title); if (name) n.push(name); else if (s && s.title) n.push(s.title); }); } catch (e) {}
+    return [...new Set(n)].slice(-25);
+  },
+  _micState(s) {
     const btn = document.getElementById('aiMic'), input = document.getElementById('aiText');
+    if (btn) { btn.classList.toggle('on', s === 'listening'); btn.classList.toggle('busy', s === 'busy'); }
+    if (input) input.placeholder = s === 'listening' ? '듣고 있어요 · 말을 마치면 자동으로 멈춰요' : s === 'busy' ? '받아쓰는 중이에요…' : '말하거나 여기에 쓰세요';
+  },
+  _putText(t) {
+    const input = document.getElementById('aiText');
+    if (!input || !t) return;
+    input.value = t;
+    try { input.focus(); input.setSelectionRange(t.length, t.length); } catch (e) {}
+  },
+
+  async mic() {
+    if (typeof ServerVoice !== 'undefined' && ServerVoice.active()) { ServerVoice.stop(); return; }
     if (this.rec) { try { this.rec.stop(); } catch (e) {} return; }
+    if (this._voiceBusy) return;
     Voice.stop();
-    btn.classList.add('on');
-    input.placeholder = '듣고 있어요… 말씀하세요';
-    this.rec = Voice.listen(t => { input.value = t; }, t => this.send(t), () => {
-      this.rec = null; btn.classList.remove('on'); input.placeholder = '말하거나 여기에 쓰세요';
-    });
-    if (!this.rec) { btn.classList.remove('on'); U.toast('이 기기에서는 말하기를 쓸 수 없어요. 키보드의 마이크 버튼을 써 주세요'); }
+    if (typeof ServerVoice !== 'undefined' && Cloud.isSignedIn() && await ServerVoice.ready(this._voiceOpts())) {
+      ServerVoice.start(Object.assign(this._voiceOpts(), {
+        hints: this._voiceHints(),
+        onState: s => { this._voiceBusy = s === 'busy'; this._micState(s); },
+        onText: t => this._putText(t),
+        onFail: (why, msg) => { if (why === 'no_recorder') return this._deviceMic(); if (msg) U.toast(msg); }
+      }));
+      return;
+    }
+    this._deviceMic();
+  },
+
+  _deviceMic() {
+    const input = document.getElementById('aiText');
+    this._micState('listening');
+    this.rec = Voice.listen(t => { if (input) input.value = t; }, t => this._putText(t), () => { this.rec = null; this._micState('idle'); });
+    if (!this.rec) { this._micState('idle'); U.toast('이 기기에서는 말하기를 쓸 수 없어요. 키보드의 마이크 버튼을 써 주세요'); }
   },
 
   bubble(m, i) {
