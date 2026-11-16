@@ -23,11 +23,13 @@ const Ads = {
   },
   platform() { const C = window.Capacitor; return (C && C.getPlatform && C.getPlatform()) === 'android' ? 'android' : 'ios'; },
   isPro() { return !!(typeof Pro !== 'undefined' && Pro.adFree && Pro.adFree()); }, // 플러스 이상이면 광고 없음
-  /** 실제 광고 단위 ID가 있으면 실제 광고, 없으면 테스트 광고 */
+  /** 실제 광고 단위 ID가 있으면 실제 광고, 없거나 시험 모드면 테스트 광고 */
   bannerId() {
     const p = this.platform();
     const real = this.cfg(p === 'android' ? 'ADMOB_BANNER_ANDROID' : 'ADMOB_BANNER_IOS');
-    return { id: real || this.TEST_BANNER[p], testing: !real || this.cfg('ADS_TEST_MODE') === true };
+    // 시험 모드(ADS_TEST_MODE, 비공개 테스트 빌드)면 구글 테스트 광고 — 테스터 기기의 반복 노출로 애드몹 계정이 제한되지 않게
+    const test = !real || this.cfg('ADS_TEST_MODE') === true;
+    return { id: test ? this.TEST_BANNER[p] : real, testing: test };
   },
   wanted() {
     if (this.isPro()) return false;
@@ -92,7 +94,9 @@ const Ads = {
   TEST_REWARD: { ios: 'ca-app-pub-3940256099942544/1712485313', android: 'ca-app-pub-3940256099942544/5224354917' },
   rewardId() {
     const p = this.platform(), real = this.cfg(p === 'android' ? 'ADMOB_REWARD_ANDROID' : 'ADMOB_REWARD_IOS');
-    return { id: real || this.TEST_REWARD[p], testing: !real || this.cfg('ADS_TEST_MODE') === true };
+    // 시험 모드(ADS_TEST_MODE, 비공개 테스트 빌드)면 구글 테스트 광고 — 테스터 기기의 반복 노출로 애드몹 계정이 제한되지 않게
+    const test = !real || this.cfg('ADS_TEST_MODE') === true;
+    return { id: test ? this.TEST_REWARD[p] : real, testing: test };
   },
   async reward() {
     if (typeof Points === 'undefined' || !Points.canWatchAd()) return;

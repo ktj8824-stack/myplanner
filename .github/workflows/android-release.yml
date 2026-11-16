@@ -1,5 +1,6 @@
 # 플레이 스토어 출시용 AAB 만들기 (손으로 실행: Actions > Android Release (AAB) > Run workflow)
 # 결과: 이 실행의 Artifacts 에 MyPlanner-release.aab — 플레이 콘솔 '비공개 테스트'에 올리는 파일
+# 광고: 기본 test(구글 테스트 광고) — 비공개 테스트 동안 테스터 기기의 실제 광고 반복 노출 방지. 정식 출시 빌드는 ads=real
 # 필요한 저장소 Secrets (Settings > Secrets and variables > Actions):
 #   ANDROID_KEYSTORE_B64       업로드 키 파일(.jks)을 base64로 바꾼 글자
 #   ANDROID_KEYSTORE_PASSWORD  키 파일 비밀번호 (키 비밀번호도 같음)
@@ -7,6 +8,12 @@
 name: Android Release (AAB)
 on:
   workflow_dispatch:
+    inputs:
+      ads:
+        description: '광고: test = 구글 테스트 광고(비공개 테스트용), real = 실제 광고(정식 출시용)'
+        type: choice
+        options: [test, real]
+        default: test
 permissions:
   contents: read
 jobs:
@@ -35,6 +42,14 @@ jobs:
           fi
       - name: Install
         run: npm install --no-audit --no-fund
+      - name: 광고 모드
+        run: |
+          if [ "${{ inputs.ads || 'test' }}" = "test" ]; then
+            echo 'window.APP_CONFIG = Object.assign(window.APP_CONFIG || {}, { ADS_TEST_MODE: true });' > js/config.js
+            echo "::notice::테스트 광고 빌드 (비공개 테스트용). 정식 출시 때는 ads=real 로 다시 만드세요."
+          else
+            echo "::notice::실제 광고 빌드 (정식 출시용)"
+          fi
       - name: Android project (Capacitor) + 네이티브 알람
         run: |
           npx cap add android
