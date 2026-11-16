@@ -499,7 +499,7 @@ const Settings = {
 
       <div class="card">
         <button class="btn ghost danger" onclick="Settings.reset()">모든 일정 지우기</button>
-        <p class="muted small center"><a href="privacy.html" target="_blank">개인정보처리방침</a> · <a href="terms.html" target="_blank">이용약관</a><br><span onclick="Settings.devTap()">마이플래너 v1.0</span></p>
+        <p class="muted small center"><a href="https://ktj8824-stack.github.io/myplanner/privacy.html" target="_blank" rel="noopener">개인정보처리방침</a> · <a href="https://ktj8824-stack.github.io/myplanner/terms.html" target="_blank" rel="noopener">이용약관</a><br><span onclick="Settings.devTap()">마이플래너 v1.0</span></p>
       </div>
     `);
     this.alarmCheck();

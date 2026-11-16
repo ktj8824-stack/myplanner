@@ -141,7 +141,7 @@ const Pro = {
       ${this.resultCard()}
       ${this.promo() && !has ? '' : `<div class="card">${action}</div>`}
       ${hist}
-      ${this.promo() && !has ? '' : `<p class="muted small" style="padding:0 6px">결제·환불 안내는 <a href="terms.html#pay" target="_blank" rel="noopener">이용약관</a>에 있어요. 일정·알람 등 기본 기능은 무료로도 그대로 쓸 수 있어요.</p>`}`);
+      ${this.promo() && !has ? '' : `<p class="muted small" style="padding:0 6px">결제·환불 안내는 <a href="https://ktj8824-stack.github.io/myplanner/terms.html#pay" target="_blank" rel="noopener">이용약관</a>에 있어요. 일정·알람 등 기본 기능은 무료로도 그대로 쓸 수 있어요.</p>`}`);
     if (signed && !has && !this.isNative() && !this.promo()) { this.widgets = null; this._ready = false; this.mountToss(); }
   },
 
