@@ -164,7 +164,7 @@ const PointsView = {
       App.setMain(`${head}
         <div class="pt-hero"><small>내 포인트</small><div class="pt-bal pt-bal-off">로그인하면 쌓여요</div>
           <p>출석 체크, 광고 보기, 일정 등록으로 포인트를 모아 럭키드로우에 응모해요.</p></div>
-        <div class="card"><p class="muted small" style="margin:0 0 10px">포인트는 계정에 보관돼요. 카카오로 로그인하면 바로 출석 체크할 수 있어요.</p>
+        <div class="card"><p class="muted small" style="margin:0 0 10px">포인트는 계정에 보관돼요. 로그인하면 바로 출석 체크할 수 있어요.</p>
           <button class="btn kakao big" onclick="Cloud.signInKakao()">카카오로 로그인</button>${Cloud.appleBtn('apple-btn small-gap')}</div>
         ${this.howCard(m)}`);
       return;

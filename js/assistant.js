@@ -91,7 +91,7 @@ const Assistant = {
 
   quotaLabel() {
     const q = this.quota;
-    if (!q) return Cloud.isSignedIn() ? '말로 일정을 만들고 물어보세요' : '카카오 로그인 후 쓸 수 있어요';
+    if (!q) return Cloud.isSignedIn() ? '말로 일정을 만들고 물어보세요' : '로그인 후 쓸 수 있어요';
     return q.pro ? `프리미엄 · 오늘 ${q.remaining}번 남음` : q.promo ? `출시 기념 무료 · 오늘 ${q.remaining}번 남음` : `오늘 ${q.remaining}번 남음`;
   },
 
@@ -238,7 +238,7 @@ const Assistant = {
     }
     if (!Cloud.isConfigured()) return this.reply('AI 비서를 쓰려면 서버 연결이 필요해요. 마이 > 개발자 설정을 확인해 주세요.');
     if (!Cloud.isSignedIn()) {
-      return this.reply('AI 비서는 카카오로 로그인한 뒤 쓸 수 있어요. 로그인하면 폰을 바꿔도 일정이 그대로예요.', [{ kind: 'login', state: 'ready' }]);
+      return this.reply('AI 비서는 로그인한 뒤 쓸 수 있어요. 로그인하면 폰을 바꿔도 일정이 그대로예요.', [{ kind: 'login', state: 'ready' }]);
     }
 
     this.busy = true;
