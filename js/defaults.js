@@ -19,10 +19,10 @@ window.APP_DEFAULTS = {
   REVENUECAT_ANDROID_KEY: '',
   // 광고 — 구글 애드몹 '광고 단위 ID'(공개 값). 비어 있으면 구글 테스트 광고(Test Ad)로 나옴
   ADMOB_APP_ID_ANDROID: 'ca-app-pub-6195996093323539~1692137330',  // 애드몹에 마이플래너 앱을 등록하면 나오는 앱 ID (ca-app-pub-…~…). 비우면 구글 테스트 앱 ID
-  ADMOB_APP_ID_IOS: '',
-  ADMOB_BANNER_IOS: '',
+  ADMOB_APP_ID_IOS: 'ca-app-pub-6195996093323539~1916634085',      // 아이폰 마이플래너 (11/16 등록)
+  ADMOB_BANNER_IOS: 'ca-app-pub-6195996093323539/1038666689',       // 아이폰 하단 배너
   ADMOB_BANNER_ANDROID: 'ca-app-pub-6195996093323539/7874402304',   // 마이플래너 하단 배너 (11/15 등록)
-  ADMOB_REWARD_IOS: '',      // 보상형(포인트) 광고 단위 — 비워 두면 구글 테스트 광고
+  ADMOB_REWARD_IOS: 'ca-app-pub-6195996093323539/6099421678',       // 아이폰 포인트 보상형 (서버 확인: myplanner-admob-ssv)
   ADMOB_REWARD_ANDROID: 'ca-app-pub-6195996093323539/4820863555',   // 마이플래너 포인트 보상형 (서버 확인: myplanner-admob-ssv)
   // 웹 광고 — 카카오 애드핏 광고 단위 ID (DAN-…). 비어 있으면 웹에는 광고 없음
   ADFIT_UNIT_ID: '',
