@@ -48,22 +48,22 @@ const Pro = {
     if (Cloud.isSignedIn() && !this.loading) { this.loading = true; this.refresh().finally(() => { this.loading = false; if (App.current === 'pro') this.paint(); }); }
   },
 
-  /** 출시 기념 무료 기간 (안내 날짜 기본 2027-03-31까지): 결제 없이 모든 기능, 광고는 나옴
+  /** 출시 기념 무료 기간 (안내 날짜 기본 2027-02-28까지): 결제 없이 모든 기능, 광고는 나옴
       결제 스위치: 서버(비밀값 MYPLANNER_PROMO_UNTIL)가 '무료 기간 끝'이라고 알려 줄 때만 결제가 열림.
       그 전에는 안내 날짜가 지나도 결제 화면·가격이 나오지 않고 계속 무료 */
   promoUntil() {
     const c = Object.assign({}, window.APP_DEFAULTS || {}, window.APP_CONFIG || {});
-    return c.PROMO_UNTIL || '2027-03-31T23:59:59+09:00';
+    return c.PROMO_UNTIL || '2027-02-28T23:59:59+09:00';
   },
   /** 결제가 열렸는지 — 서버가 분명히 '무료 기간 아님'이라고 답했을 때만 */
   payOpen() { const s = this.status && this.status.promo; return !!(s && s.active === false); },
   /** 안내 날짜가 아직 안 지났는지 */
   promoDated() { return Date.now() < Date.parse(this.promoUntil()); },
   promo() { return !this.payOpen(); },
-  /** 무료 기간 끝 날짜 짧게: '3/31' */
+  /** 무료 기간 끝 날짜 짧게: '2/28' */
   promoShort() { const d = new Date(this.promoUntil()); return `${d.getMonth() + 1}/${d.getDate()}`; },
   promoText() { const d = new Date(this.promoUntil()); return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일`; },
-  /** 화면에 적는 말: '2027년 3월 31일까지' 또는 (날짜가 지났는데 결제가 닫혀 있으면) '지금은' */
+  /** 화면에 적는 말: '2027년 2월 28일까지' 또는 (날짜가 지났는데 결제가 닫혀 있으면) '지금은' */
   promoWhen(short) { return this.promoDated() ? `${short ? this.promoShort() : this.promoText()}까지` : '지금은'; },
 
   /** 지금 이용권: free | plus | premium */

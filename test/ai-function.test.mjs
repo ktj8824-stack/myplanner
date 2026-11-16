@@ -42,7 +42,7 @@ assert.deepStrictEqual(claudeCalls[0].tools.at(-1).cache_control, { type: 'ephem
 assert.ok(!claudeCalls[0].tools[0].cache_control || claudeCalls[0].tools.length === 1);
 assert.strictEqual(j.pro, false); assert.strictEqual(j.remaining, 4);
 console.log('✓ 말 한마디 → 일정 제안 카드 (무료 남은 횟수 4)');
-// 출시 기념 무료 기간(2027-03-31까지)에는 결제 없이 하루 20번
+// 출시 기념 무료 기간(2027-02-28까지)에는 결제 없이 하루 20번
 {
   const pr = await handle(req({ message: '내일 10시 아산병원 가야 돼', context: ctx }), { ...env, MYPLANNER_PROMO_UNTIL: '2099-01-01T00:00:00Z' }, fake());
   const pj = await pr.json();

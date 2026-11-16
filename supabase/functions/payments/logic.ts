@@ -11,7 +11,7 @@ export const ORDER_NAME = PLANS.premium.name;
 const RANK: Record<string, number> = { free: 0, plus: 1, premium: 2 };
 export const planOf = (p: unknown) => (p === "pro" ? "premium" : (PLANS[String(p)] ? String(p) : "premium"));
 // 출시 기념 무료 기간: 이 날까지는 모든 기능 무료라 결제를 받지 않음 (사업자 등록 전)
-export const PROMO_UNTIL = "2027-03-31T23:59:59+09:00";
+export const PROMO_UNTIL = "2027-02-28T23:59:59+09:00";
 export const DOCS_TEST_SECRET = "test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6"; // 토스 문서 공개 테스트 키 (실제 돈 안 나감)
 
 export class PayError extends Error {

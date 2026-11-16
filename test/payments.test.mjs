@@ -75,7 +75,7 @@ assert.strictEqual((await revenueCat('u', 'k', rcf({ pro: { expires_date: fut } 
 assert.strictEqual((await revenueCat('u', 'k', rcf({ premium: { expires_date: past } }))).active, false);
 await assert.rejects(H('nope', {}, 'u1', db, toss, noStore, 'test', now), e => e instanceof PayError);
 assert.strictEqual(addMonth(new Date('2026-01-31T00:00:00Z')).toISOString().slice(0, 10), '2026-02-28');
-// 출시 기념 무료 기간(2027-03-31까지)에는 결제를 받지 않고, 상태에 무료 기간을 알려 줌
+// 출시 기념 무료 기간(2027-02-28까지)에는 결제를 받지 않고, 상태에 무료 기간을 알려 줌
 await assert.rejects(handle('prepare', { plan: 'premium' }, 'u5', db, toss, noStore, 'test', now), e => e.code === 'PROMO_FREE');
 const ps = await handle('status', {}, 'u5', db, toss, noStore, 'test', now);
 assert.strictEqual(ps.promo.active, true);
