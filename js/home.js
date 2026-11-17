@@ -81,14 +81,17 @@ const Home = {
   /** 남색 '다음 일정' 카드 */
   nextCard({ s, plan }) {
     const now = Date.now();
-    const wakePassed = plan.wakeAt.getTime() < now;
-    const moving = plan.departAt.getTime() < now;
+    // 앞 일정에서 이어서·지금 위치에서 바로 출발이면 기상 단계가 없음 → '기상까지 0분' 대신 '출발까지'
+    const wakePassed = !!plan.chained || plan.wakeAt.getTime() < now;
+    const moving = plan.departAt.getTime() < now || !!s.startNow; // 지금 위치에서 바로 출발 = 이미 나감
     // 실제로 나갔는지('지금 출발' 버튼·차에서 자동 길안내 기록). 기록이 없으면 '이동 중'이라고 단정하지 않고 지난 시간을 알려 줌
     let hasLeft = false;
     try {
       const recs = (Alarm.habitAll()[s.baseId || s.id] || []);
       hasLeft = recs.some(r => r && r.day === s.date && r.go && r.goSrc);
     } catch (e) { hasLeft = false; }
+    // '지금 위치에서 바로 출발'로 만든 일정은 만들 때 이미 나간 것 → '출발 시각 N분 지났어요'가 아니라 '이동 중'
+    if (s.startNow) hasLeft = true;
     const lateMin = Math.max(1, Math.round((now - plan.departAt.getTime()) / 60000));
     const left = Math.max(0, Math.round(((wakePassed ? plan.departAt : plan.wakeAt) - now) / 60000));
     const m = Planner.MODES[s.mode];
