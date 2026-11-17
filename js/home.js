@@ -16,6 +16,11 @@ const Home = {
       const have = new Set(up.map(x => x.s.occId || x.s.id));
       up = up.concat(State.upcoming(365).filter(x => !have.has(x.s.occId || x.s.id)));
     }
+    // 도착 시각이 지난 일정(약속 중·끝남)은 다음 일정이 있으면 홈 큰 카드에서 비켜 줌
+    // (State.upcoming 은 알람·비서도 같이 써서 도착 뒤 30분까지 남겨 두므로 홈에서만 거름, 11-16 점검)
+    const nowMs = Date.now();
+    const ahead = up.filter(x => x.plan.arriveAt.getTime() > nowMs);
+    if (ahead.length) up = ahead;
     const next = up[0];
     // 다가오는 일정: 다음 일정은 위 카드에 있으니 빼고, 반복 일정은 가장 가까운 회차 하나만
     const seen = new Set(next ? [next.s.baseId || next.s.id] : []);
