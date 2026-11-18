@@ -97,7 +97,6 @@ const Home = {
     } catch (e) { hasLeft = false; }
     // '지금 위치에서 바로 출발'로 만든 일정은 만들 때 이미 나간 것 → '출발 시각 N분 지났어요'가 아니라 '이동 중'
     if (s.startNow) hasLeft = true;
-    const lateMin = Math.max(1, Math.round((now - plan.departAt.getTime()) / 60000));
     const left = Math.max(0, Math.round(((wakePassed ? plan.departAt : plan.wakeAt) - now) / 60000));
     const m = Planner.MODES[s.mode];
     const trip = Planner.isTrip(s.mode);
@@ -115,9 +114,34 @@ const Home = {
     if (packLeft) info.push(`챙길 것 ${packLeft}개`);
     if (Recur.isRepeating(s)) info.push(U.icon('calendar') + ' ' + U.esc(Recur.label(s)).replace(/ · .*/, ''));
     if (s._shared) info.push(U.icon('group') + ' ' + U.esc(s._shared.from));
+    // 약속 중(도착 시각이 지났는데 다음 일정이 없을 때 홈에 남겨 둔 경우): 끝나고 집에 가는 시각·막차를 한 줄로
+    const startAt = !trip && s.arriveBy ? Planner.at(s.date, s.arriveBy) : null;
+    const during = !!startAt && now >= startAt.getTime();
+    const notes = [];
+    if (during) {
+      const endItem = plan.items.find(i => i.kind === 'end');
+      if (plan.homeDepartAt) notes.push(`${Ico('home')} 끝나고 집으로 ${U.hm(plan.homeDepartAt)}${plan.lastLeaveAt ? ` · 막차 타려면 ${U.hm(plan.lastLeaveAt)}까지` : ''}`);
+      else if (endItem) notes.push(`${Ico('clock')} ${U.hm(endItem.at)}에 끝나요`);
+    } else if (plan.lateMin > 0 && plan.prevEndAt && !moving) {
+      // 앞 약속이 끝나야 나갈 수 있어 늦는 경우 (이어서 출발)
+      notes.push(`⚠️ ${U.esc(Planner.chainLateLine(plan, s))}`);
+    }
+    // 출발 시각이 지났는데 아직 안 나갔으면: 지금 나가면 몇 시에 닿는지 (등록 화면 '지금 출발하면 …'과 같은 계산)
+    let goTxt;
+    if (far) goTxt = Ico('calendar') + ' D-' + dday;
+    else if (during) goTxt = plan.homeDepartAt && now >= plan.homeDepartAt.getTime() ? `${Ico('home')} 집 도착 ${U.hm(plan.homeAt)} 예정` : `${Ico('clock')} 약속 중이에요`;
+    else if (moving && hasLeft) goTxt = Ico('walk') + ' 이동 중이에요';
+    else if (moving) {
+      const ln = Planner.leaveNow(s, plan, now);
+      goTxt = Ico('alarm') + (trip
+        ? ` 지금 나가면 ${s.mode === 'flight' ? '공항' : '역'} ${U.hm(ln.at)} 도착${ln.lateMin > 0 ? ` · ${U.esc(s.trip.departTime)} ${m.label}를 놓칠 수 있어요` : ''}`
+        : ` 지금 나가면 ${U.hm(ln.at)} 도착${ln.lateMin > 0 ? ` · ${U.durLabel(ln.lateMin)} 늦어요` : ''}`);
+    } else goTxt = Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left);
+    // 비·눈 예보인 반복 일정: 그날만 10분 일찍 (출발 전, 아직 안 눌렀을 때만)
+    const rainChip = !far && !moving && !during && Recur.isRepeating(s) && s.isOccurrence && !s.rainEarly && typeof Weather !== 'undefined' && Weather.isWet(plan);
     return `
       <div class="card next">
-        <div class="lb"><span>다음 일정 · ${U.esc(rel)}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
+        <div class="lb"><span>${during ? '지금 일정' : '다음 일정'} · ${U.esc(rel)}</span><span>${U.modeIcon(s.mode)} ${m.label}</span></div>
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
           ${plan.chained ? `<div class="${moving ? 'dim' : 'on'}"><small>출발 · ${U.esc((s.origin && s.origin.name) || '앞 일정')}</small><b>${U.hm(plan.departAt)}</b></div>
@@ -126,10 +150,28 @@ const Home = {
           ${plan.chained ? `<div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div><small>${trip ? '탑승' : '약속'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>
         ${info.length ? `<div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
+        ${notes.length ? `<div class="info">${notes.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
+        ${rainChip ? `<div class="chips"><button class="chip" onclick="Home.rainEarly('${s.occId}')">☔ ${U.esc(rel)} 10분 일찍</button></div>` : ''}
         <div id="heroBus"></div>
         ${far ? `<div class="info"><span>${Ico('alarm')} 알람은 일정 2주 전부터 자동으로 맞춰져요</span></div>` : ''}
-        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${far ? Ico('calendar') + ' D-' + dday : moving ? (hasLeft ? Ico('walk') + ' 이동 중이에요' : Ico('alarm') + ` 출발 시각 ${U.durLabel ? U.durLabel(lateMin) : lateMin + '분'} 지났어요`) : Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left)}</span><span>타임라인 ›</span></button>
+        <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${goTxt}</span><span>타임라인 ›</span></button>
       </div>`;
+  },
+
+  /** 비 예보 아침: 그 회차만 여유 +10분 → 알람 다시 맞춤 */
+  async rainEarly(occId) {
+    const o = Recur.resolve(occId);
+    const b = o && State.get(o.baseId || o.id);
+    if (!b || !Recur.isRepeating(b) || o.rainEarly) return;
+    const ov = { ...((b.overrides || {})[o.date] || {}) };
+    ov.bufferMin = Math.min(120, Number(ov.bufferMin ?? b.bufferMin ?? 10) + 10);
+    ov.rainEarly = true;
+    b.overrides = { ...(b.overrides || {}), [o.date]: ov };
+    State.upsert(b);
+    try { await Alarm.rescheduleAll(); } catch (e) {}
+    const rel = o.date === U.today() ? '오늘' : (U.dateLabel(o.date).split(' · ')[1] || '그날');
+    U.toast(`${rel}만 10분 일찍 깨워 드릴게요`);
+    this.render();
   },
 
   emptyCard() {

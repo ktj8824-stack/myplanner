@@ -72,6 +72,7 @@ const Register = {
     };
     App.setMain(`
       <header class="subhead"><button class="back" onclick="Register.back()" aria-label="뒤로"></button><h1>${this.editing ? '일정 수정' : '새 일정'}</h1><span></span></header>
+      ${this.editing && Recur.isRepeating(State.get(d.id)) ? `<p class="muted small" style="margin:0 4px 12px">🔁 반복되는 모든 날에 적용돼요 · 오늘만 바꾸려면 일정 화면의 「이 날만」</p>` : ''}
       ${this.editing ? '' : `<button class="paste-cta" onclick="PasteImport.open()">
         <span class="paste-ic"><img src="img/icons/message.png" alt=""></span><span><b>받은 문자로 채우기</b><small>KTX·항공권·병원 예약 문자 붙여넣기</small></span><span class="chev">›</span>
       </button>`}
@@ -375,11 +376,11 @@ const Register = {
     const travelMs = plan.arriveAt - plan.departAt;
     let nowBox = '';
     if (!trip && d.date === U.today() && d.arriveBy) {
-      const due = Planner.at(d.date, d.arriveBy).getTime();
       const late = plan.departAt.getTime() < now;
       if (d.startNow || late) {
-        const arriveNow = new Date(now + travelMs);
-        const lateMin = Math.round((arriveNow.getTime() + (+d.bufferMin || 0) * 60000 - due) / 60000);
+        // 홈 큰 카드 '지금 나가면 …'과 같은 계산 (Planner.leaveNow)
+        const ln = Planner.leaveNow(d, plan, now);
+        const arriveNow = ln.at, lateMin = ln.lateMin;
         const tx = this.taxiAlt;
         const txArrive = tx ? new Date(now + (Planner.totalMin(tx, 'taxi')) * 60000) : null;
         nowBox = `<div class="now-box ${late ? 'late' : ''}">

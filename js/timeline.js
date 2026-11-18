@@ -23,7 +23,9 @@ const Timeline = {
     // 실시간 교통을 반영했으면 그 시간으로 (시각 계산과 같은 숫자 — 2026-11-14 점검: 칩 38분 · 실제 계산 52분)
     const routeLeg = plan.route || (Planner.isTrip(s.mode) ? s.accessRoute : s.route);
     // 위 칸은 '약속' 시각, 여유를 뺀 실제 도착은 아래 줄에 따로 (홈·AI 카드와 같은 기준)
-    const arriveNote = s.bufferMin ? `${U.hm(plan.arriveAt)} 도착 (${s.bufferMin}분 여유)` : `여유 0분`;
+    // 앞 약속이 끝나야 나갈 수 있어 늦으면 '여유' 대신 늦는 분 (Planner 계산 그대로)
+    const arriveNote = plan.lateMin > 0 && plan.heldByPrev && !Planner.isTrip(s.mode) ? `${U.hm(plan.arriveAt)} 도착 (${plan.lateMin}분 늦음)`
+      : s.bufferMin ? `${U.hm(plan.arriveAt)} 도착 (${s.bufferMin}분 여유)` : `여유 0분`;
     const info = plan.chained ? [`📍 ${U.esc((s.origin && s.origin.name) || '앞 일정')}에서 바로`, arriveNote] : [`준비 ${s.prepMin}분`, arriveNote];
     if (routeLeg && routeLeg.travelMin) info.push(`${U.modeIcon(navMode)} ${U.durLabel(routeLeg.travelMin)}${routeLeg.summary && /환승|원/.test(routeLeg.summary) ? ' · ' + U.esc(U.routeRest(routeLeg.summary)) : ''}`);
     if (plan.homeAt) info.push(`🏠 ${U.hm(plan.homeAt)} 집 도착${plan.lastLeaveAt ? ` · 막차 ${U.esc(s.goHome.lastTime)}` : ''}`);
@@ -229,12 +231,37 @@ const Timeline = {
       ${isTrip ? '' : `<label class="lbl">도착 시간</label><input type="time" id="ovArrive" class="input" value="${s.arriveBy}">`}
       <label class="lbl">준비 시간 (분)</label><input type="number" id="ovPrep" class="input" inputmode="numeric" min="0" max="300" value="${s.prepMin}">
       <label class="lbl">여유 시간 (분)</label><input type="number" id="ovBuffer" class="input" inputmode="numeric" min="0" max="300" value="${s.bufferMin}">
+      ${isTrip ? '' : `<label class="lbl">이동 수단</label>
+      <div class="seg" id="ovModes">${Object.keys(Planner.MODES).filter(k => !Planner.isTrip(k)).map(k => `<button class="${s.mode === k ? 'on' : ''}" onclick="Timeline.pickDayMode('${k}',this)">${U.modeIcon(k)} ${Planner.MODES[k].label}</button>`).join('')}</div>`}
       <button class="btn primary big" style="margin-top:16px" onclick="Timeline.saveDay()">이 날만 적용</button>`);
+    this._ovMode = isTrip ? null : s.mode;
+  },
+
+  /** '이 날만' 창에서 이동 수단 고르기 (저장은 [이 날만 적용]에서) */
+  pickDayMode(k, el) {
+    this._ovMode = k;
+    document.querySelectorAll('#ovModes button').forEach(b => b.classList.toggle('on', b === el));
+  },
+
+  /** 그날 고른 수단으로 경로 다시 찾기 (못 찾으면 거리로 어림) */
+  async dayRoute(s, mode) {
+    const at = s.arriveBy ? Planner.at(s.date, s.arriveBy) : null;
+    try {
+      const r = await Routes.options(s.origin, s.dest, mode, at);
+      const real = r.filter(x => x.source !== 'estimate');
+      if (real.length) return real[0];
+      if (r.length) return r[0];
+    } catch (e) {}
+    if (s.origin && s.dest && s.origin.lat != null && s.dest.lat != null) return Routes.estimate(s.origin, s.dest, mode);
+    return null;
   },
 
   async saveDay() {
     const s = this.cur(), b = this.base();
-    const ov = {};
+    // 이 창에서 다루지 않는 그날 변경(앞 일정에서 이어서 출발 등)은 그대로 두고, 시간·수단만 새로
+    const prevOv = (b.overrides || {})[s.date] || {};
+    const ov = { ...prevOv };
+    delete ov.arriveBy; delete ov.prepMin; delete ov.bufferMin;
     const a = document.getElementById('ovArrive');
     if (a && a.value && a.value !== b.arriveBy) ov.arriveBy = a.value;
     const p = parseInt(document.getElementById('ovPrep').value, 10);
@@ -243,6 +270,18 @@ const Timeline = {
     if (bad(p) || bad(f)) return U.toast('준비·여유 시간은 0~300분 사이로 넣어 주세요.');
     if (!isNaN(p) && p !== +b.prepMin) ov.prepMin = Math.max(0, p);
     if (!isNaN(f) && f !== +b.bufferMin) ov.bufferMin = Math.max(0, f);
+    // 이 날만 이동 수단 (예: 비 오는 날만 택시) → 그날 경로를 그 수단으로 다시 찾기
+    const pick = this._ovMode;
+    if (pick && !Planner.isTrip(s.mode) && pick !== s.mode) {
+      if (pick === b.mode && !prevOv.origin) { delete ov.mode; delete ov.route; }
+      else {
+        if (pick === b.mode) delete ov.mode; else ov.mode = pick;
+        U.toast('그날 경로를 다시 찾는 중…');
+        const r = await this.dayRoute({ ...s, ...ov, mode: pick }, pick);
+        ov.route = r || null; // 못 찾으면 비워 둬서 '경로 정보가 없어요' 안내가 뜨게
+        if (!r || r.source === 'estimate') U.toast('경로를 찾지 못해 거리로 어림했어요');
+      }
+    }
     // 시간을 앞 일정보다 이르게 바꿨으면 이 날만 '이어서 출발'을 풀고 집에서 출발로
     const occ = { ...s, ...ov };
     if (s.chained && typeof DayPlan !== 'undefined' && DayPlan.chainBroken(occ)) {

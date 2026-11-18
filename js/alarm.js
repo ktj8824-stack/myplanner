@@ -335,6 +335,9 @@ const Alarm = {
     const navMode = isTrip ? s.trip.accessMode : s.mode;
     const r = plan.route;
     const lines = [];
+    // 기차·비행기: 지금 나가면 탈 수 있는지 한 줄 (승강장·수속 여유와 비교)
+    const tc = Planner.tripCatch(s, eta);
+    if (tc) lines.push(`<div class="wa-line${tc.state === 'ok' ? '' : ' wx'}"><span>${U.esc(tc.text)}</span></div>`);
     if (r && r.travelMin) lines.push(`<div class="wa-line">${U.modeIcon(navMode)}<span>${U.esc((Planner.MODES[navMode] || {}).label || '')} ${U.durLabel(r.travelMin)}${r.source === 'live' ? ' · 실시간 교통 반영' : ''}</span></div>`);
     if (plan.weather) lines.push(`<div class="wa-line wx"><span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
     const can = this._canGoNow(id);

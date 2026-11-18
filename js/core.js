@@ -101,9 +101,12 @@ const U = {
       if (v.prepMin != null) ov.prepMin = num(v.prepMin, 0, 300, 60);
       if (v.bufferMin != null) ov.bufferMin = num(v.bufferMin, 0, 120, 10);
       if (v.alarmOff != null) ov.alarmOff = !!v.alarmOff;
+      if (v.rainEarly) ov.rainEarly = true; // 비 예보로 '이 날만 10분 일찍'을 이미 누름
       if (v.trip && typeof v.trip === 'object') ov.trip = { ...out.trip, departTime: hm(v.trip.departTime) || out.trip.departTime };
       if (v.origin) ov.origin = place(v.origin);
       if (v.route) ov.route = route(v.route);
+      // 이 날만 이동 수단 (기차·비행기는 일정 자체가 달라서 빼고 버스·지하철/자가용/택시/도보만)
+      if (typeof v.mode === 'string' && ['transit', 'car', 'taxi', 'walk'].includes(v.mode)) ov.mode = v.mode;
       if (v.chained) ov.chained = { from: str(v.chained.from, 120) };
       else if (v.chained === false) ov.chained = false; // 이 날만 연결 풀기
       out.overrides[k] = ov;
@@ -214,8 +217,15 @@ const State = {
     const to = Recur.shift(U.today(), days);
     return Recur.between(this.schedules, from, to)
       .map(s => ({ s, plan: Planner.compute(s) }))
-      .filter(x => x.plan.arriveAt.getTime() > now - 30 * 60000)
+      .filter(x => State.keepUntil(x.plan) > now)
       .sort((a, b) => a.plan.wakeAt - b.plan.wakeAt);
+  },
+  /** 일정을 '지난 일정'으로 빼는 시각(ms): 도착+30분, 끝나는 시간·집 도착·막차 출발 중 가장 늦은 것
+      (밤 약속 중에 홈이 '첫 일정 만들기'로 비지 않게, 11-18 점검) */
+  keepUntil(plan) {
+    const endItem = (plan.items || []).find(i => i.kind === 'end');
+    return Math.max(plan.arriveAt.getTime() + 30 * 60000, endItem ? endItem.at.getTime() : 0,
+      plan.homeAt ? plan.homeAt.getTime() : 0, plan.lastLeaveAt ? plan.lastLeaveAt.getTime() : 0);
   },
   /** 반복 일정 중 '단발 일정이 아닌' 원본 목록 */
   repeating() { return this.schedules.filter(s => Recur.isRepeating(s) && !s._shared); }

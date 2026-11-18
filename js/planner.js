@@ -128,6 +128,7 @@ const Planner = {
    * 네이티브가 티맵으로 이동시간만 다시 받아 같은 식으로 출발·기상 알람을 조정합니다.
    */
   recheckSpec(s, plan) {
+    if (plan.heldByPrev) return null; // 앞 일정 끝나기를 기다리는 출발: 길이 막혀도 더 일찍 나갈 수 없음
     const leg = this.liveLeg(s);
     if (!leg || !leg.from || !leg.to || leg.from.lat == null || leg.to.lat == null) return null;
     const route = this.liveRoute(s, leg.key, leg.mode);
@@ -154,7 +155,7 @@ const Planner = {
    */
   rideSpec(s, plan) {
     const leg = this.rideLeg(s);
-    if (!leg || plan.invalid) return null;
+    if (!leg || plan.invalid || plan.heldByPrev) return null;
     const trip = this.isTrip(s.mode);
     let anchor;
     if (trip) {
@@ -253,11 +254,33 @@ const Planner = {
     const pEnd = this.isTrip(po.mode) ? (po.trip && (po.trip.arriveTime || po.trip.departTime)) : (po.endBy || po.arriveBy);
     const myStart = hmOf(s);
     if (pEnd && myStart && /^\d\d:\d\d$/.test(pEnd) && /^\d\d:\d\d$/.test(myStart) && pEnd > myStart && !(hmOf(po) && pEnd < hmOf(po))) return { chained: false, broken: true, why: 'order' };
-    return { chained: true, broken: false };
+    // 앞 일정이 끝나는 시각 (끝나는 시간을 넣었을 때만): 그보다 먼저 출발할 수는 없음
+    let prevEndAt = null;
+    const hasEnd = this.isTrip(po.mode) ? !!(po.trip && po.trip.arriveTime) : !!po.endBy;
+    if (hasEnd && pEnd && /^\d\d:\d\d$/.test(pEnd)) {
+      prevEndAt = this.at(s.date, pEnd);
+      if (hmOf(po) && pEnd < hmOf(po)) prevEndAt = this.addMin(prevEndAt, 24 * 60); // 자정 넘겨 끝남
+    }
+    return { chained: true, broken: false, prevEndAt };
+  },
+
+  /** 앞 일정이 끝나야 나갈 수 있어 늦는 경우 한 줄: '앞 약속 끝(13:20) 바로 나가면 14:15 도착 · 약속보다 15분 늦어요' */
+  chainLateLine(plan, s) {
+    if (!plan || !plan.prevEndAt || !(plan.lateMin > 0)) return '';
+    const hm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    if (s && this.isTrip(s.mode)) {
+      const word = s.mode === 'flight' ? '공항' : '역';
+      return `앞 약속 끝(${hm(plan.prevEndAt)}) 바로 나가면 ${word} ${hm(plan.stationAt)} 도착 · ${plan.missTrip ? `${s.trip.departTime} ${this.MODES[s.mode].label}를 놓칠 수 있어요` : `${s.mode === 'flight' ? '수속' : '승강장'} 여유가 ${plan.lateMin}분 모자라요`}`;
+    }
+    return `앞 약속 끝(${hm(plan.prevEndAt)}) 바로 나가면 ${hm(plan.arriveAt)} 도착 · 약속보다 ${plan.lateMin}분 늦어요`;
   },
 
   compute(s) {
-    const { chained, broken, why } = this.chainState(s);
+    const { chained, broken, why, prevEndAt: pe } = this.chainState(s);
+    // 앞 일정에서 이어서 가면 앞 일정이 끝나기 전에는 나갈 수 없음 (끝나는 시간을 아는 경우)
+    const prevEndAt = chained && !s.startNow && pe && !isNaN(pe) ? pe : null;
+    let heldByPrev = false, lateMin = 0, missTrip = false;
+    const hold = d => { if (prevEndAt && d < prevEndAt) { heldByPrev = true; return prevEndAt; } return d; };
     // 이어서 가던 일정이 혼자 남으면 준비 시간 0으로 깨우지 않도록 기본 1시간
     const prep = broken && !Number(s.prepMin) ? 60 : Number(s.prepMin ?? 60);
     const buffer = Number(s.bufferMin ?? 10);
@@ -281,13 +304,17 @@ const Planner = {
       const accessTotal = this.totalMin(accessRoute, accessMode);
       usedRoute = accessRoute;
       wx = this.weatherExtra(s, accessMode, accessRoute ? accessRoute.travelMin : 0);
-      departAt = this.addMin(checkInAt, -(accessTotal + buffer + wx));
+      departAt = hold(this.addMin(checkInAt, -(accessTotal + buffer + wx)));
 
       const access = this.expandRoute(accessRoute, departAt, accessMode);
       items.push(...access.items);
       if (wx) { items.push(this.weatherItem(s, access.endAt, wx)); access.endAt = this.addMin(access.endAt, wx); }
       const stName = (trip.departStation && trip.departStation.name) || (s.mode === 'flight' ? '출발 공항' : '출발역');
       stationAt = access.endAt; // 출발역·공항에 닿는 시각 (출발 알람 화면에서 씀)
+      if (heldByPrev) {
+        lateMin = Math.max(0, Math.round((stationAt - checkInAt) / 60000));
+        missTrip = stationAt > vehicleDep;
+      }
       items.push({ at: access.endAt, kind: 'arrive', icon: '📍', title: `${stName} 도착`, detail: `${marginLabel} ${margin}분 + 여유 ${buffer}분 전` });
       items.push({ at: vehicleDep, kind: 'board', icon: def.emoji, title: `${trip.number || def.label} 탑승·출발`, detail: stName });
       const arrName = (trip.arriveStation && trip.arriveStation.name) || (s.mode === 'flight' ? '도착 공항' : '도착역');
@@ -313,11 +340,12 @@ const Planner = {
       const total = this.totalMin(route, s.mode);
       usedRoute = route;
       wx = this.weatherExtra(s, s.mode, route ? route.travelMin : 0);
-      departAt = this.addMin(due, -(total + buffer + wx));
+      departAt = hold(this.addMin(due, -(total + buffer + wx)));
       const r = this.expandRoute(route, departAt, s.mode);
       items.push(...r.items);
       if (wx) { items.push(this.weatherItem(s, r.endAt, wx)); r.endAt = this.addMin(r.endAt, wx); }
       arriveAt = r.endAt;
+      if (heldByPrev) lateMin = Math.max(0, Math.round((arriveAt - due) / 60000));
       // 급한 약속(지금 위치에서 출발)을 원래 출발 시각이 지난 뒤 저장: 실제로 나선 시각 기준으로 다시 그림
       const left = Number(s.startNow && s.leftAt);
       if (left && left > departAt.getTime() && left < due.getTime() + 6 * 3600000) {
@@ -397,10 +425,40 @@ const Planner = {
     if (!invalid && noRoute && s.mode !== 'walk') warnings.push('경로 정보가 없어 이동 시간이 빠진 채로 계산됐어요. 일정을 수정해 경로를 찾아 주세요.');
     const w = this.weatherFor(s);
     const weather = w && this.WEATHER[w.kind] ? { ...w, ...this.WEATHER[w.kind], extraMin: wx } : null;
+    const out = { invalid, chained, wakeAt, departAt, arriveAt, stationAt, items, warnings, live: this.liveLeg(s) ? this.liveFor(s) : null, weather, homeAt, homeDepartAt, lastLeaveAt, route: usedRoute,
+      prevEndAt: heldByPrev ? prevEndAt : null, heldByPrev, lateMin, missTrip };
+    if (heldByPrev && lateMin > 0 && !invalid) warnings.unshift(this.chainLateLine(out, s) + (this.isTrip(s.mode) ? '. 더 늦은 편을 확인해 보세요.' : '. 미리 연락해 두세요.'));
     if (broken) warnings.unshift(why === 'order'
       ? `앞 일정보다 먼저 시작해서 이어서 갈 수 없어요. 일정을 수정해 출발지를 집으로 바꿔 주세요. (기상 알람은 다시 켰어요)`
       : `앞 일정이 이 날 없어져서 ${(s.origin && s.origin.name) || '출발지'}에서 따로 출발하는 것으로 계산했어요. 출발지를 확인해 주세요.`);
-    return { invalid, chained, wakeAt, departAt, arriveAt, stationAt, items, warnings, live: this.liveFor(s), weather, homeAt, homeDepartAt, lastLeaveAt, route: usedRoute };
+    return out;
+  },
+
+  /** 지금 바로 나가면 { at: 도착(기차·비행기는 역·공항 도착), lateMin: 약속(탑승)보다 늦는 분, travelMin }
+      등록 화면 '지금 출발하면 …'과 홈 큰 카드 '지금 나가면 …'이 같이 씀 */
+  leaveNow(s, plan, nowMs = Date.now()) {
+    const trip = this.isTrip(s.mode);
+    const reachMs = Math.max(0, ((trip ? plan.stationAt : null) || plan.arriveAt) - plan.departAt);
+    const at = new Date(nowMs + reachMs);
+    const hmOk = v => /^\d{1,2}:\d{2}$/.test(v || '');
+    const due = trip ? (s.trip && hmOk(s.trip.departTime) ? this.at(s.date, s.trip.departTime) : null) : (hmOk(s.arriveBy) ? this.at(s.date, s.arriveBy) : null);
+    return { at, lateMin: due ? Math.round((at - due) / 60000) : 0, travelMin: Math.round(reachMs / 60000) };
+  },
+
+  /** 기차·비행기: 역·공항에 eta 에 닿으면 탈 수 있는지
+      { state: 'ok'|'tight'|'miss', spareMin: 출발까지 남는 분, marginMin, text } — 기차·비행기가 아니면 null */
+  tripCatch(s, eta) {
+    if (!this.isTrip(s.mode) || !s.trip || !/^\d{1,2}:\d{2}$/.test(s.trip.departTime || '') || !eta) return null;
+    const def = this.MODES[s.mode];
+    const margin = Number(s.trip.marginMin ?? (s.mode === 'flight' && s.trip.international ? def.intlMarginMin : def.marginMin));
+    const board = this.at(s.date, s.trip.departTime);
+    const spareMin = Math.floor((board - eta) / 60000);
+    const word = s.mode === 'flight' ? '수속' : '승강장';
+    const closeMin = s.mode === 'flight' ? 20 : 0; // 비행기는 보통 출발 20분 전 탑승 마감
+    const state = spareMin >= margin ? 'ok' : spareMin > closeMin ? 'tight' : 'miss';
+    const text = state === 'ok' ? `탈 수 있어요 · ${word} 여유 ${spareMin}분`
+      : state === 'tight' ? `여유가 빠듯해요 (${spareMin}분)` : `${s.trip.departTime} ${def.label}를 놓칠 수 있어요`;
+    return { state, spareMin, marginMin: margin, text };
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */

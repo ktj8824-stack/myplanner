@@ -71,7 +71,9 @@ const Recur = {
   /** 회차 하나: 원본 + 날짜 + 그날만의 변경 */
   instance(s, ymd) {
     if (!this.isRepeating(s)) return s;
-    const ov = (s.overrides || {})[ymd] || {};
+    const ov = { ...((s.overrides || {})[ymd] || {}) };
+    // 이 날만 이동 수단(ov.mode)은 버스·지하철/자가용/택시/도보끼리만 (기차·비행기 일정은 그대로)
+    if (ov.mode && (!Planner.MODES[ov.mode] || Planner.isTrip(ov.mode) || Planner.isTrip(s.mode))) delete ov.mode;
     return { ...s, ...ov, date: ymd, baseId: s.id, occId: s.id + '@' + ymd, isOccurrence: true, hasOverride: !!(s.overrides && s.overrides[ymd]) };
   },
 
