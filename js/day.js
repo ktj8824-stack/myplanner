@@ -51,6 +51,8 @@ const DayPlan = {
         r.knownEnd = !!pEnd;
         r.gapMin = Math.round((x.plan.departAt - ref) / 60000);
         r.conflict = x.plan.departAt < pStart || (!!pEnd && x.plan.departAt < pEnd);
+        // 이어서 출발: 출발은 앞 일정 끝으로 미뤘지만(Planner.compute) 그래서 약속에 늦으면 겹침으로 알림 (숫자는 plan.lateMin 그대로)
+        if (x.plan.heldByPrev && x.plan.lateMin > 0) { r.conflict = true; r.lateMin = x.plan.lateMin; }
         const place = this.placeOf(prev);
         r.prevPlace = place;
         r.canChain = !!place && !x.plan.chained && !x.s._shared && !this.near(x.s.origin, place);
@@ -198,7 +200,9 @@ const DayView = {
       const past = t => (t.getTime() < now ? 'past' : '');
       let h = '';
       if (x.prev) {
-        if (x.conflict) {
+        if (x.conflict && x.lateMin) {
+          h += `<div class="dv-gap bad">⚠️ ${U.esc(Planner.chainLateLine(plan, s))}</div>`;
+        } else if (x.conflict) {
           h += `<div class="dv-gap bad">⚠️ 앞 일정 ${x.knownEnd ? '끝나기' : '시작하기'} 전에 출발해야 해요${x.canChain ? ' · 앞 일정 장소에서 출발하면 줄어들 수 있어요' : ''}</div>`;
         } else if (x.knownEnd) {
           // 빈 시간: 앞 약속이 끝나고 이 약속으로 출발하기 전까지 (이동 시간은 이미 빠짐)
