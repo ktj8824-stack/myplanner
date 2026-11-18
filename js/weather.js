@@ -88,6 +88,12 @@ const Weather = {
     return changed;
   },
 
+  /** 그 회차가 비·많은 비·눈 예보인지 (날씨 정보가 없거나 맑으면 false) */
+  isWet(plan) {
+    const w = plan && plan.weather;
+    return !!(w && ['rain', 'heavy', 'snow'].includes(w.kind));
+  },
+
   /** 타임라인·홈 표시용 한 줄 */
   label(plan) {
     const w = plan && plan.weather;
