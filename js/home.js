@@ -124,12 +124,21 @@ const Home = {
       else if (endItem) notes.push(`${Ico('clock')} ${U.hm(endItem.at)}에 끝나요`);
     } else if (plan.lateMin > 0 && plan.prevEndAt && !moving) {
       // 앞 약속이 끝나야 나갈 수 있어 늦는 경우 (이어서 출발)
-      notes.push(`⚠️ ${U.esc(Planner.chainLateLine(plan, s))}`);
+      notes.push(`${Ico('alert')} ${U.esc(Planner.chainLateLine(plan, s))}`);
     }
     // 출발 시각이 지났는데 아직 안 나갔으면: 지금 나가면 몇 시에 닿는지 (등록 화면 '지금 출발하면 …'과 같은 계산)
     let goTxt;
     if (far) goTxt = Ico('calendar') + ' D-' + dday;
-    else if (during) goTxt = plan.homeDepartAt && now >= plan.homeDepartAt.getTime() ? `${Ico('home')} 집 도착 ${U.hm(plan.homeAt)} 예정` : `${Ico('clock')} 약속 중이에요`;
+    else if (during) {
+      // 집에 갈 시각이 지났으면: 아직 나갔는지 모르니 '집 도착 예정' 대신 지금 나가면 몇 시인지 · 막차까지 몇 분 (11-19 점검 M5)
+      if (plan.homeDepartAt && now >= plan.homeDepartAt.getTime()) {
+        const homeAtNow = plan.homeAt ? new Date(now + Math.max(0, plan.homeAt - plan.homeDepartAt)) : null;
+        const lastMs = plan.lastLeaveAt ? plan.lastLeaveAt.getTime() : 0;
+        if (lastMs && now >= lastMs) goTxt = `${Ico('alert')} 막차 시간(${U.hm(plan.lastLeaveAt)})이 지났어요 · 택시 등 다른 길을 찾아 주세요`;
+        else if (lastMs) goTxt = `${Ico('alarm')} 막차까지 ${U.durLabel(Math.max(1, Math.round((lastMs - now) / 60000)))} · 지금 나가면 집 ${homeAtNow ? U.hm(homeAtNow) : ''}`;
+        else goTxt = `${Ico('home')} 지금 나가면 집 도착 ${homeAtNow ? U.hm(homeAtNow) : '--:--'}`;
+      } else goTxt = `${Ico('clock')} 약속 중이에요`;
+    }
     else if (moving && hasLeft) goTxt = Ico('walk') + ' 이동 중이에요';
     else if (moving) {
       const ln = Planner.leaveNow(s, plan, now);
@@ -151,7 +160,7 @@ const Home = {
         </div>
         ${info.length ? `<div class="info">${info.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
         ${notes.length ? `<div class="info">${notes.map(t => `<span>${t}</span>`).join('')}</div>` : ''}
-        ${rainChip ? `<div class="chips"><button class="chip" onclick="Home.rainEarly('${s.occId}')">☔ ${U.esc(rel)} 10분 일찍</button></div>` : ''}
+        ${rainChip ? `<div class="chips"><button class="chip" onclick="Home.rainEarly('${s.occId}')">${Ico('rain')} ${U.esc(rel)} 10분 일찍</button></div>` : ''}
         <div id="heroBus"></div>
         ${far ? `<div class="info"><span>${Ico('alarm')} 알람은 일정 2주 전부터 자동으로 맞춰져요</span></div>` : ''}
         <button class="go" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})"><span>${goTxt}</span><span>타임라인 ›</span></button>

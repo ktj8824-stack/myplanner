@@ -338,10 +338,22 @@ const Alarm = {
     // 기차·비행기: 지금 나가면 탈 수 있는지 한 줄 (승강장·수속 여유와 비교)
     const tc = Planner.tripCatch(s, eta);
     if (tc) lines.push(`<div class="wa-line${tc.state === 'ok' ? '' : ' wx'}"><span>${U.esc(tc.text)}</span></div>`);
+    // 놓칠 것 같으면 다음 할 일: 택시면 몇 시에 역·공항에 닿는지 (거리 어림) + 카카오T (11-19 점검 M4b)
+    if (tc && tc.state !== 'ok' && s.trip && s.trip.accessMode !== 'taxi' && s.origin && s.trip.departStation && isFinite(s.origin.lat) && isFinite(s.trip.departStation.lat) && typeof Routes !== 'undefined' && Routes.estimate) {
+      try {
+        const tx = Routes.estimate(s.origin, s.trip.departStation, 'taxi');
+        const txEta = new Date(now.getTime() + (tx.travelMin + 5) * 60000);   // 택시 잡는 시간 5분
+        if (txEta < eta) {
+          const tc2 = Planner.tripCatch(s, txEta);
+          lines.push(`<div class="wa-line"><span>택시면 ${hm(txEta)}쯤 ${s.mode === 'flight' ? '공항' : '역'} 도착 · ${!tc2 || tc2.state === 'ok' ? '탈 수 있어요' : tc2.state === 'tight' ? '빠듯하지만 탈 수 있어요' : '그래도 놓칠 수 있어요'} (거리 어림) <button class="link" onclick="Routes.openNav('kakaot')">카카오T ›</button></span></div>`);
+        }
+      } catch (e) { }
+    }
     if (r && r.travelMin) lines.push(`<div class="wa-line">${U.modeIcon(navMode)}<span>${U.esc((Planner.MODES[navMode] || {}).label || '')} ${U.durLabel(r.travelMin)}${r.source === 'live' ? ' · 실시간 교통 반영' : ''}</span></div>`);
     if (plan.weather) lines.push(`<div class="wa-line wx"><span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
     const can = this._canGoNow(id);
-    const foot = mins > 0 ? `${isTrip ? '출발' : '약속'}까지 ${mins >= 60 ? Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분' : mins + '분'} 남았어요` : '';
+    // 기차·비행기는 '08:00 기차 출발까지'처럼 — 홈의 '출발'(집에서 나가는 시각)과 헷갈리지 않게 (11-19 점검 M4b)
+    const foot = mins > 0 ? `${isTrip ? `${U.esc((s.trip && s.trip.departTime) || '')} ${U.esc(m.label || '')} 출발` : '약속'}까지 ${mins >= 60 ? Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분' : mins + '분'} 남았어요` : '';
     return `
       <div class="wa">
         <div class="wa-top">

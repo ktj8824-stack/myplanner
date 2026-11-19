@@ -718,6 +718,7 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .wa-line { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--on-navy); }
 .wa-line svg { flex: none; }
 .wa-line.wx { color: #F5A623; }
+.wa-line .link { color: inherit; text-decoration: underline; padding: 6px 2px; font-size: inherit; min-height: 32px; }
 .wa-bottom { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 .wa-up { width: 100%; min-height: 64px; border-radius: 18px; background: #F5A623; color: #1F2A44; font-size: 20px; font-weight: 800; }
 .wa-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
