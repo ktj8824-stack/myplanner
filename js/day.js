@@ -265,6 +265,7 @@ const DayView = {
     const x = this._list && this._list[i];
     if (!x) return;
     const n = this.navLabel(x);
+    if (typeof AutoNav !== 'undefined') AutoNav.navStarted(x.s);
     if (n.app === 'kakaot') return Routes.openNav('kakaot');
     Routes.openNav(n.app, this.modeOf(x.s), x.s.origin, this.destOf(x.s));
   },

@@ -206,6 +206,7 @@ const Timeline = {
   nav(app) {
     const s = this.cur();
     const isTrip = Planner.isTrip(s.mode);
+    if (typeof AutoNav !== 'undefined') AutoNav.navStarted(s);
     Routes.openNav(app, isTrip ? s.trip.accessMode : s.mode, s.origin, isTrip ? s.trip.departStation : s.dest);
   },
 
