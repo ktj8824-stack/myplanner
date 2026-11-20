@@ -484,6 +484,7 @@ const Alarm = {
     this.stop(true, true);
     if (!s) return this.openSchedule(id);
     this.habitMark(id, 'go', 'btn');
+    if (typeof AutoNav !== 'undefined') AutoNav.navStarted(s);
     // 기차·비행기는 최종 목적지가 아니라 출발역·공항까지 (하루 동선 DayView.modeOf/destOf 와 같은 기준)
     const trip = Planner.isTrip(s.mode);
     const mode = (trip ? s.trip && s.trip.accessMode : s.mode) || 'transit';
