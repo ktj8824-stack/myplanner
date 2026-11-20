@@ -375,7 +375,10 @@ const Register = {
     const now = Date.now(), trip = Planner.isTrip(d.mode);
     const travelMs = plan.arriveAt - plan.departAt;
     let nowBox = '';
-    if (!trip && d.date === U.today() && d.arriveBy) {
+    // 수정 중인데 약속 시각이 이미 지났으면 그 장소에 있는 것 → '지금 출발하면 … 늦어요' 대신 회색 한 줄 (11-20 점검)
+    const there = this.editing && !trip && d.date === U.today() && d.arriveBy && Planner.at(d.date, d.arriveBy).getTime() <= now;
+    if (there) nowBox = !d.endBy || d.endBy <= d.arriveBy || Planner.at(d.date, d.endBy).getTime() > now ? `<p class="muted small" style="margin:12px 2px 0">약속 중이에요 · 끝나는 시간만 바꿔도 돼요</p>` : '';
+    else if (!trip && d.date === U.today() && d.arriveBy) {
       const late = plan.departAt.getTime() < now;
       if (d.startNow || late) {
         // 홈 큰 카드 '지금 나가면 …'과 같은 계산 (Planner.leaveNow)
