@@ -165,6 +165,7 @@ const AutoNav = {
     const r = this.nextLeg(now);
     const l = r && (r.leg || r.later);
     if (!l || !l.s || l.home) return null;
+    if (l.s.alarmOff || (l.s.alarm && l.s.alarm.preDepart === false)) return null;   // 알람·'출발 1시간·10분 전'을 끈 일정은 알림 안 올림
     const left = (l.dep.getTime() - now.getTime()) / 60000;
     if (left > 65 || left < -20) return null;
     const sid = l.s.occId || l.s.id;
@@ -197,6 +198,13 @@ const AutoNav = {
         data: { url: new URL('./?go=next', reg.scope).href } });
     } catch (e) { }
   },
+  /** 출발 알람 '지금 출발'·하루 동선·타임라인에서 그 일정 길안내를 열면 = 출발 → 앱을 내려도 '다음 일정' 알림을 다시 올리지 않음 */
+  navStarted(s) {
+    const n = s && this._noticeInfo();
+    if (!n || n.sid !== (s.occId || s.id)) return;
+    try { localStorage.setItem('mp_autonav_gone', n.sid); } catch (e) { }
+    this.clearNotice(n.sid);
+  },
   async clearNotice(sid) {
     try {
       const LN = this._ln();
@@ -213,7 +221,8 @@ const AutoNav = {
     if (!l) return;
     if (l.s && !l.home) { const sid = l.s.occId || l.s.id; try { localStorage.setItem('mp_autonav_gone', sid); } catch (e) { } this.clearNotice(sid); }   // 길안내 시작 = 출발 → 남겨 둔 알림 지움
     // 차에서 일정 장소로 길안내를 켠 순간 = 실제로 집을 나선 시각 (준비 시간 제안에 씀)
-    if (l.s && !l.home && typeof Alarm !== 'undefined' && Alarm.habitMark) { try { Alarm.habitMark(l.s.occId || l.s.id, 'go', 'car'); } catch (e) { } }
+    // 출발 15분 전보다 일찍 연 건(알림을 눌러 경로만 본 경우 등) 나간 시각으로 치지 않음
+    if (l.s && !l.home && l.dep && Date.now() >= l.dep.getTime() - 15 * 60000 && typeof Alarm !== 'undefined' && Alarm.habitMark) { try { Alarm.habitMark(l.s.occId || l.s.id, 'go', 'car'); } catch (e) { } }
     // 출발지는 넘기지 않음 → 지금 있는 곳(현재 위치)에서 안내
     Routes.openNav(app, l.mode, null, l.to);
   },
