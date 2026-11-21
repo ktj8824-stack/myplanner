@@ -15,9 +15,16 @@ export const ISS = "https://kauth.kakao.com";
 /** 웹 로그인 뒤 돌아올 수 있는 주소 (카카오 디벨로퍼스 Redirect URI에도 같은 주소 등록) */
 export const WEB_BACK = ["https://ktj8824-stack.github.io/myplanner/", "http://localhost:8787/"];
 
-/** 웹: 카카오가 준 code → ID 토큰 (REST API 키 + 비밀 키는 서버에만) */
+/** 웹 로그인 REST API 키 (공개 값 — 웹 화면 js/defaults.js 의 KAKAO_LOGIN_REST_KEY 와 같아야 함).
+    웹이 로그인을 시작한 키와 서버가 code 를 바꾸는 키가 다르면 카카오가 KOE010(Bad client credentials)으로 거절함 */
+export const WEB_REST_KEY = "cd3e0e836cdff61debb14779e3b3820d";
+
+/** 웹: 카카오가 준 code → ID 토큰 (비밀 키 MYPLANNER_KAKAO_CLIENT_SECRET 는 서버에만) */
 export async function codeToIdToken(body: any, env: Record<string, string | undefined>, fetchFn: typeof fetch) {
-  const rest = (env.MYPLANNER_KAKAO_REST_KEY || "").trim();
+  // 웹이 보낸 client_id 가 허용 목록에 있으면 그 키, 아니면 기본 웹 키 (서버 비밀값 MYPLANNER_KAKAO_REST_KEY 는 예전 키가 남아 있을 수 있어 목록에만 더함)
+  const allowRest = [WEB_REST_KEY, ...String(env.MYPLANNER_KAKAO_REST_KEY || "").split(",").map((s) => s.trim()).filter(Boolean)];
+  const asked = String(body.client_id || "").trim();
+  const rest = allowRest.includes(asked) ? asked : WEB_REST_KEY;
   if (!rest) throw new Error("웹 로그인 설정이 아직 없어요");
   if (!WEB_BACK.includes(String(body.redirect_uri || ""))) throw new Error("허용되지 않은 주소예요");
   const form = new URLSearchParams({ grant_type: "authorization_code", client_id: rest, redirect_uri: body.redirect_uri, code: String(body.code || "") });

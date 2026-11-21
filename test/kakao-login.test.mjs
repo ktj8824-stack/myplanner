@@ -1,6 +1,6 @@
 // 카카오 로그인 서버 함수 확인 (가짜 카카오 공개키·Supabase): node --no-warnings test/kakao-login.test.mjs
 import assert from 'node:assert';
-import { handle, verifyKakao, emailFor, _resetJwks, ISS, DEFAULT_AUDS } from '../supabase/functions/kakao-login/index.ts';
+import { handle, verifyKakao, emailFor, _resetJwks, ISS, DEFAULT_AUDS, WEB_REST_KEY } from '../supabase/functions/kakao-login/index.ts';
 
 const { subtle } = globalThis.crypto;
 const kp = await subtle.generateKey({ name: 'RSASSA-PKCS1-v1_5', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['sign', 'verify']);
@@ -63,10 +63,15 @@ const webFake = (opts = {}) => { const base = fake(opts); return async (url, ini
   return base(url, init); }; };
 const wenv = { ...env, MYPLANNER_KAKAO_REST_KEY: 'restkey', MYPLANNER_KAKAO_CLIENT_SECRET: 'sec' };
 const back = 'https://ktj8824-stack.github.io/myplanner/';
-r = await handle(post({ code: 'good', redirect_uri: back, nonce: 'n1' }), wenv, webFake()); assert.strictEqual(r.status, 200);
-r = await handle(post({ code: 'good', redirect_uri: back, nonce: 'other' }), wenv, webFake()); assert.strictEqual(r.status, 401); // nonce 다름
-r = await handle(post({ code: 'bad', redirect_uri: back }), wenv, webFake()); assert.strictEqual(r.status, 401);
+r = await handle(post({ code: 'good', redirect_uri: back, nonce: 'n1', client_id: 'restkey' }), wenv, webFake()); assert.strictEqual(r.status, 200);
+r = await handle(post({ code: 'good', redirect_uri: back, nonce: 'other', client_id: 'restkey' }), wenv, webFake()); assert.strictEqual(r.status, 401); // nonce 다름
+r = await handle(post({ code: 'bad', redirect_uri: back, client_id: 'restkey' }), wenv, webFake()); assert.strictEqual(r.status, 401);
 r = await handle(post({ code: 'good', redirect_uri: 'https://evil.example/' }), wenv, webFake()); assert.strictEqual(r.status, 401); // 남의 주소
-r = await handle(post({ code: 'good', redirect_uri: back }), env, webFake()); assert.strictEqual(r.status, 401); // 웹 설정 없음
-console.log('✓ 웹: code → ID 토큰 → 같은 계정 · nonce·주소·잘못된 code 거절');
+// 서버 비밀값에 예전 키가 남아 있어도, 웹이 시작한 키(기본 WEB_REST_KEY)로 code 를 바꿈 (KOE010 방지)
+{ const seen = []; const f = async (url, init = {}) => { if (url === 'https://kauth.kakao.com/oauth/token') { seen.push(new URLSearchParams(init.body).get('client_id')); return new Response('{}', { status: 400 }); } return fake()(url, init); };
+  await handle(post({ code: 'x', redirect_uri: back, nonce: 'n' }), { ...env, MYPLANNER_KAKAO_REST_KEY: 'oldkey' }, f);
+  await handle(post({ code: 'x', redirect_uri: back, nonce: 'n', client_id: 'oldkey' }), { ...env, MYPLANNER_KAKAO_REST_KEY: 'oldkey' }, f);
+  await handle(post({ code: 'x', redirect_uri: back, nonce: 'n', client_id: 'evilkey' }), env, f);
+  assert.deepStrictEqual(seen, [WEB_REST_KEY, 'oldkey', WEB_REST_KEY]); }
+console.log('✓ 웹: code → ID 토큰 → 같은 계정 · nonce·주소·잘못된 code 거절 · 웹 키 고정(모르는 키는 기본 키로)');
 console.log('카카오 로그인 함수 테스트 완료');
