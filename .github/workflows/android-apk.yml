@@ -1,5 +1,5 @@
 # 안드로이드 앱(APK) 자동 만들기 — 로드플래너와 같은 방식
-# 결과: Releases 의 'android-latest' 에 MyPlanner.apk (폰에서 바로 내려받아 설치)
+# 결과: 매 빌드 Actions artifact 'MyPlanner-apk'. 손으로 실행(workflow_dispatch)할 때만 Releases 'android-latest' 에도 올림
 name: Android APK
 on:
   push:
@@ -42,7 +42,10 @@ jobs:
         with:
           name: MyPlanner-apk
           path: MyPlanner.apk
+      # 디버그 APK를 공개 Releases에 올리는 건 손으로 돌릴 때(workflow_dispatch)만.
+      # 평소 push 빌드는 위 artifact(로그인한 사람만 받을 수 있음)로만 남긴다.
       - name: Publish to release 'android-latest'
+        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: android-latest

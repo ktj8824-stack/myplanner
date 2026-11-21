@@ -214,8 +214,12 @@ const Alarm = {
       const list = this.collect(this.NATIVE_DAYS);
       try {
         await N.setPlan({
-          alarms: list.map(a => ({ id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body,
-            scheduleId: a.sid, kind: a.alarm ? 'full' : 'note' })),
+          alarms: list.map(a => {
+            // 출발 알람: 폰 알람 화면·알림의 '5분 뒤'도 이 시각을 넘기면 막음 (기차·비행기 놓침 / 약속 시각)
+            const lim = a.key === 'depart' ? Planner.snoozeLimit(a.s, a.plan) : null;
+            return { id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body,
+              scheduleId: a.sid, kind: a.alarm ? 'full' : 'note', snoozeUntil: lim ? lim.until : 0, snoozeTrip: !!(lim && lim.trip) };
+          }),
           rechecks: this.rechecks(list),
           widget: this.widgetItems(),
           // 폰이 백그라운드에서 티맵을 부를 방법: 서버 함수(권장) 또는 키
@@ -352,6 +356,12 @@ const Alarm = {
     if (r && r.travelMin) lines.push(`<div class="wa-line">${U.modeIcon(navMode)}<span>${U.esc((Planner.MODES[navMode] || {}).label || '')} ${U.durLabel(r.travelMin)}${r.source === 'live' ? ' · 실시간 교통 반영' : ''}</span></div>`);
     if (plan.weather) lines.push(`<div class="wa-line wx"><span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
     const can = this._canGoNow(id);
+    // '5분 뒤 다시'로 미루면 못 타거나(기차·비행기) 약속 시각을 넘기면 미루기 대신 다른 길 (2026-11-21 점검)
+    const lim = this.snoozeBlocked(s, plan);
+    if (lim && lim.trip) lines.push(`<div class="wa-line wx"><span>지금 안 나가면 놓쳐요 · 더 미룰 수 없어요</span></div>`);
+    const snoozeBtn = !lim ? `<button class="wa-sub" onclick="Alarm.snooze()">5분 뒤 다시</button>`
+      : lim.trip ? `<button class="wa-sub" onclick="Alarm.taxi()">택시로 가기 ›</button>`
+      : `<button class="wa-sub" disabled>5분 뒤 다시</button>`;
     // 기차·비행기는 '08:00 기차 출발까지'처럼 — 홈의 '출발'(집에서 나가는 시각)과 헷갈리지 않게 (11-19 점검 M4b)
     const foot = mins > 0 ? `${isTrip ? `${U.esc((s.trip && s.trip.departTime) || '')} ${U.esc(m.label || '')} 출발` : '약속'}까지 ${mins >= 60 ? Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분' : mins + '분'} 남았어요` : '';
     return `
@@ -369,10 +379,10 @@ const Alarm = {
         <div class="wa-bottom">
           <button class="wa-up" onclick="${can ? 'Alarm.goNow()' : 'Alarm.stop(true)'}">${can ? '지금 출발 · 길안내' : '확인 · 일정 보기'}</button>
           <div class="wa-row">
-            <button class="wa-sub" onclick="Alarm.snooze()">5분 뒤 다시</button>
+            ${snoozeBtn}
             <button class="wa-sub" onclick="Alarm.stop(true)">일정 보기</button>
           </div>
-          ${foot ? `<div class="wa-foot">${foot}</div>` : ''}
+          ${lim && !lim.trip ? `<div class="wa-foot">약속 시각이 지나 더 미룰 수 없어요</div>` : foot ? `<div class="wa-foot">${foot}</div>` : ''}
         </div>
       </div>`;
   },
@@ -450,7 +460,7 @@ const Alarm = {
         <div class="ring-body">${U.esc(body)}</div>
         ${kind === 'depart' && this._canGoNow(scheduleId) ? `<button class="btn primary big" onclick="Alarm.goNow()">지금 출발 · 길안내</button>
         <button class="btn ghost" onclick="Alarm.stop(true)">일정 보기</button>` : `<button class="btn primary big" onclick="Alarm.stop(true)">확인 · 일정 보기</button>`}
-        <button class="btn ghost" onclick="Alarm.snooze()">5분 뒤 다시 알림</button>
+        ${this._fallbackSnooze(kind, scheduleId)}
       </div>`;
     el.classList.add('show'); if (typeof Ads !== 'undefined') Ads.sync();
     this.beep(true);
@@ -507,8 +517,39 @@ const Alarm = {
     Routes.openNav(app, mode, null, to);
   },
 
+  /** 출발 알람을 5분 미루면 기차·비행기를 놓치거나 약속 시각을 넘기는지 → { trip } 또는 null(미뤄도 됨) */
+  snoozeBlocked(s, plan, nowMs = Date.now()) {
+    if (!s) return null;
+    try {
+      const lim = Planner.snoozeLimit(s, plan || Planner.compute(s));
+      return lim && nowMs + this.SNOOZE_MIN * 60000 >= lim.until ? { trip: lim.trip } : null;
+    } catch (e) { return null; }
+  },
+  SNOOZE_MIN: 5,
+
+  _fallbackSnooze(kind, id) {
+    let lim = null;
+    if (kind === 'depart' && id) { try { lim = this.snoozeBlocked(Recur.resolve(id)); } catch (e) { } }
+    if (!lim) return `<button class="btn ghost" onclick="Alarm.snooze()">5분 뒤 다시 알림</button>`;
+    return lim.trip ? `<div class="ring-body">지금 안 나가면 놓쳐요</div><button class="btn ghost" onclick="Alarm.taxi()">택시로 가기 ›</button>`
+      : `<div class="ring-body">약속 시각이 지나 더 미룰 수 없어요</div>`;
+  },
+
+  /** 기차·비행기를 놓치기 직전 '택시로 가기': 알람 끄고(출발로 기록) 카카오T */
+  taxi() {
+    const id = this._ringId;
+    this.stop(true, true);
+    this.habitMark(id, 'go', 'btn');
+    Routes.openNav('kakaot');
+  },
+
   async snooze() {
     const id = this._ringId, kind = this._ringKind;
+    if (kind === 'depart') {
+      let s0 = null; try { s0 = Recur.resolve(id); } catch (e) { }
+      const lim = this.snoozeBlocked(s0);
+      if (lim) return U.toast(lim.trip ? '지금 안 나가면 놓쳐요. 더 미룰 수 없어요' : '약속 시각이 지나 더 미룰 수 없어요');
+    }
     if (kind === 'wake') {
       const n = this.snoozeCount(id);
       if (n >= this.SNOOZE_MAX) return U.toast('다시 울림을 모두 썼어요. 이제 일어나실 시간이에요');
@@ -520,7 +561,8 @@ const Alarm = {
     const title = '⏰ 다시 알림' + (s ? ` — ${s.title}` : '');
     const N = this.native(), LN = this.ln();
     if (N) {
-      try { await N.snooze({ id: this.numId('snooze' + id), at: at.getTime(), title, body: '5분이 지났어요.', scheduleId: id }); } catch (e) {}
+      const lim = kind === 'depart' && s ? Planner.snoozeLimit(s, Planner.compute(s)) : null;
+      try { await N.snooze({ id: this.numId('snooze' + id), at: at.getTime(), title, body: '5분이 지났어요.', scheduleId: id, snoozeUntil: lim ? lim.until : 0, snoozeTrip: !!(lim && lim.trip) }); } catch (e) {}
     } else if (LN) {
       // 아이폰 앱(전체 화면 알람 플러그인 없음): 앱을 닫거나 화면을 꺼도 울리도록 폰 알림으로 예약
       try {

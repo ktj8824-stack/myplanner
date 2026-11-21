@@ -258,6 +258,8 @@ const Share = {
 
   /** 받은 일정을 저장한 뒤 (웹): 앱 설치(추천) · 홈 화면에 추가 */
   PLAY_ID: 'kr.myplanner.app',
+  /** 플레이 스토어에 앱이 올라가면 true (그전에는 없는 주소라 안드로이드도 아이폰처럼 '곧 나와요' — 2026-11-21 점검) */
+  STORE_LIVE: false,
   offer(id) {
     const s = State.get(id); if (!s) return;
     const ua = navigator.userAgent || '';
@@ -272,8 +274,8 @@ const Share = {
   },
   installApp() {
     const android = /Android/i.test(navigator.userAgent || '');
-    if (android) location.href = 'https://play.google.com/store/apps/details?id=' + this.PLAY_ID;
-    else U.toast('아이폰 앱은 곧 나와요. 지금은 홈 화면에 추가해 주세요');
+    if (android && this.STORE_LIVE) location.href = 'https://play.google.com/store/apps/details?id=' + this.PLAY_ID;
+    else U.toast(`${android ? '안드로이드' : '아이폰'} 앱은 곧 나와요. 지금은 홈 화면에 추가해 주세요`);
   },
   addHome() {
     const ios = /iPhone|iPad/i.test(navigator.userAgent || '');

@@ -571,6 +571,26 @@ const Register = {
     this._needT = setTimeout(() => el.classList.remove('need'), 2600);
   },
 
+  /** 이 일정에서 바로 이어서 출발하는 다음 일정이 늦어지면 '다음 강남역 미팅 16:06 도착(6분 늦어요)' — 홈 카드와 같은 계산(Planner.compute 의 lateMin)
+      늦지 않으면 '' */
+  nextLateLine(d, near) {
+    try {
+      const day = near && near.at ? U.ymd(near.at) : d.date;
+      const nx = Recur.between(State.schedules, day, day).filter(o => o.chained && o.chained.from === d.id && !o.alarmOff);
+      for (const o of nx) {
+        const plan = Planner.compute(o);
+        if (plan.invalid || !plan.prevEndAt || !(plan.lateMin > 0)) continue;
+        const name = (o.title || (o.dest && o.dest.name) || '일정').trim();
+        if (Planner.isTrip(o.mode)) {
+          const label = (Planner.MODES[o.mode] || {}).label || '';
+          return `다음 ${name} ${U.hm(plan.stationAt)} ${o.mode === 'flight' ? '공항' : '역'} 도착(${plan.missTrip ? `${o.trip.departTime} ${label}를 놓칠 수 있어요` : `${o.mode === 'flight' ? '수속' : '승강장'} 여유 ${plan.lateMin}분 모자라요`})`;
+        }
+        return `다음 ${name} ${U.hm(plan.arriveAt)} 도착(${plan.lateMin}분 늦어요)`;
+      }
+    } catch (e) { }
+    return '';
+  },
+
   async _save() {
     const d = this.d;
     d.title = (d.title || '').trim();
@@ -615,8 +635,13 @@ const Register = {
     const dep = mine.find(a => a.key === 'depart');
     if (d.startNow) U.toast(d.leftAt ? `지금 출발하면 ${U.hm(Planner.compute(d).arriveAt)}쯤 도착해요. 길안내를 눌러 보세요.`
       : dep ? `${U.hm(dep.at)}에 출발 알람을 울려 드릴게요.` : '지금 바로 출발하세요! 길안내를 눌러 보세요.');
-    else U.toast(firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
-      : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
+    else {
+      // 끝나는 시간을 늘려 '앞 일정에서 바로 출발'하는 다음 일정이 늦어지면 저장 알림에 같이 (2026-11-21 점검)
+      const late = this.nextLateLine(d, firstWake || dep);
+      U.toast(late ? `저장했어요 · ${late}`
+        : firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
+        : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
+    }
     // 사이에 끼워 넣은 일정이면 다음 약속도 여기서 출발로 (기다리지 않음)
     if (typeof DayPlan !== 'undefined') DayPlan.rechainNext(d).then(async name => {
       if (!name) return;

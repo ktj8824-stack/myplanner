@@ -37,6 +37,10 @@ public final class AlarmStore {
         public String kind = KIND_FULL;
         /** 응답이 없어 자동으로 다시 울린 횟수 (0 = 처음) */
         public int rep;
+        /** 출발 알람: '5분 뒤'로 다시 울릴 시각이 이 시각 이상이면 미루기를 막음 (0 = 제한 없음) */
+        public long snoozeUntil;
+        /** snoozeUntil 이 기차·비행기 탑승 기준인지 (막을 때 '택시로 가기'), 아니면 약속 시각 */
+        public boolean snoozeTrip;
 
         public Item(int id, long at, String title, String body, String scheduleId) {
             this.id = id;
@@ -57,6 +61,8 @@ public final class AlarmStore {
                 o.put("snooze", snooze);
                 o.put("kind", kind);
                 o.put("rep", rep);
+                o.put("snoozeUntil", snoozeUntil);
+                o.put("snoozeTrip", snoozeTrip);
                 return o.toString();
             } catch (Exception e) {
                 return "{}";
@@ -70,6 +76,8 @@ public final class AlarmStore {
                 it.snooze = o.optBoolean("snooze", false);
                 it.kind = o.optString("kind", KIND_FULL);
                 it.rep = o.optInt("rep", 0);
+                it.snoozeUntil = o.optLong("snoozeUntil", 0);
+                it.snoozeTrip = o.optBoolean("snoozeTrip", false);
                 return it;
             } catch (Exception e) {
                 return null;

@@ -123,6 +123,10 @@ public class MyAlarmPlugin extends Plugin {
         AlarmStore.Item item = new AlarmStore.Item(id, at,
                 call.getString("title", ""), call.getString("body", ""), call.getString("scheduleId", ""));
         item.snooze = true;
+        Long until = call.getLong("snoozeUntil");
+        if (until == null) { Double d = call.getDouble("snoozeUntil"); if (d != null) until = d.longValue(); }
+        item.snoozeUntil = until == null ? 0 : until;
+        item.snoozeTrip = call.getBoolean("snoozeTrip", false);
         boolean ok = AlarmScheduler.schedule(getContext(), item);
         if (ok) call.resolve(); else call.reject("예약 실패");
     }

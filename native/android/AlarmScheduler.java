@@ -92,6 +92,8 @@ public final class AlarmScheduler {
             if (at <= now || at > until) continue;
             AlarmStore.Item it = new AlarmStore.Item(a.optInt("id"), at, a.optString("title"), a.optString("body"), a.optString("scheduleId"));
             it.kind = "note".equals(a.optString("kind")) ? AlarmStore.KIND_NOTE : AlarmStore.KIND_FULL;
+            it.snoozeUntil = a.optLong("snoozeUntil", 0);
+            it.snoozeTrip = a.optBoolean("snoozeTrip", false);
             want.put(it.id, it);
         }
         JSONArray rechecks = plan.optJSONArray("rechecks");
@@ -169,6 +171,8 @@ public final class AlarmScheduler {
         i.putExtra("scheduleId", item.scheduleId);
         i.putExtra("kind", item.kind);
         i.putExtra("rep", item.rep);
+        i.putExtra("snoozeUntil", item.snoozeUntil);
+        i.putExtra("snoozeTrip", item.snoozeTrip);
         return PendingIntent.getBroadcast(ctx, item.id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }
