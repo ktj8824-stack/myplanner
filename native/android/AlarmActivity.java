@@ -50,6 +50,11 @@ public class AlarmActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private int alarmId;
     private String title, body, scheduleId;
+    /** 출발 알람: '5분 뒤 다시'를 눌러도 되는 마지막 시각 (0 = 제한 없음) · 기차·비행기 기준인지 */
+    private long snoozeUntil;
+    private boolean snoozeTrip;
+    private Button btSnooze;
+    private TextView tvNoSnooze;
     private TextView tvTime, tvTitle, tvBody;
 
     private final Runnable clock = new Runnable() {
@@ -93,7 +98,8 @@ public class AlarmActivity extends Activity {
         stopRinging();
         if (rep < MAX_AUTO_REPEAT) {
             AlarmActionReceiver.snooze(this, alarmId, title, scheduleId, rep + 1,
-                    "알람에 응답이 없어서 다시 깨워요 (" + (rep + 1) + "/" + MAX_AUTO_REPEAT + "). " + (body == null ? "" : body));
+                    "알람에 응답이 없어서 다시 깨워요 (" + (rep + 1) + "/" + MAX_AUTO_REPEAT + "). " + (body == null ? "" : body),
+                    AlarmActionReceiver.SNOOZE_MIN, snoozeUntil, snoozeTrip);
         } else if (rep < 99) {
             AlarmActionReceiver.cancelBackup(this, alarmId); // 아래에서 바로 알리므로 예약된 안내는 지움
             String t = title == null ? "" : title.replace("⏰ 다시 알림 · ", "");
@@ -109,10 +115,46 @@ public class AlarmActivity extends Activity {
         body = i.getStringExtra("body");
         scheduleId = i.getStringExtra("scheduleId");
         rep = i.getIntExtra("rep", 0);
+        snoozeUntil = i.getLongExtra("snoozeUntil", 0);
+        snoozeTrip = i.getBooleanExtra("snoozeTrip", false);
+        updateSnooze();
         tvTitle.setText(title == null || title.isEmpty() ? "마이플래너 알람" : title);
         tvBody.setText(body == null ? "" : body);
         // 알림의 반복 소리는 끄고, 이 화면이 직접 소리를 냄 (소리 두 번 겹침 방지)
         AlarmActionReceiver.dismiss(this, alarmId);
+    }
+
+    /** 미루면 기차·비행기를 놓치거나 약속 시각을 넘기면: '택시로 가기 ›' 또는 버튼 숨김 + 안내 (2026-11-21 점검) */
+    private void updateSnooze() {
+        if (btSnooze == null) return;
+        if (AlarmActionReceiver.canSnooze(snoozeUntil)) {
+            btSnooze.setText("5분 뒤 다시 알림");
+            btSnooze.setVisibility(View.VISIBLE);
+            tvNoSnooze.setVisibility(View.GONE);
+        } else if (snoozeTrip) {
+            btSnooze.setText("택시로 가기 ›");
+            btSnooze.setVisibility(View.VISIBLE);
+            tvNoSnooze.setText("지금 안 나가면 놓쳐요");
+            tvNoSnooze.setVisibility(View.VISIBLE);
+        } else {
+            btSnooze.setVisibility(View.GONE);
+            tvNoSnooze.setText("약속 시각이 지나 더 미룰 수 없어요");
+            tvNoSnooze.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void openTaxi() {
+        try {
+            Intent t = new Intent(Intent.ACTION_VIEW, Uri.parse("kakaot://taxi"));
+            t.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(t);
+        } catch (Exception e) {
+            try {
+                Intent w = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.kakaomobility.com/service-ride"));
+                w.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(w);
+            } catch (Exception ignored) { }
+        }
     }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }
@@ -136,11 +178,26 @@ public class AlarmActivity extends Activity {
         root.addView(tvBody);
 
         root.addView(button("알람 끄기", true, v -> { stopRinging(); AlarmActionReceiver.cancelBackup(this, alarmId); finishAndMoveBack(); }));
-        root.addView(button("5분 뒤 다시 알림", false, v -> {
+        tvNoSnooze = text(16, true, 1f);
+        tvNoSnooze.setPadding(0, dp(12), 0, 0);
+        tvNoSnooze.setVisibility(View.GONE);
+        root.addView(tvNoSnooze);
+        btSnooze = button("5분 뒤 다시 알림", false, v -> {
             stopRinging();
-            AlarmActionReceiver.snooze(this, alarmId, title, scheduleId);
-            finishAndMoveBack();
-        }));
+            if (AlarmActionReceiver.canSnooze(snoozeUntil)) {
+                AlarmActionReceiver.snooze(this, alarmId, title, scheduleId, snoozeUntil, snoozeTrip);
+                finishAndMoveBack();
+            } else if (snoozeTrip) {
+                // 미루면 기차·비행기를 놓침 → 카카오T (없으면 안내 페이지)
+                AlarmActionReceiver.cancelBackup(this, alarmId);
+                openTaxi();
+                finish();
+            } else {
+                AlarmActionReceiver.cancelBackup(this, alarmId);
+                finishAndMoveBack();
+            }
+        });
+        root.addView(btSnooze);
         root.addView(button("일정 보기", false, v -> {
             stopRinging();
             AlarmActionReceiver.cancelBackup(this, alarmId);

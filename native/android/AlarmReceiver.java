@@ -36,6 +36,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         String kind = intent.getStringExtra("kind");
         if (kind == null) kind = AlarmStore.KIND_FULL;
         int rep = intent.getIntExtra("rep", 0);
+        long snoozeUntil = intent.getLongExtra("snoozeUntil", 0);
+        boolean snoozeTrip = intent.getBooleanExtra("snoozeTrip", false);
         AlarmStore.remove(ctx, id);
         Log.d(TAG, "알람 실행 " + kind + " " + id + " " + title);
 
@@ -50,7 +52,7 @@ public class AlarmReceiver extends BroadcastReceiver {
             case AlarmStore.KIND_REFILL:
                 break; // 아래 syncWindow가 다음 3일치를 보충
             default:
-                ring(ctx, id, title, body, scheduleId, rep);
+                ring(ctx, id, title, body, scheduleId, rep, snoozeUntil, snoozeTrip);
         }
         AlarmScheduler.syncWindow(ctx);
     }
@@ -113,6 +115,11 @@ public class AlarmReceiver extends BroadcastReceiver {
     }
 
     public static void ring(Context ctx, int id, String title, String body, String scheduleId, int rep) {
+        ring(ctx, id, title, body, scheduleId, rep, 0, false);
+    }
+
+    /** snoozeUntil: 출발 알람을 '5분 뒤'로 미뤄도 되는 마지막 시각 (넘으면 '5분 뒤' 버튼을 뺌, 0 = 제한 없음) */
+    public static void ring(Context ctx, int id, String title, String body, String scheduleId, int rep, long snoozeUntil, boolean snoozeTrip) {
         ensureChannel(ctx);
         NotificationManager nm = (NotificationManager) ctx.getSystemService(Context.NOTIFICATION_SERVICE);
         if (nm == null) return;
@@ -124,6 +131,8 @@ public class AlarmReceiver extends BroadcastReceiver {
         full.putExtra("body", body);
         full.putExtra("scheduleId", scheduleId);
         full.putExtra("rep", rep);
+        full.putExtra("snoozeUntil", snoozeUntil);
+        full.putExtra("snoozeTrip", snoozeTrip);
         int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
         PendingIntent fullPi = PendingIntent.getActivity(ctx, id, full, flags);
 
@@ -140,8 +149,14 @@ public class AlarmReceiver extends BroadcastReceiver {
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .setTimeoutAfter(5 * 60 * 1000L) // 5분 동안 아무 반응이 없으면 자동으로 멈춤
-                .addAction(0, "알람 끄기", AlarmActionReceiver.pending(ctx, AlarmActionReceiver.ACTION_STOP, id, title, body, scheduleId))
-                .addAction(0, "5분 뒤", AlarmActionReceiver.pending(ctx, AlarmActionReceiver.ACTION_SNOOZE, id, title, body, scheduleId));
+                .addAction(0, "알람 끄기", AlarmActionReceiver.pending(ctx, AlarmActionReceiver.ACTION_STOP, id, title, body, scheduleId));
+        // 미루면 기차·비행기를 놓치거나 약속 시각이 지나면 '5분 뒤' 대신 안내만 (2026-11-21 점검)
+        if (AlarmActionReceiver.canSnooze(snoozeUntil)) {
+            b.addAction(0, "5분 뒤", AlarmActionReceiver.pending(ctx, AlarmActionReceiver.ACTION_SNOOZE, id, title, body, scheduleId, snoozeUntil, snoozeTrip));
+        } else {
+            String why = snoozeTrip ? "지금 안 나가면 놓쳐요" : "약속 시각이 지나 더 미룰 수 없어요";
+            b.setContentText(why).setStyle(new NotificationCompat.BigTextStyle().bigText(why + (body == null || body.isEmpty() ? "" : "\n" + body)));
+        }
 
         Notification n = b.build();
         n.flags |= Notification.FLAG_INSISTENT; // 끌 때까지 소리 반복
@@ -151,6 +166,6 @@ public class AlarmReceiver extends BroadcastReceiver {
             Log.e(TAG, "알림 권한 없음", e);
         }
         // 알림만 뜨고 알람 화면이 안 열려도(폰 사용 중·권한 없음) 반응이 없으면 다시 울리도록
-        AlarmActionReceiver.armBackup(ctx, id, title, body, scheduleId, rep);
+        AlarmActionReceiver.armBackup(ctx, id, title, body, scheduleId, rep, snoozeUntil, snoozeTrip);
     }
 }

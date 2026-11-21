@@ -461,6 +461,24 @@ const Planner = {
     return { state, spareMin, marginMin: margin, text };
   },
 
+  /** 출발 알람 '5분 뒤 다시'를 눌러도 되는 마지막 시각 (2026-11-21 점검: 기차 시각이 지나도 끝없이 미룰 수 있었음)
+      { until: ms, trip } — 다시 울릴 시각이 until 이상이면 미루기를 막음. 시각을 모르면 null
+      · 기차·비행기: 그때 나가서 역·공항에 닿아도 못 타는 시각 (출발 − 탑승 마감(비행기 20분) − 역까지 걸리는 시간)
+      · 그 밖: 약속 시각 */
+  snoozeLimit(s, plan) {
+    const hmOk = v => /^\d{1,2}:\d{2}$/.test(v || '');
+    if (!s || !s.date) return null;
+    if (this.isTrip(s.mode)) {
+      if (!s.trip || !hmOk(s.trip.departTime)) return null;
+      const board = this.at(s.date, s.trip.departTime).getTime();
+      const closeMin = s.mode === 'flight' ? 20 : 0;
+      const leg = plan && plan.departAt && plan.stationAt ? Math.max(0, plan.stationAt - plan.departAt) : 0;
+      return { until: board - closeMin * 60000 - leg, trip: true };
+    }
+    if (!hmOk(s.arriveBy)) return null;
+    return { until: this.at(s.date, s.arriveBy).getTime(), trip: false };
+  },
+
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
   alarms(s, plan) {
     const out = [];
