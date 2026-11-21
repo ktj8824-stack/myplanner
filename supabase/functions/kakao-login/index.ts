@@ -32,13 +32,6 @@ export async function codeToIdToken(body: any, env: Record<string, string | unde
   const r = await fetchFn("https://kauth.kakao.com/oauth/token", { method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" }, body: form.toString() });
   const t = await r.json().catch(() => ({}));
-  if (!r.ok || !t.id_token) {
-    // 원인 찾기용 기록 (값은 남기지 않고 길이·앞 4글자만)
-    const sec = (env.MYPLANNER_KAKAO_CLIENT_SECRET || "");
-    console.error("kakao-token-fail", JSON.stringify({ status: r.status, code: t.error_code || t.error, desc: t.error_description,
-      rest: rest.slice(0, 4) + "…(" + rest.length + ")", secret: sec ? sec.trim().slice(0, 2) + "…(" + sec.trim().length + (sec !== sec.trim() ? ", 앞뒤 공백 있음" : "") + ")" : "없음",
-      redirect: body.redirect_uri }));
-  }
   if (!r.ok || !t.id_token) throw new Error(t.error_description ? `카카오: ${t.error_description}` : "카카오에서 로그인 정보를 받지 못했어요 (OpenID Connect를 켜 주세요)");
   return { idToken: t.id_token as string, rest };
 }
