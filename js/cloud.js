@@ -235,7 +235,7 @@ const Cloud = {
     if (err) return fail(err === 'access_denied' ? '카카오 로그인을 취소했어요.' : '카카오 로그인이 안 됐어요. 다시 눌러 주세요.');
     if (!saved || saved.state !== state) return fail('카카오 로그인이 안 됐어요. 다시 눌러 주세요.'); // 다른 곳에서 시작된 로그인은 받지 않음
     try {
-      const data = await this._kakaoLogin(null, { code, redirect_uri: saved.back, nonce: saved.nonce });
+      const data = await this._kakaoLogin(null, { code, redirect_uri: saved.back, nonce: saved.nonce, client_id: Routes.key('KAKAO_LOGIN_REST_KEY') });
       this._save(data);
       return true;
     } catch (e) { return fail('카카오 로그인 실패: ' + (e.message || e)); }
