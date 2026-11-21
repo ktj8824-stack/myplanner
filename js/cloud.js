@@ -128,9 +128,10 @@ const Cloud = {
         + `&response_type=code&state=${state}&nonce=${nonce}`;
       return;
     }
-    // (예전 방식) Supabase 카카오 설정으로 로그인 — 웹용 카카오 키를 넣기 전까지만
-    const { url } = this.cfg();
-    location.href = `${url}/auth/v1/authorize?provider=kakao&redirect_to=${encodeURIComponent(back)}`;
+    // 웹용 카카오 키(KAKAO_LOGIN_REST_KEY)가 아직 없으면 로그인하지 않음.
+    // (예전에는 Supabase 카카오 설정으로 로그인했는데, 그건 다른 카카오 앱이라 앱과 다른 '빈 계정'이 새로 생겼음 — my-kakao-account-split)
+    void back;
+    U.toast('웹 카카오 로그인은 곧 열려요. 지금은 마이플래너 앱에서 로그인해 주세요.');
   },
 
   /** 웹: 카카오 로그인에서 ?code=…&state=…로 돌아온 경우 → 서버 함수로 로그인 */
