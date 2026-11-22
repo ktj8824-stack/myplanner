@@ -218,7 +218,7 @@ const Alarm = {
             // 출발 알람: 폰 알람 화면·알림의 '5분 뒤'도 이 시각을 넘기면 막음 (기차·비행기 놓침 / 약속 시각)
             const lim = a.key === 'depart' ? Planner.snoozeLimit(a.s, a.plan) : null;
             return { id: this.numId(a.sid + a.key), at: a.at.getTime(), title: a.title, body: a.body,
-              scheduleId: a.sid, kind: a.alarm ? 'full' : 'note', snoozeUntil: lim ? lim.until : 0, snoozeTrip: !!(lim && lim.trip) };
+              scheduleId: a.sid, kind: a.alarm ? 'full' : 'note', snoozeUntil: lim ? lim.until : 0, snoozeTrip: !!(lim && lim.trip), snoozeDue: lim && lim.due ? lim.due : 0 };
           }),
           rechecks: this.rechecks(list),
           widget: this.widgetItems(),
@@ -333,8 +333,11 @@ const Alarm = {
     const target = isTrip ? (plan.stationAt || plan.arriveAt) : plan.arriveAt;
     const leg = plan.departAt && target ? Math.max(0, target - plan.departAt) : 0;
     const eta = leg ? new Date(Math.max(now.getTime(), plan.departAt.getTime()) + leg) : target;
+    // 보통 약속: 지금 나가도 늦으면 빨간 글씨로 몇 분 늦는지 (2026-11-22 점검 M13: '늦어요' 없이 '45분 남았어요'만 보였음)
+    const late = isTrip ? null : Planner.lateNow(s, plan, now.getTime());
     const go = isTrip
       ? `<b>${U.esc((s.trip && s.trip.departTime) || '')}</b> ${U.esc(m.label || '')} 출발 · 지금 나가면 <b>${hm(eta)}</b>쯤 역에 도착해요`
+      : late ? `지금 나가면 <b>${hm(late.at)}</b> 도착 · <b>${late.lateMin}분 늦어요</b>`
       : `지금 나가면 <b>${hm(eta)}</b>쯤 도착해요 · 약속 <b>${U.esc(s.arriveBy || '')}</b>`;
     const navMode = isTrip ? s.trip.accessMode : s.mode;
     const r = plan.route;
@@ -356,12 +359,15 @@ const Alarm = {
     if (r && r.travelMin) lines.push(`<div class="wa-line">${U.modeIcon(navMode)}<span>${U.esc((Planner.MODES[navMode] || {}).label || '')} ${U.durLabel(r.travelMin)}${r.source === 'live' ? ' · 실시간 교통 반영' : ''}</span></div>`);
     if (plan.weather) lines.push(`<div class="wa-line wx"><span>${U.esc(plan.weather.label)} · ${U.esc(plan.weather.tip)}</span></div>`);
     const can = this._canGoNow(id);
-    // '5분 뒤 다시'로 미루면 못 타거나(기차·비행기) 약속 시각을 넘기면 미루기 대신 다른 길 (2026-11-21 점검)
-    const lim = this.snoozeBlocked(s, plan);
-    if (lim && lim.trip) lines.push(`<div class="wa-line wx"><span>지금 안 나가면 놓쳐요 · 더 미룰 수 없어요</span></div>`);
-    const snoozeBtn = !lim ? `<button class="wa-sub" onclick="Alarm.snooze()">5분 뒤 다시</button>`
+    // '5분 뒤 다시'로 미루면 못 타거나(기차·비행기) 약속에 늦으면 미루기 대신 다른 길 (2026-11-21·22 점검)
+    const lim = this.snoozeBlocked(s, plan, now.getTime());
+    if (lim && lim.trip) lines.push(`<div class="wa-line wx"><span>${this.snoozeWhy(lim, now.getTime())}</span></div>`);
+    // 이미 늦은 게 확실하면 미루기 자리에 '늦는다고 알리기 ›' (2026-11-22 점검)
+    const snoozeBtn = late ? `<button class="wa-sub" onclick="Alarm.lateShare()">늦는다고 알리기 ›</button>`
+      : !lim ? `<button class="wa-sub" onclick="Alarm.snooze()">5분 뒤 다시</button>`
       : lim.trip ? `<button class="wa-sub" onclick="Alarm.taxi()">택시로 가기 ›</button>`
       : `<button class="wa-sub" disabled>5분 뒤 다시</button>`;
+    const passed = lim && !lim.trip && lim.due && now.getTime() >= lim.due;
     // 기차·비행기는 '08:00 기차 출발까지'처럼 — 홈의 '출발'(집에서 나가는 시각)과 헷갈리지 않게 (11-19 점검 M4b)
     const foot = mins > 0 ? `${isTrip ? `${U.esc((s.trip && s.trip.departTime) || '')} ${U.esc(m.label || '')} 출발` : '약속'}까지 ${mins >= 60 ? Math.floor(mins / 60) + '시간 ' + (mins % 60) + '분' : mins + '분'} 남았어요` : '';
     return `
@@ -373,7 +379,7 @@ const Alarm = {
         </div>
         <div class="wa-card">
           <div class="wa-title">${U.esc(s.title || '일정')}${place ? ' · ' + U.esc(place) : ''}</div>
-          <div class="wa-go">${go}</div>
+          <div class="wa-go${late ? ' late' : ''}">${go}</div>
           ${lines.join('')}
         </div>
         <div class="wa-bottom">
@@ -382,7 +388,8 @@ const Alarm = {
             ${snoozeBtn}
             <button class="wa-sub" onclick="Alarm.stop(true)">일정 보기</button>
           </div>
-          ${lim && !lim.trip ? `<div class="wa-foot">약속 시각이 지나 더 미룰 수 없어요</div>` : foot ? `<div class="wa-foot">${foot}</div>` : ''}
+          ${late && !passed ? `<div class="wa-foot late">지금 나가도 ${late.lateMin}분 늦어요</div>`
+            : lim && !lim.trip ? `<div class="wa-foot">${this.snoozeWhy(lim, now.getTime())}</div>` : foot ? `<div class="wa-foot">${foot}</div>` : ''}
         </div>
       </div>`;
   },
@@ -517,22 +524,47 @@ const Alarm = {
     Routes.openNav(app, mode, null, to);
   },
 
-  /** 출발 알람을 5분 미루면 기차·비행기를 놓치거나 약속 시각을 넘기는지 → { trip } 또는 null(미뤄도 됨) */
+  /** 출발 알람을 5분 미루면 기차·비행기를 놓치거나 약속에 늦는지 → { trip, due } 또는 null(미뤄도 됨) */
   snoozeBlocked(s, plan, nowMs = Date.now()) {
     if (!s) return null;
     try {
       const lim = Planner.snoozeLimit(s, plan || Planner.compute(s));
-      return lim && nowMs + this.SNOOZE_MIN * 60000 >= lim.until ? { trip: lim.trip } : null;
+      return lim && nowMs + this.SNOOZE_MIN * 60000 >= lim.until ? { trip: lim.trip, due: lim.due } : null;
     } catch (e) { return null; }
+  },
+
+  /** 미루기를 막는 이유 한 줄 (앱 화면·토스트·안드로이드 알람이 같은 말) */
+  snoozeWhy(lim, nowMs = Date.now()) {
+    if (!lim) return '';
+    if (lim.trip) return '지금 안 나가면 놓쳐요 · 더 미룰 수 없어요';
+    return lim.due && nowMs >= lim.due ? '약속 시각이 지나 더 미룰 수 없어요' : '5분 뒤에 나가면 약속에 늦어요 — 더 미룰 수 없어요';
+  },
+
+  /** 늦는 게 확실할 때 보낼 말 (보통 약속, 1분 이상 늦을 때만) */
+  lateMessage(s, nowMs = Date.now()) {
+    const late = s ? Planner.lateNow(s, Planner.compute(s), nowMs) : null;
+    return late ? `죄송해요, ${U.hm(late.at)}쯤 도착할 것 같아요 (${late.lateMin}분 늦어요) — 마이플래너` : '';
+  },
+
+  /** '늦는다고 알리기 ›': 소리만 끄고(알람 화면은 그대로) 공유창(카톡 등) → 안 되면 복사 */
+  async lateShare() {
+    let s = null; try { s = Recur.resolve(this._ringId); } catch (e) { }
+    const text = this.lateMessage(s);
+    if (!text) return;
+    this.beep(false);
+    if (typeof Share !== 'undefined' && Share.text) return Share.text(text, s.title);
+    try { if (navigator.share) { await navigator.share({ text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+    try { await navigator.clipboard.writeText(text); U.toast('메시지를 복사했어요. 카톡에 붙여넣어 보내 주세요'); } catch (e) { U.toast(text); }
   },
   SNOOZE_MIN: 5,
 
   _fallbackSnooze(kind, id) {
-    let lim = null;
-    if (kind === 'depart' && id) { try { lim = this.snoozeBlocked(Recur.resolve(id)); } catch (e) { } }
+    let lim = null, s = null;
+    if (kind === 'depart' && id) { try { s = Recur.resolve(id); lim = this.snoozeBlocked(s); } catch (e) { } }
+    if (s && this.lateMessage(s)) return `<button class="btn ghost" onclick="Alarm.lateShare()">늦는다고 알리기 ›</button>`;
     if (!lim) return `<button class="btn ghost" onclick="Alarm.snooze()">5분 뒤 다시 알림</button>`;
     return lim.trip ? `<div class="ring-body">지금 안 나가면 놓쳐요</div><button class="btn ghost" onclick="Alarm.taxi()">택시로 가기 ›</button>`
-      : `<div class="ring-body">약속 시각이 지나 더 미룰 수 없어요</div>`;
+      : `<div class="ring-body">${this.snoozeWhy(lim)}</div>`;
   },
 
   /** 기차·비행기를 놓치기 직전 '택시로 가기': 알람 끄고(출발로 기록) 카카오T */
@@ -548,7 +580,7 @@ const Alarm = {
     if (kind === 'depart') {
       let s0 = null; try { s0 = Recur.resolve(id); } catch (e) { }
       const lim = this.snoozeBlocked(s0);
-      if (lim) return U.toast(lim.trip ? '지금 안 나가면 놓쳐요. 더 미룰 수 없어요' : '약속 시각이 지나 더 미룰 수 없어요');
+      if (lim) return U.toast(lim.trip ? '지금 안 나가면 놓쳐요. 더 미룰 수 없어요' : this.snoozeWhy(lim));
     }
     if (kind === 'wake') {
       const n = this.snoozeCount(id);
@@ -562,7 +594,7 @@ const Alarm = {
     const N = this.native(), LN = this.ln();
     if (N) {
       const lim = kind === 'depart' && s ? Planner.snoozeLimit(s, Planner.compute(s)) : null;
-      try { await N.snooze({ id: this.numId('snooze' + id), at: at.getTime(), title, body: '5분이 지났어요.', scheduleId: id, snoozeUntil: lim ? lim.until : 0, snoozeTrip: !!(lim && lim.trip) }); } catch (e) {}
+      try { await N.snooze({ id: this.numId('snooze' + id), at: at.getTime(), title, body: '5분이 지났어요.', scheduleId: id, snoozeUntil: lim ? lim.until : 0, snoozeTrip: !!(lim && lim.trip), snoozeDue: lim && lim.due ? lim.due : 0 }); } catch (e) {}
     } else if (LN) {
       // 아이폰 앱(전체 화면 알람 플러그인 없음): 앱을 닫거나 화면을 꺼도 울리도록 폰 알림으로 예약
       try {

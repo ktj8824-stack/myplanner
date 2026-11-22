@@ -32,12 +32,12 @@ assert.notStrictEqual(Planner.tripCatch(ktx, new Date(lim.until - 60000 + leg * 
 const fl = { ...ktx, mode: 'flight', trip: { ...ktx.trip, departTime: '10:00' } };
 const pf = Planner.compute(fl);
 assert.strictEqual(Planner.snoozeLimit(fl, pf).until, Planner.at(D, '10:00').getTime() - 20 * 60000 - (pf.stationAt - pf.departAt));
-// 2) 보통 약속: 약속 시각까지
+// 2) 보통 약속: 다시 울릴 때 나가도 약속에 안 늦는 시각까지 (약속 − 이동 45분 = 지하철 40 + 환승 여유 5, 2026-11-22 점검)
 const meet = { id: 'm', title: '강남역 미팅', date: D, arriveBy: '16:00', mode: 'transit', prepMin: 0, bufferMin: 10, origin: home, dest: { name: '강남역', lat: 37.4979, lng: 127.0276 }, route: sub(40), repeat: { type: 'none', days: [] } };
 lim = Planner.snoozeLimit(meet, Planner.compute(meet));
-assert.deepStrictEqual(lim, { until: Planner.at(D, '16:00').getTime(), trip: false });
+assert.deepStrictEqual(lim, { until: Planner.at(D, '15:15').getTime() + 1, trip: false, due: Planner.at(D, '16:00').getTime() });
 assert.strictEqual(Planner.snoozeLimit({ ...meet, arriveBy: '' }, Planner.compute(meet)), null);
-console.log('✓ 출발 알람 미루기 한도: 기차·비행기는 탈 수 있는 마지막 출발, 보통 약속은 약속 시각');
+console.log('✓ 출발 알람 미루기 한도: 기차·비행기는 탈 수 있는 마지막 출발, 보통 약속은 약속 − 이동 시간');
 
 // 3) 앞 일정 끝을 15:00 → 15:21 으로 늘리면 '앞 일정에서 바로 출발'하는 16:00 강남역 미팅이 늦어짐
 const Register = load('register.js', 'Register');
@@ -61,3 +61,77 @@ assert.ok(/안드로이드 앱은 곧 나와요/.test(toast));
 Share.STORE_LIVE = true; Share.installApp();
 assert.ok(/play\.google\.com/.test(location.href));
 console.log('✓ 스토어 출시 전에는 앱 설치 버튼이 곧 나와요 안내');
+
+// 5) 2026-11-22 점검 M13: 월 10:00 강남역 미팅, 이동 44분(지하철 39 + 환승 여유 5), 출발 알람 09:10 — 계속 '5분 뒤 다시'
+global.Share = Share; global.Routes = { openNav() {} }; global.Ads = undefined;
+const Alarm = load('alarm.js', 'Alarm');
+const m13 = { id: 'm13', title: '강남역 미팅', date: D, arriveBy: '10:00', mode: 'transit', prepMin: 0, bufferMin: 6, origin: home, dest: { name: '강남역', lat: 37.4979, lng: 127.0276 }, route: sub(39), repeat: { type: 'none', days: [] } };
+const p13 = Planner.compute(m13);
+assert.strictEqual(hm(p13.departAt), '09:10');
+const T = t => Planner.at(D, t).getTime();
+// 미루기 한도: 다시 울릴 때(+5분) 나가도 10:00 안에 닿는 마지막 — 09:11에 미루면 09:16+44=10:00 딱 맞음(허용), 09:11:01부터는 늦음(막음)
+lim = Planner.snoozeLimit(m13, p13);
+assert.deepStrictEqual(lim, { until: T('09:16') + 1, trip: false, due: T('10:00') });
+assert.strictEqual(Alarm.snoozeBlocked(m13, p13, T('09:10')), null);
+assert.strictEqual(Alarm.snoozeBlocked(m13, p13, T('09:11')), null);
+assert.ok(Alarm.snoozeBlocked(m13, p13, T('09:11') + 1000));
+assert.ok(Alarm.snoozeBlocked(m13, p13, T('09:15')));
+// 옛 한도(약속 시각)였다면 09:55까지 9번 미룰 수 있었음 → 이제 09:10 한 번뿐
+let n = 0; for (let t = T('09:10'); !Alarm.snoozeBlocked(m13, p13, t); t += 5 * 60000) n++;
+assert.strictEqual(n, 1);
+// 늦음 판단: 09:16까지는 안 늦음, 09:20이면 10:04 도착 · 4분 늦음
+assert.strictEqual(Planner.lateNow(m13, p13, T('09:16')), null);
+let lt = Planner.lateNow(m13, p13, T('09:20'));
+assert.strictEqual(hm(lt.at), '10:04'); assert.strictEqual(lt.lateMin, 4);
+assert.strictEqual(Planner.lateNow(m13, p13, T('09:20') + 59000).lateMin, 4);  // 화면의 10:04 와 분이 맞음
+assert.strictEqual(Planner.lateNow(ktx, Planner.compute(ktx), T('09:20')), null); // 기차·비행기는 따로(놓침 판단)
+console.log('✓ 보통 약속 미루기 한도: 지금 + 5분 + 이동 > 약속이면 막음 · 지금 나가도 늦는지');
+
+// 6) 안내 문구: 아직 약속 전이면 '5분 뒤에 나가면 약속에 늦어요', 지났으면 '약속 시각이 지나'
+assert.strictEqual(Alarm.snoozeWhy(Alarm.snoozeBlocked(m13, p13, T('09:14')), T('09:14')), '5분 뒤에 나가면 약속에 늦어요 — 더 미룰 수 없어요');
+assert.strictEqual(Alarm.snoozeWhy(Alarm.snoozeBlocked(m13, p13, T('10:02')), T('10:02')), '약속 시각이 지나 더 미룰 수 없어요');
+assert.strictEqual(Alarm.snoozeWhy({ trip: true, due: T('08:00') }), '지금 안 나가면 놓쳐요 · 더 미룰 수 없어요');
+const java = fs.readFileSync(__dirname + '/../native/android/AlarmActionReceiver.java', 'utf8');
+assert.ok(java.includes('"약속 시각이 지나 더 미룰 수 없어요" : "5분 뒤에 나가면 약속에 늦어요 — 더 미룰 수 없어요"'));
+for (const f of ['AlarmActivity.java', 'AlarmReceiver.java']) {
+  assert.ok(!fs.readFileSync(__dirname + '/../native/android/' + f, 'utf8').includes('"약속 시각이 지나 더 미룰 수 없어요"'), f + ' 는 noSnoozeText 를 써야 함');
+}
+console.log('✓ 미루기 막힘 문구: 약속 전/후 구분 (앱·안드로이드 같은 말)');
+
+// 7) 출발 알람 화면: 09:20 에 울리면 빨간 '10:04 도착 · 4분 늦어요' + '늦는다고 알리기 ›', '남았어요' 없음
+const RealDate = Date;
+const fixed = ms => { global.Date = class extends RealDate { constructor(...a) { if (a.length) super(...a); else super(ms); } static now() { return ms; } }; };
+U.modeIcon = () => ''; U.durLabel = v => v + '분';
+Alarm._canGoNow = () => true;
+fixed(T('09:20'));
+let html = Alarm.departHTML(m13, 'm13');
+assert.ok(/class="wa-go late">지금 나가면 <b>10:04<\/b> 도착 · <b>4분 늦어요<\/b>/.test(html));
+assert.ok(html.includes('<div class="wa-foot late">지금 나가도 4분 늦어요</div>'));
+assert.ok(html.includes('onclick="Alarm.lateShare()">늦는다고 알리기 ›</button>'));
+assert.ok(!html.includes('남았어요') && !html.includes('Alarm.snooze()'));
+assert.ok(html.includes('지금 출발 · 길안내') && html.includes('일정 보기'));
+assert.strictEqual(Alarm.lateMessage(m13), '죄송해요, 10:04쯤 도착할 것 같아요 (4분 늦어요) — 마이플래너');
+// 09:14: 아직 안 늦지만 미루면 늦음 → 미루기 막고 문구
+fixed(T('09:14'));
+html = Alarm.departHTML(m13, 'm13');
+assert.ok(html.includes('<button class="wa-sub" disabled>5분 뒤 다시</button>'));
+assert.ok(html.includes('5분 뒤에 나가면 약속에 늦어요 — 더 미룰 수 없어요') && !html.includes('lateShare'));
+// 09:10: 평소대로
+fixed(T('09:10'));
+html = Alarm.departHTML(m13, 'm13');
+assert.ok(html.includes('onclick="Alarm.snooze()"') && html.includes('약속까지 50분 남았어요') && !html.includes(' late'));
+global.Date = RealDate;
+console.log('✓ 출발 알람 화면: 늦음 빨간 줄 · 늦는다고 알리기 · 미루기 막힘 문구');
+
+// 8) '늦는다고 알리기': 공유창 → 없으면 복사 + 안내
+(async () => {
+  let shared = null;
+  navigator.share = async o => { shared = o; };
+  await Share.text('죄송해요', '미팅');
+  assert.deepStrictEqual(shared, { title: '미팅', text: '죄송해요' });
+  delete navigator.share; let copied = '';
+  navigator.clipboard = { writeText: async t => { copied = t; } };
+  await Share.text('죄송해요');
+  assert.strictEqual(copied, '죄송해요'); assert.ok(/복사했어요/.test(toast));
+  console.log('✓ 늦는다고 알리기: 공유창 → 복사');
+})().catch(e => { console.error(e); process.exit(1); });

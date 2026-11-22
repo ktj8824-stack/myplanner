@@ -89,6 +89,21 @@ const Share = {
     }
   },
 
+  /** 글만 보내기 (출발 알람 '늦는다고 알리기'): 휴대폰 공유창 → 안 되면 복사 → 그래도 안 되면 복사 창 */
+  async text(text, title) {
+    try {
+      if (navigator.share) { await navigator.share(title ? { title, text } : { text }); return; }
+    } catch (e) { if (e && e.name === 'AbortError') return; }
+    try {
+      await navigator.clipboard.writeText(text);
+      U.toast('메시지를 복사했어요. 카톡에 붙여넣어 보내 주세요');
+    } catch (e) {
+      Sheet.open(`<div class="sheet-head"><b>메시지 복사</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+        <textarea class="input paste-area" readonly onclick="this.select()">${U.esc(text)}</textarea>
+        <p class="muted small">길게 눌러 복사한 뒤 카톡에 붙여넣으세요.</p>`);
+    }
+  },
+
   /** 받은 일정: 확인 + 단계 안내 ① 출발지 → ② 준비 시간 → ③ 이동 수단 → ④ 알람에 추가 (버디플래너와 같은 틀) */
   openImport(o) {
     this._incoming = o;

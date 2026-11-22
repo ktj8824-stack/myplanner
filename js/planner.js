@@ -464,7 +464,9 @@ const Planner = {
   /** 출발 알람 '5분 뒤 다시'를 눌러도 되는 마지막 시각 (2026-11-21 점검: 기차 시각이 지나도 끝없이 미룰 수 있었음)
       { until: ms, trip } — 다시 울릴 시각이 until 이상이면 미루기를 막음. 시각을 모르면 null
       · 기차·비행기: 그때 나가서 역·공항에 닿아도 못 타는 시각 (출발 − 탑승 마감(비행기 20분) − 역까지 걸리는 시간)
-      · 그 밖: 약속 시각 */
+      · 그 밖: 다시 울릴 때 나가면 약속에 늦는 시각 (약속 − 이동 시간, 2026-11-22 점검: 이미 늦었는데 약속 시각까지 미룰 수 있었음)
+        until 바로 그 시각에 나가면 딱 맞게 도착(늦지 않음)이라 +1ms — 막는 조건: 지금 + 5분 + 이동 > 약속
+      due: 약속(기차·비행기 출발) 시각 ms — 막을 때 '약속 시각이 지나' / '5분 뒤에 나가면 늦어요' 구분용 */
   snoozeLimit(s, plan) {
     const hmOk = v => /^\d{1,2}:\d{2}$/.test(v || '');
     if (!s || !s.date) return null;
@@ -473,10 +475,23 @@ const Planner = {
       const board = this.at(s.date, s.trip.departTime).getTime();
       const closeMin = s.mode === 'flight' ? 20 : 0;
       const leg = plan && plan.departAt && plan.stationAt ? Math.max(0, plan.stationAt - plan.departAt) : 0;
-      return { until: board - closeMin * 60000 - leg, trip: true };
+      return { until: board - closeMin * 60000 - leg, trip: true, due: board };
     }
     if (!hmOk(s.arriveBy)) return null;
-    return { until: this.at(s.date, s.arriveBy).getTime(), trip: false };
+    const due = this.at(s.date, s.arriveBy).getTime();
+    const leg = plan && plan.departAt && plan.arriveAt ? Math.max(0, plan.arriveAt - plan.departAt) : 0;
+    return { until: due - leg + 1, trip: false, due };
+  },
+
+  /** 보통 약속: 지금 바로 나가도 늦는지 → { at: 도착 Date, lateMin } (1분 이상 늦을 때만), 아니면 null
+      출발 알람 화면 '지금 나가면 10:04 도착 · 4분 늦어요'·'늦는다고 알리기'가 씀 (2026-11-22 점검 M13)
+      분은 화면에 보이는 도착 시각(분 단위 버림) 기준이라 '10:04 도착 · 4분' 처럼 늘 맞음 */
+  lateNow(s, plan, nowMs = Date.now()) {
+    if (!s || this.isTrip(s.mode) || !/^\d{1,2}:\d{2}$/.test(s.arriveBy || '') || !plan || !plan.departAt || !plan.arriveAt) return null;
+    const leg = Math.max(0, plan.arriveAt - plan.departAt);
+    const at = new Date(Math.max(nowMs, plan.departAt.getTime()) + leg);
+    const lateMin = Math.floor(at.getTime() / 60000) - Math.floor(this.at(s.date, s.arriveBy).getTime() / 60000);
+    return lateMin >= 1 ? { at, lateMin } : null;
   },
 
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */

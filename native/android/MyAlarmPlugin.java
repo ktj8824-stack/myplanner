@@ -127,6 +127,9 @@ public class MyAlarmPlugin extends Plugin {
         if (until == null) { Double d = call.getDouble("snoozeUntil"); if (d != null) until = d.longValue(); }
         item.snoozeUntil = until == null ? 0 : until;
         item.snoozeTrip = call.getBoolean("snoozeTrip", false);
+        Long due = call.getLong("snoozeDue");
+        if (due == null) { Double d = call.getDouble("snoozeDue"); if (d != null) due = d.longValue(); }
+        item.snoozeDue = due == null ? 0 : due;
         boolean ok = AlarmScheduler.schedule(getContext(), item);
         if (ok) call.resolve(); else call.reject("예약 실패");
     }
