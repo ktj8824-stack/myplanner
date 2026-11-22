@@ -400,7 +400,7 @@ const Register = {
       ${nowBox}
       <div class="result">
         <div class="tri">
-          ${plan.chained ? `<div class="on"><small>${d.startNow ? '지금 위치' : '앞 일정'}에서</small><b>바로</b></div>` : `<div class="on"><small>기상${U.hmRel(plan.wakeAt, d.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>`}
+          ${plan.chained ? `<div class="on"><small>${d.startNow ? '지금 위치' : '앞 일정'}에서</small><b>바로</b></div>` : `<div class="on"><small>${Planner.wakeWord(plan)}${U.hmRel(plan.wakeAt, d.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>`}
           ${d.startNow && plan.departAt.getTime() < now
             ? `<div><small>출발</small><b>지금</b></div><div><small>도착 예상</small><b>${U.hm(new Date(now + travelMs))}</b></div>`
             : `<div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>

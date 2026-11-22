@@ -145,7 +145,7 @@ const Home = {
       goTxt = Ico('alarm') + (trip
         ? ` 지금 나가면 ${s.mode === 'flight' ? '공항' : '역'} ${U.hm(ln.at)} 도착${ln.lateMin > 0 ? ` · ${U.esc(s.trip.departTime)} ${m.label}를 놓칠 수 있어요` : ''}`
         : ` 지금 나가면 ${U.hm(ln.at)} 도착${ln.lateMin > 0 ? ` · ${U.durLabel(ln.lateMin)} 늦어요` : ''}`);
-    } else goTxt = Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : '기상까지 ') + U.durLabel(left);
+    } else goTxt = Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : Planner.wakeWord(plan) + '까지 ') + U.durLabel(left);
     // 비·눈 예보인 반복 일정: 그날만 10분 일찍 (출발 전, 아직 안 눌렀을 때만)
     const rainChip = !far && !moving && !during && Recur.isRepeating(s) && s.isOccurrence && !s.rainEarly && typeof Weather !== 'undefined' && Weather.isWet(plan);
     return `
@@ -154,7 +154,7 @@ const Home = {
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
           ${plan.chained ? `<div class="${moving ? 'dim' : 'on'}"><small>출발 · ${U.esc((s.origin && s.origin.name) || '앞 일정')}</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>시작</small><b>${s.arriveBy || U.hm(plan.arriveAt)}</b></div>` : `<div class="${wakePassed ? 'dim' : 'on'}"><small>기상${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
+          <div><small>시작</small><b>${s.arriveBy || U.hm(plan.arriveAt)}</b></div>` : `<div class="${wakePassed ? 'dim' : 'on'}"><small>${Planner.wakeWord(plan)}${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div class="${moving ? 'dim' : ''}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>`}
           ${plan.chained ? `<div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div><small>${trip ? '탑승' : '약속'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>
@@ -220,7 +220,7 @@ const Home = {
     const extra = Recur.isRepeating(s) ? ' · ' + U.esc(Recur.label(s)).replace(/ · .*/, '') : '';
     return `
       <button class="row" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
-        <div class="row-time"><b>${U.hm(plan.chained ? plan.departAt : plan.wakeAt)}</b><small>${plan.chained ? '출발' : '기상'}</small></div>
+        <div class="row-time"><b>${U.hm(plan.chained ? plan.departAt : plan.wakeAt)}</b><small>${plan.chained ? '출발' : Planner.wakeWord(plan)}</small></div>
         <div class="row-main">
           <b>${U.esc(s.title)}${s.hasOverride ? ' <span class="tag">변경됨</span>' : ''}${s.demo ? ' <span class="tag demo">예시</span>' : ''}</b>
           <small>${day} · ${timeLabel}${extra}</small>
@@ -372,7 +372,7 @@ const CalendarView = {
       const items = l.map(({ s, plan }) => {
         const trip = Planner.isTrip(s.mode);
         return `<button class="wk-ev" onclick="App.navigate('timeline',{id:'${s.occId || s.id}'})">
-          <span class="wk-t"><b>${U.hm(plan.chained ? plan.departAt : plan.wakeAt)}</b><small>${plan.chained ? '출발' : '기상'}</small></span>
+          <span class="wk-t"><b>${U.hm(plan.chained ? plan.departAt : plan.wakeAt)}</b><small>${plan.chained ? '출발' : Planner.wakeWord(plan)}</small></span>
           <span class="wk-m"><b>${U.esc(s.title)}</b><small>${trip ? `${U.esc(s.trip.departTime)} 탑승` : `${U.esc(s.arriveBy)} 도착`}${s.endBy && !trip ? ` · ${U.esc(s.endBy)} 끝` : ''}${plan.homeAt ? ` · ${U.hm(plan.homeAt)} 집` : ''}</small></span>
           ${U.modeIcon(s.mode, 'wk-ic 3d')}
         </button>`;

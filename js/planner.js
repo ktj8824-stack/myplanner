@@ -479,6 +479,17 @@ const Planner = {
     return { until: this.at(s.date, s.arriveBy).getTime(), trip: false };
   },
 
+  /** 준비 시작이 낮 시간(오전 11시~밤 10시)이면 '일어나는' 게 아니라 '준비 시작' — 오후 약속에 '일어날 시간이에요'가 어색함 (11-22 사용자 지적)
+   *  새벽·아침(밤 10시~오전 11시)은 그대로 '기상' */
+  DAY_PREP_FROM: 11, DAY_PREP_TO: 22,
+  isDayPrep(plan) {
+    if (!plan || !plan.wakeAt) return false;
+    const h = plan.wakeAt.getHours();
+    return h >= this.DAY_PREP_FROM && h < this.DAY_PREP_TO;
+  },
+  /** 화면·알림에 쓰는 말: '기상' 또는 '준비' */
+  wakeWord(plan) { return this.isDayPrep(plan) ? '준비' : '기상'; },
+
   /** 알람 목록 (기상, 출발 10분 전, 출발, 전날 밤 안내) */
   alarms(s, plan) {
     const out = [];
@@ -498,12 +509,15 @@ const Planner = {
       night.setDate(night.getDate() - 1);
       if (night.getTime() > plan.wakeAt.getTime() - 60 * 60000) night = this.addMin(plan.wakeAt, -120);
       const sameDay = night.toDateString() === plan.wakeAt.toDateString();
-      const what = plan.chained ? '출발' : '기상';
-      const t = plan.chained ? plan.departAt : plan.wakeAt;
-      out.push({ key: 'night', at: night, title: `${sameDay ? '오늘' : '내일'} ${hm(t)} ${what} 예정`,
+      // 낮 약속(준비가 오전 11시 이후)은 '내일 14:04 기상 예정' 대신 약속과 출발 시각으로 안내
+      const dayPrep = !plan.chained && this.isDayPrep(plan);
+      const what = plan.chained || dayPrep ? '출발' : '기상';
+      const t = plan.chained || dayPrep ? plan.departAt : plan.wakeAt;
+      const head = dayPrep && s.arriveBy ? `${sameDay ? '오늘' : '내일'} ${s.arriveBy} ${s.title} · ${hm(t)} 출발` : `${sameDay ? '오늘' : '내일'} ${hm(t)} ${what} 예정`;
+      out.push({ key: 'night', at: night, title: head,
         body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}${packTxt}` });
     }
-    if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
+    if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: this.isDayPrep(plan) ? `⏰ 준비 시작할 시간이에요 — ${s.title}` : `⏰ 일어날 시간이에요 — ${s.title}`,
       body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}${packTxt}` });
     // 출발 1시간 전 '다음 일정' 안내: 알림 목록에 남겨 두면 차에 타서(집을 나서며) 눌러 바로 길안내. 일어나기 전이면 넣지 않음
     const nextAt = this.addMin(plan.departAt, -60);

@@ -415,9 +415,9 @@ const Alarm = {
     return `
       <div class="wa">
         <div class="wa-top">
-          <div class="wa-date">${now.getMonth() + 1}월 ${now.getDate()}일 (${DOW[now.getDay()]}) · 기상 알람</div>
+          <div class="wa-date">${now.getMonth() + 1}월 ${now.getDate()}일 (${DOW[now.getDay()]}) · ${Planner.isDayPrep(plan) ? '준비 알람' : '기상 알람'}</div>
           <div class="wa-time">${hm(now)}</div>
-          <div class="wa-msg">일어날 시간이에요</div>
+          <div class="wa-msg">${Planner.isDayPrep(plan) ? '준비 시작할 시간이에요' : '일어날 시간이에요'}</div>
         </div>
         <div class="wa-card">
           <div class="wa-title">${U.esc(s.title || '일정')}${place ? ' · ' + U.esc(place) : ''}</div>

@@ -50,7 +50,7 @@ const Timeline = {
         <div class="tri">
           ${plan.chained ? `<div class="on"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>${Planner.isTrip(s.mode) ? '탑승' : '시작'}</small><b>${Planner.isTrip(s.mode) ? s.trip.departTime : s.arriveBy}</b></div>
-          <div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div class="on"><small>기상${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
+          <div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div class="on"><small>${Planner.wakeWord(plan)}${U.hmRel(plan.wakeAt, s.date).startsWith('전날') ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
           <div><small>${Planner.isTrip(s.mode) ? '탑승' : '약속'}</small><b>${Planner.isTrip(s.mode) ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>

@@ -1055,3 +1055,22 @@ p.small a[href] { display: inline-block; padding: 12px 2px; margin: -12px 0; }
 /* 반씩 나눈 버튼은 한 줄로 (좁은 화면에서 '카카오맵 / 경로'처럼 꺾이지 않게) */
 .nav-btns .btn, .grid2 > .btn { padding: 0 10px; font-size: 15px; white-space: nowrap; min-width: 0; }
 .tri > div { min-width: 0; }
+
+/* ---------- 시간 고르기 (아이폰, js/timepick.js) ---------- */
+#tpick { display: none; position: fixed; inset: 0; z-index: 60; }
+#tpick.show { display: block; }
+.tp-bg { position: absolute; inset: 0; background: rgba(25, 31, 40, .45); animation: fade .2s ease-out; }
+.tp-panel { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 22px 22px 0 0; padding: 18px 20px calc(18px + env(safe-area-inset-bottom)); }
+.tp-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.tp-head b { font-size: 18px; }
+.tp-head small { color: #8B95A1; font-size: 14px; }
+.tp-wheels { position: relative; display: flex; justify-content: center; align-items: stretch; height: 220px; }
+.tp-band { position: absolute; left: 0; right: 0; top: 88px; height: 44px; background: #F2F4F6; border-radius: 12px; pointer-events: none; }
+.tp-col { position: relative; width: 76px; height: 220px; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); }
+.tp-col::-webkit-scrollbar { display: none; }
+.tp-pad { height: 88px; }
+.tp-item { height: 44px; line-height: 44px; text-align: center; font-size: 22px; font-weight: 600; color: #191F28; scroll-snap-align: center; }
+.tp-colon { position: relative; line-height: 220px; font-size: 22px; font-weight: 700; width: 12px; text-align: center; }
+.tp-btns { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 14px; }
+.tp-btns .btn { height: 54px; font-size: 17px; }
