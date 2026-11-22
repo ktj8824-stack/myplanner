@@ -244,7 +244,7 @@ public final class Recheck {
         HttpURLConnection c = null;
         try {
             String q = "version=1&startX=" + sx + "&startY=" + sy + "&endX=" + ex + "&endY=" + ey
-                    + "&reqCoordType=WGS84GEO&resCoordType=WGS84GEO&searchOption=0&trafficInfo=Y&appKey=" + key;
+                    + "&reqCoordType=WGS84GEO&resCoordType=WGS84GEO&searchOption=2&trafficInfo=Y&appKey=" + key;
             c = (HttpURLConnection) new URL("https://apis.openapi.sk.com/tmap/routes?" + q).openConnection();
             c.setConnectTimeout(10_000);
             c.setReadTimeout(15_000);
