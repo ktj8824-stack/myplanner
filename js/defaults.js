@@ -12,7 +12,7 @@ window.APP_DEFAULTS = {
   KAKAO_LOGIN_REST_KEY: 'cd3e0e836cdff61debb14779e3b3820d',
   // 카카오톡 공유 카드용 'JavaScript 키' (같은 마이플래너 카카오 앱 · 공개 값). 카카오 콘솔 > 플랫폼 > Web 에
   // https://ktj8824-stack.github.io 가 등록돼 있어야 함. 비어 있으면 예전처럼 글+링크로 보냄
-  KAKAO_JS_KEY: '',
+  KAKAO_JS_KEY: 'f776f8942915e7831c67f9ffcc778ff7',
   // 출시 기념 무료: 이 날까지 모든 기능 무료(광고는 나옴), 결제는 받지 않음
   PROMO_UNTIL: '2027-02-28T23:59:59+09:00',
   // 이용권(플러스·프리미엄) 결제 — 토스 '클라이언트 키'(공개 값). 지금은 토스 문서 공개 테스트 키 (실제 돈 안 나감). 비밀 키는 서버에만
