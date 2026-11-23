@@ -15,6 +15,7 @@ const Register = {
     this._seq = (this._seq || 0) + 1; // 이전 화면에서 찾던 경로 결과는 버림
     this.loading = false;
     this._keepArrive = null;
+    this._awayAuto = false;
     this.backTo = params.back || null;  // 수정 화면을 연 곳 (반복 일정의 그 회차 등)
     if (params.id && State.get(params.id) && State.get(params.id)._shared) {
       U.toast('가족이 공유한 일정은 보낸 사람만 고칠 수 있어요');
@@ -81,7 +82,7 @@ const Register = {
         <div class="q">${isTrip ? '언제 어디로 가세요?' : '어디에 몇 시까지 가세요?'}</div>
         ${isTrip ? '' : placeBtn('dest', '목적지', '병원, 회사, 역 이름으로 검색', 'pin')}
         <div class="grid2 mt">
-          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)"></div>
+          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)">${this.dateChips()}</div>
           <div><label class="lbl">${isTrip ? '목적지 도착 희망 (선택)' : '도착 시간'}</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
         </div>
         ${isTrip ? '' : `<div class="grid2 mt">
@@ -112,7 +113,7 @@ const Register = {
 
       <div class="card">
         <div class="q">준비는 얼마나 걸려요?</div>
-        <div class="seg">${(d.chained || d.startNow ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
+        <div class="seg">${(d.chained || d.startNow || this.away() ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
         <label class="lbl">약속보다 일찍 도착 (여유)</label>
         <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
         ${this.repeatForm()}
@@ -247,6 +248,34 @@ const Register = {
     d.prepMin = 0;
     d.alarm = { ...d.alarm, wake: false, nightBefore: false };
     d.route = null; d.accessRoute = null; this.opts = []; this.accessOpts = [];
+  },
+
+  /** 날짜 칸 옆 '오늘'·'내일' (오전 11시가 지나 새 일정을 열면 '오늘'을 살짝 강조 — 값은 그대로 내일) */
+  dateChips() {
+    const d = this.d, today = U.today(), tmr = Recur.shift(today, 1);
+    const hint = !this.editing && d.date === tmr && new Date().getHours() >= 11;
+    const chip = (v, label, extra = '') => `<button class="chip ${d.date === v ? 'on' : extra}" onclick="Register.set('date','${v}')">${label}</button>`;
+    return `<div class="date-chips">${chip(today, '오늘', hint ? 'hint' : '')}${chip(tmr, '내일')}</div>`;
+  },
+
+  /** 출발지가 집(300m)에서 먼 곳인지 — 준비 '바로 출발' 칸을 보여 줌 */
+  away() {
+    return typeof DayPlan !== 'undefined' && !this.d.chained && !this.d.startNow && DayPlan.awayFromHome(this.d.origin);
+  },
+
+  /** 출발지·목적지가 거의 같을 때 이어서 갈 앞 일정 */
+  samePrev() {
+    const d = this.d;
+    if (!d || Recur.isRepeating(d)) return null;
+    return DayPlan.prevForHome(d) || DayPlan.prevFor(d);
+  },
+  chainSame() {
+    const prev = this.samePrev();
+    if (!prev) return U.toast('이어서 갈 앞 일정이 없어요');
+    DayPlan.chainTo(this.d, prev);
+    this.opts = []; this.accessOpts = []; this._awayAuto = false;
+    U.toast(`'${prev.s.title}' 끝나고 ${prev.place.name}에서 바로 출발로 맞췄어요`);
+    this.draw(); this.fetchRoutes();
   },
 
   /** 출발지를 직접 고르면 '이어서 출발'을 풀고 기본값으로 */
@@ -393,8 +422,12 @@ const Register = {
       }
       // 이미 기상 시간이 지났는데 집에서 출발로 되어 있으면: 밖이냐고 물어봄
       if (!d.startNow && !d.chained && plan.wakeAt.getTime() < now) {
-        nowBox = `<div class="now-ask"><span>기상 시간이 이미 지났어요. <b>지금 밖에 계세요?</b></span><button class="btn small primary" onclick="Register.startNow()">📍 지금 위치에서 출발</button></div>` + nowBox;
+        nowBox = `<div class="now-ask"><span>${Planner.wakeWord(plan)} 시간이 이미 지났어요. <b>지금 밖에 계세요?</b></span><button class="btn small primary" onclick="Register.startNow()">📍 지금 위치에서 출발</button></div>` + nowBox;
       }
+    }
+    // 출발지와 목적지가 거의 같으면 (집 앞에서 집으로 등) 앞 일정에서 이어서 가자고 물어봄 (11-23 점검)
+    if (!trip && !d.chained && !d.startNow && !d.homeFirst && typeof DayPlan !== 'undefined' && DayPlan.within(d.origin, d.dest) && this.samePrev()) {
+      nowBox += `<div class="now-ask"><span>출발지와 목적지가 거의 같아요 — <b>앞 일정에서 이어서 갈까요?</b></span><button class="btn small primary" onclick="Register.chainSame()">이어서</button></div>`;
     }
     return `
       ${nowBox}
@@ -436,6 +469,11 @@ const Register = {
     // 아이폰 날짜칸의 '지우기'로 빈 날짜가 들어오면 이전 날짜를 그대로 둠 (빈 날짜로 저장되면 알람이 모두 사라짐)
     if (k === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(v || '')) { U.toast('날짜를 골라 주세요.'); return this.draw(); }
     this.d[k] = v;
+    if (k === 'prepMin' && this._awayAuto && +v > 0) {
+      // 집이 아닌 곳 출발로 껐던 준비 알람: 사용자가 준비 시간을 다시 고르면 그 선택대로 (알람도 기본값으로)
+      this._awayAuto = false;
+      this.d.alarm = { ...this.d.alarm, wake: State.settings.alarm.wake };
+    }
     if (k === 'mode') {
       this.opts = []; this.accessOpts = []; this.d.route = null; this.d.accessRoute = null;
       // 기차·비행기는 탑승 시각이 기준이라 '도착 희망'은 비워 둠 (넣으면 늦을 때 경고)
@@ -478,11 +516,23 @@ const Register = {
     PlacePicker.open(title, p => {
       this.d[field] = p;
       this.d.route = null; this.d.accessRoute = null; this.opts = []; this.accessOpts = []; // 장소가 바뀌면 경로 새로
-      if (field === 'origin') this.unchain();
+      if (field === 'origin') { this.unchain(); this.awayCheck(); }
       this.draw(); this.fetchRoutes();
       if (field === 'dest' && this.d.goHome && this.d.goHome.on) { this.d.goHome.route = null; this.fetchHome(); }
     });
   },
+  /** 출발지를 집이 아닌 곳(300m 밖)으로 고르면 준비 '바로 출발'·준비 알람 끔. 다시 집 근처로 고르면 되돌림 */
+  awayCheck() {
+    const d = this.d, st = State.settings;
+    if (typeof DayPlan === 'undefined' || Planner.isTrip(d.mode)) return;
+    if (DayPlan.applyAway(d)) { this._awayAuto = true; U.toast('집이 아닌 곳에서 출발이라 준비 알람은 껐어요'); return; }
+    if (this._awayAuto) { // 회사로 골랐다가 다시 집으로
+      this._awayAuto = false;
+      d.prepMin = st.prepMin;
+      d.alarm = { ...d.alarm, wake: st.alarm.wake };
+    }
+  },
+
   pickTrip(field, title) {
     PlacePicker.open(title, p => {
       this.d.trip[field] = p;
@@ -639,7 +689,7 @@ const Register = {
       // 끝나는 시간을 늘려 '앞 일정에서 바로 출발'하는 다음 일정이 늦어지면 저장 알림에 같이 (2026-11-21 점검)
       const late = this.nextLateLine(d, firstWake || dep);
       U.toast(late ? `저장했어요 · ${late}`
-        : firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 깨워 드릴게요.`
+        : firstWake ? `${U.dateLabel(U.ymd(firstWake.at)).split(' · ')[0]} ${U.hm(firstWake.at)}에 ${Planner.isDayPrep(firstWake.plan) ? '준비 알람을 울려 드릴게요' : '깨워 드릴게요'}.`
         : mine.length ? '저장하고 알림을 맞췄어요.' : '저장했어요.');
     }
     // 사이에 끼워 넣은 일정이면 다음 약속도 여기서 출발로 (기다리지 않음)

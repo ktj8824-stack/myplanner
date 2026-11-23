@@ -48,11 +48,40 @@ const TimePick = {
     return lbl ? lbl.textContent.replace(/\s*\(선택\)\s*/, '').trim() : '시간';
   },
 
+  /** 어떤 칸인지: 'arrive'(도착 시간) · 'end'(끝나는 시간) · '' */
+  _kind(el) {
+    const oc = (el.getAttribute && el.getAttribute('onchange')) || '';
+    if (/Register\.set\('arriveBy'/.test(oc)) return 'arrive';
+    if (/Register\.setEnd\(/.test(oc)) return 'end';
+    return '';
+  },
+
+  /**
+   * 바퀴가 처음 가리킬 시각 [시, 분] (값은 바꾸지 않음 — '선택'을 눌러야 들어감).
+   * 새 일정의 도착 시간이 비었거나 기본값 09:00이면 지금+2시간(정시로 반올림),
+   * 끝나는 시간이 비었으면 도착+1시간 (11-23 점검: 낮에 열면 매번 09:00에서 굴려야 했음)
+   */
+  startAt({ value = '', kind = '', arrive = '', fresh = true, now = new Date() } = {}) {
+    const ok = t => /^\d{1,2}:\d{2}/.test(t || '');
+    const hm = t => [+t.split(':')[0], +t.split(':')[1].slice(0, 2)];
+    if (kind === 'arrive' && fresh && (!ok(value) || value.slice(0, 5) === '09:00')) {
+      const t = new Date(now.getTime() + 2 * 3600000);
+      return [(t.getHours() + (t.getMinutes() >= 30 ? 1 : 0)) % 24, 0];
+    }
+    if (kind === 'end' && !ok(value) && ok(arrive)) {
+      const [h, m] = hm(arrive);
+      return [(h + 1) % 24, m];
+    }
+    return ok(value) ? hm(value) : [9, 0];
+  },
+
   open(el) {
     this._input = el;
     const v = /^\d{1,2}:\d{2}/.test(el.value || '') ? el.value : '';
-    let h = 9, m = 0;
-    if (v) { h = +v.slice(0, 2); m = +v.slice(3, 5); }
+    const kind = this._kind(el);
+    const R = typeof Register !== 'undefined' ? Register : null;
+    const arrIn = kind === 'end' ? document.querySelector('input[onchange^="Register.set(\'arriveBy\'"]') : null;
+    const [h, m] = this.startAt({ value: v, kind, arrive: (arrIn && arrIn.value) || (R && R.d && R.d.arriveBy) || '', fresh: !(R && R.editing) });
     const ap = h < 12 ? 0 : 1, h12 = (h % 12) || 12;
     const col = (id, items, sel) => `<div class="tp-col" id="${id}">
         <div class="tp-pad"></div>${items.map(t => `<div class="tp-item">${t}</div>`).join('')}<div class="tp-pad"></div>
@@ -114,3 +143,5 @@ if (typeof document !== 'undefined') {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => TimePick.init());
   else TimePick.init();
 }
+
+if (typeof module !== 'undefined') module.exports = TimePick;
