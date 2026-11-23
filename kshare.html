@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ko">
+<!-- 앱(안드로이드·아이폰) → 카카오톡 공유 카드 중계 페이지 (버디플래너 kshare.html 과 같은 방식)
+     앱 주소(https://localhost · capacitor://localhost)에서는 카카오 웹 공유가 막혀 있어서, 앱이 이 페이지를 브라우저로 열고
+     여기(카카오 콘솔에 등록한 도메인 ktj8824-stack.github.io)에서 카드 공유를 보냄. 카드 내용은 주소 # 뒤에 담겨 옴 (서버 저장 없음) -->
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>카카오톡으로 보내기 · 마이플래너</title>
+  <script src="https://t1.kakaocdn.net/kakao_js_sdk/1.43.1/kakao.min.js" crossorigin="anonymous"></script>
+  <script src="js/defaults.js"></script>
+  <style>
+    body { margin: 0; font-family: -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; background: #1F2A44; color: #fff; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .box { width: 86%; max-width: 360px; text-align: center; }
+    img { width: 72px; height: 72px; border-radius: 18px; }
+    h1 { font-size: 20px; margin: 16px 0 6px; }
+    p { font-size: 14px; color: #C5CCDA; line-height: 1.6; margin: 0 0 22px; }
+    button { width: 100%; border: 0; border-radius: 14px; padding: 16px; font-size: 17px; font-weight: 800; background: #FEE500; color: #191919; }
+    .back { margin-top: 12px; background: transparent; color: #C5CCDA; font-weight: 600; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <img src="icon-192.png" alt="" />
+    <h1 id="t">카카오톡으로 보내기</h1>
+    <p id="d">카카오톡이 열리면 보낼 채팅방을 골라 주세요.<br>보낸 뒤에는 마이플래너 앱으로 돌아가면 돼요.</p>
+    <button id="go">카카오톡으로 보내기</button>
+    <button class="back" id="back" style="display:none" onclick="location.href='myplanner://'">마이플래너 앱으로 돌아가기</button>
+  </div>
+  <script>
+    (function () {
+      var feed = null;
+      try {
+        var b = location.hash.slice(1).replace(/-/g, '+').replace(/_/g, '/');
+        while (b.length % 4) b += '=';
+        feed = JSON.parse(decodeURIComponent(escape(atob(b))));
+      } catch (e) { }
+      // 마이플래너 주소로 가는 카드만 보냄 (다른 곳으로 보내는 데 쓰이지 않게)
+      var ok = /^https:\/\/ktj8824-stack\.github\.io\/myplanner\//;
+      var linkOk = function (l) { return !l || ((!l.webUrl || ok.test(l.webUrl)) && (!l.mobileWebUrl || ok.test(l.mobileWebUrl))); };
+      var valid = feed && feed.objectType === 'feed' && feed.content && linkOk(feed.content.link) &&
+        (!feed.content.imageUrl || ok.test(feed.content.imageUrl)) &&
+        (feed.buttons || []).every(function (x) { return linkOk(x.link); });
+      var key = (window.APP_DEFAULTS || {}).KAKAO_JS_KEY;
+      if (!valid || !key) {
+        document.getElementById('t').textContent = '보낼 일정을 찾지 못했어요';
+        document.getElementById('d').textContent = '앱에서 보내기를 다시 눌러 주세요.';
+        document.getElementById('go').style.display = 'none';
+        return;
+      }
+      if (/iPhone|iPad|iPod/.test(navigator.userAgent)) document.getElementById('back').style.display = '';
+      var c = feed.content;
+      if (c.imageUrl && !c.imageWidth) { c.imageWidth = 1200; c.imageHeight = 630; }
+      feed.buttons = (feed.buttons || []).slice(0, 2);
+      var send = function () {
+        try {
+          if (!Kakao.isInitialized()) Kakao.init(key);
+          (Kakao.Share || Kakao.Link).sendDefault(feed);
+        } catch (e) { alert('카카오톡을 열지 못했어요. 다시 눌러 주세요.'); }
+      };
+      document.getElementById('go').onclick = send;
+      setTimeout(send, 300);
+    })();
+  </script>
+</body>
+</html>

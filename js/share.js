@@ -76,8 +76,65 @@ const Share = {
     // 메모는 개인 내용일 수 있어서 물어보고 넣음
     const memo = !!(s.memo && String(s.memo).trim()) && confirm(`메모도 같이 보낼까요?\n\n"${String(s.memo).slice(0, 60)}"`);
     const url = this.link({ ...s, repeat: base.repeat, date: s.date }, { memo });
+    // 카카오톡 카드로 (버디플래너와 같은 방식): 긴 링크 대신 '일정 받기' 버튼이 달린 카드
+    if (Routes.key('KAKAO_JS_KEY')) {
+      this._feed = this.kakaoFeed(s, when, url);
+      this.loadKakao().catch(() => {});   // 미리 불러 둠 (누른 순간 바로 열리게 — 늦게 열면 컴퓨터 브라우저가 팝업을 막음)
+      this._plain = { title: s.title, text, url };
+      return Sheet.open(`<div class="sheet-head"><b>일정 보내기</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+        <button class="btn kakao big" style="width:100%" onclick="Sheet.close();Share.kakao(Share._feed)">카카오톡으로 보내기</button>
+        <button class="btn big" style="width:100%;margin-top:10px" onclick="Sheet.close();Share.plain(Share._plain)">다른 앱으로 보내기 (문자 등)</button>`);
+    }
+    return this.plain({ title: s.title, text, url });
+  },
+
+  /** 카카오톡 카드 내용 (카카오 JS 형식 feed) */
+  kakaoFeed(s, when, url) {
+    const day = U.dateLabel(s.date).split(' · ')[0];
+    const desc = `${day} ${when}${s.dest ? `\n📍 ${s.dest.name}` : ''}\n출발지만 고르면 출발 시간·알람이 맞춰져요`;
+    const link = { mobileWebUrl: url, webUrl: url };
+    return {
+      objectType: 'feed',
+      content: { title: `⏰ ${s.title}`, description: desc, imageUrl: this.WEB + 'img/share.jpg', imageWidth: 1200, imageHeight: 630, link },
+      buttons: [{ title: '일정 받기', link }]
+    };
+  },
+
+  /** 카카오톡 카드 보내기: 웹은 카카오 SDK로 바로, 앱(안드로이드·아이폰)은 중계 페이지를 브라우저로 열어서
+   *  (앱 주소 https://localhost·capacitor://localhost 에서는 카카오 웹 공유가 막혀 있음 — 버디플래너와 같은 방법) */
+  async kakao(feed) {
+    const C = window.Capacitor;
+    const native = !!(C && C.isNativePlatform && C.isNativePlatform());
+    if (native) {
+      const b = btoa(unescape(encodeURIComponent(JSON.stringify(feed)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      window.location.href = this.WEB + 'kshare.html#' + b;
+      return;
+    }
     try {
-      if (navigator.share) { await navigator.share({ title: s.title, text, url }); return; }
+      await this.loadKakao();
+      if (!Kakao.isInitialized()) Kakao.init(Routes.key('KAKAO_JS_KEY'));
+      (Kakao.Share || Kakao.Link).sendDefault(feed);
+    } catch (e) {
+      console.warn('[Share] 카카오 카드 실패 → 다른 앱으로', e);
+      this.plain(this._plain);
+    }
+  },
+
+  loadKakao() {
+    if (typeof Kakao !== 'undefined') return Promise.resolve();
+    if (this._kp) return this._kp;
+    return (this._kp = new Promise((res, rej) => {
+      const sc = document.createElement('script');
+      sc.src = 'https://t1.kakaocdn.net/kakao_js_sdk/1.43.1/kakao.min.js';
+      sc.onload = res; sc.onerror = e => { this._kp = null; rej(e); };
+      document.head.appendChild(sc);
+    }));
+  },
+
+  /** 글+링크로 보내기: 휴대폰 공유창 → 안 되면 복사 */
+  async plain({ title, text, url }) {
+    try {
+      if (navigator.share) { await navigator.share({ title, text, url }); return; }
     } catch (e) { if (e && e.name === 'AbortError') return; }
     try {
       await navigator.clipboard.writeText(text + '\n' + url);
