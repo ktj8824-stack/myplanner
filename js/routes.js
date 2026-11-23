@@ -55,7 +55,7 @@ const Routes = {
           break;
         case 'tmap_route':
           if (!tmap) return null;
-          res = await U.fetchT(`https://apis.openapi.sk.com/tmap/routes?version=1&startX=${p.sx}&startY=${p.sy}&endX=${p.ex}&endY=${p.ey}&${geo}&searchOption=0&trafficInfo=Y&appKey=${tmap}`);
+          res = await U.fetchT(`https://apis.openapi.sk.com/tmap/routes?version=1&startX=${p.sx}&startY=${p.sy}&endX=${p.ex}&endY=${p.ey}&${geo}&searchOption=2&trafficInfo=Y&appKey=${tmap}`);
           break;
         case 'tmap_predict':
           if (!tmap) return null;
@@ -98,7 +98,8 @@ const Routes = {
       routesInfo: {
         departure: { name: p.sname || '출발', lon: String(p.sx), lat: String(p.sy) },
         destination: { name: p.ename || '도착', lon: String(p.ex), lat: String(p.ey) },
-        predictionType: 'arrival', predictionTime: p.predictionTime
+        predictionType: 'arrival', predictionTime: p.predictionTime,
+        searchOption: '02'   // 시간 우선 (교통최적+최소시간)
       }
     };
   },

@@ -223,7 +223,7 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
     if (!c) return json({ error: "좌표가 올바르지 않음" }, 400);
     const sname = String(p.sname || "출발").slice(0, 40), ename = String(p.ename || "도착").slice(0, 40);
     if (service === "tmap_route") {
-      url = `https://apis.openapi.sk.com/tmap/routes?version=1&startX=${c.sx}&startY=${c.sy}&endX=${c.ex}&endY=${c.ey}&${GEO}&searchOption=0&trafficInfo=Y`;
+      url = `https://apis.openapi.sk.com/tmap/routes?version=1&startX=${c.sx}&startY=${c.sy}&endX=${c.ex}&endY=${c.ey}&${GEO}&searchOption=2&trafficInfo=Y`;   // 시간 우선 (교통최적+최소시간, 11-23)
       init = { headers: { appKey: tmap } };
     } else if (service === "tmap_predict") {
       const t = String(p.predictionTime || "");
@@ -236,6 +236,7 @@ export async function handle(req: Request, env: Env, fetchFn: Fetch = fetch, now
           departure: { name: sname, lon: String(c.sx), lat: String(c.sy) },
           destination: { name: ename, lon: String(c.ex), lat: String(c.ey) },
           predictionType: "arrival", predictionTime: t,
+          searchOption: "02",   // 시간 우선 (교통최적+최소시간)
         } }),
       };
     } else if (service === "tmap_walk") {
