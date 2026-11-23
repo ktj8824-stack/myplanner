@@ -361,8 +361,10 @@ const Routes = {
     const sig = s => [s.mode, s.origin && s.origin.lat, s.origin && s.origin.lng, s.dest && s.dest.lat, s.dest && s.dest.lng].join('|');
     const recentFail = s => { const f = fails[s.id]; if (!f) return false; const at = typeof f === 'number' ? f : f.at;
       return now - at < 6 * 3600000 && (typeof f === 'number' || f.sig === sig(s)); };
+    // 버스·지하철로 저장됐는데 걷기만 있는 경로(가까운 거리) → 도보로 (정류장·역 대기가 붙지 않게, 경로는 다시 안 찾음)
+    const walkFix = s => s.mode === 'transit' && !s.modeSet && this.walkOnly(s.route);
     const list = State.schedules.filter(s => !s.demo && !s._shared && !recentFail(s) && (Recur.isRepeating(s) || (s.date >= U.today() && s.date <= limit)))
-      .filter(s => noArs(s.route) || noArs(s.accessRoute) || (s.route && s.route.source === 'estimate') || (s.route && s.route.source === 'near' && !s.route.tried) || (s.accessRoute && s.accessRoute.source === 'estimate')
+      .filter(s => walkFix(s) || noArs(s.route) || noArs(s.accessRoute) || (s.route && s.route.source === 'estimate') || (s.route && s.route.source === 'near' && !s.route.tried) || (s.accessRoute && s.accessRoute.source === 'estimate')
         || (s.goHome && s.goHome.on && s.goHome.route && s.goHome.route.source === 'estimate'))
       .slice(0, 5);
     let changed = false;
@@ -370,7 +372,8 @@ const Routes = {
       let mine = false;
       try {
         const isTrip = Planner.isTrip(s.mode);
-        if (isTrip && s.accessRoute && s.accessRoute.source === 'estimate' && s.trip && s.trip.departStation) {
+        if (walkFix(s)) { s.mode = 'walk'; s.walkAuto = true; mine = true; }
+        else if (isTrip && s.accessRoute && s.accessRoute.source === 'estimate' && s.trip && s.trip.departStation) {
           const dep = s.trip.departTime ? Planner.at(s.date, s.trip.departTime) : null;
           const r = (await this.options(s.origin, s.trip.departStation, s.trip.accessMode || 'transit', dep))[0];
           if (r && r.source !== 'estimate') { s.accessRoute = r; mine = true; }
@@ -382,8 +385,9 @@ const Routes = {
           mine = true;
         } else if (!isTrip && s.route && (s.route.source === 'estimate' || (s.route.source === 'near' && !s.route.tried)) && s.dest) {
           const due = s.arriveBy ? Planner.at(s.date, s.arriveBy) : null;
-          const r = (await this.options(s.origin, s.dest, s.mode, due))[0];
-          if (r && r.source !== 'estimate') { s.route = r; mine = true; } // 걷기 경로 또는 '찾아봤음' 표시된 가까운 거리
+          const p = await this.routeFor(s, s.origin, s.dest, due), r = p.route;
+          // 걷기 경로 또는 '찾아봤음' 표시된 가까운 거리. 가까워서 도보로 바뀌면 어림값이어도 수단은 바꿈
+          if (r && (r.source !== 'estimate' || p.mode !== s.mode)) { s.route = r; s.mode = p.mode; if (p.walkAuto) s.walkAuto = true; else delete s.walkAuto; mine = true; }
         }
         const gh = s.goHome;
         if (gh && gh.on && gh.route && gh.route.source === 'estimate' && s.dest && gh.to) {
@@ -441,6 +445,34 @@ const Routes = {
     }
     if (close) return this.nearWalk(origin, dest, this.can('tmap'));
     return this.estimate(origin, dest, 'walk');
+  },
+
+  /* ---------- 가까운 거리는 도보로 (버스·지하철 '정류장·역 대기 5분'이 붙지 않게) ---------- */
+  SHORT_WALK_KM: 0.7, // 직선거리 700m 안쪽 (ODsay도 이 안은 버스·지하철 경로를 주지 않음)
+  /** 버스·지하철 없이 걷기만 있는 경로인지 */
+  walkOnly(r) { return !!(r && Array.isArray(r.steps) && r.steps.length && r.steps.every(st => st && st.type === 'walk')); },
+  /**
+   * 버스·지하철로 둔 일정인데 걸어서 갈 거리면 도보 경로를 돌려줌 (아니면 null).
+   * 사용자가 직접 버스·지하철을 고른 일정(modeSet)은 그대로. 자가용·택시·도보는 건드리지 않음
+   */
+  async shortWalk(s, from, to, route) {
+    if (!s || s.mode !== 'transit' || s.modeSet || !from || !to || from.lat == null || to.lat == null) return null;
+    if (this.walkOnly(route)) return route;
+    if (this.distanceKm(from, to) > this.SHORT_WALK_KM) return null;
+    try { return await this.walk(from, to); } catch (e) { return this.estimate(from, to, 'walk'); }
+  },
+  /**
+   * 자동으로 만드는 경로(앞 일정 연결·집에서 출발로 되돌리기·어림값 교체)에 쓰는 한 곳:
+   * 경로를 찾고, 가까우면 도보로 바꿈. 예전에 자동으로 도보가 된 일정이 멀어지면 다시 버스·지하철로.
+   * 반환 { route, mode, walkAuto } — 일정(또는 그날 바꾸기)에 그대로 합치면 됨
+   */
+  async routeFor(s, from, to, arriveAt) {
+    let mode = s.mode;
+    if (mode === 'walk' && s.walkAuto && !s.modeSet) mode = 'transit';
+    const route = (await this.options(from, to, mode, arriveAt))[0] || null;
+    const w = await this.shortWalk({ ...s, mode }, from, to, route);
+    if (w) return { route: w, mode: 'walk', walkAuto: true };
+    return { route, mode, walkAuto: false };
   },
 
   /** 수단에 맞는 경로 후보 목록 */

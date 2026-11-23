@@ -107,6 +107,7 @@ const U = {
       if (v.route) ov.route = route(v.route);
       // 이 날만 이동 수단 (기차·비행기는 일정 자체가 달라서 빼고 버스·지하철/자가용/택시/도보만)
       if (typeof v.mode === 'string' && ['transit', 'car', 'taxi', 'walk'].includes(v.mode)) ov.mode = v.mode;
+      if (v.walkAuto) ov.walkAuto = true;
       if (v.chained) ov.chained = { from: str(v.chained.from, 120) };
       else if (v.chained === false) ov.chained = false; // 이 날만 연결 풀기
       out.overrides[k] = ov;
@@ -118,6 +119,8 @@ const U = {
     if (o.startNow) out.startNow = true;
     const la = Number(o.leftAt); if (o.startNow && isFinite(la) && la > 0) out.leftAt = la;
     if (o.homeFirst) out.homeFirst = true;
+    if (o.modeSet) out.modeSet = true;   // 사용자가 직접 고른 수단 (가까워도 도보로 바꾸지 않음)
+    if (o.walkAuto) out.walkAuto = true; // 가까운 거리라 자동으로 도보
     if (o.goHome && typeof o.goHome === 'object') out.goHome = { on: !!o.goHome.on, mode: mode(o.goHome.mode, 'transit'), lastTime: hm(o.goHome.lastTime), route: route(o.goHome.route), to: place(o.goHome.to) };
     if (o.pack && typeof o.pack === 'object') out.pack = { add: (o.pack.add || []).slice(0, 50).map(x => str(x, 30)).filter(Boolean), removed: (o.pack.removed || []).slice(0, 50).map(x => str(x, 30)).filter(Boolean) };
     if (o.packDone && typeof o.packDone === 'object') { out.packDone = {}; Object.keys(o.packDone).slice(0, 30).forEach(k => { if (ymd(k) && Array.isArray(o.packDone[k])) out.packDone[k] = o.packDone[k].slice(0, 50).map(x => str(x, 30)); }); }

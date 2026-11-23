@@ -406,7 +406,7 @@ const Assistant = {
         const prev = DayPlan.applyAuto(d, siblings);
         if (prev) c.chainNote = `'${prev.s.title}' 끝나고 ${prev.place.name}에서 바로 출발`;
       }
-      if (!d.route) d.route = (await Routes.options(d.origin, d.dest, d.mode, Planner.at(d.date, d.arriveBy)))[0] || null;
+      if (!d.route) Object.assign(d, await Routes.routeFor(d, d.origin, d.dest, Planner.at(d.date, d.arriveBy))); // 가까우면 도보로
     }
     if (isTrip ? !d.accessRoute : !d.route) throw new Error('경로를 찾지 못했어요');
     c.plan = this.planSummary(d);
@@ -462,7 +462,7 @@ const Assistant = {
     if (State.get(d.id)) { c.savedId = d.id; c.state = 'saved'; this.paintCard(i, j); return U.toast('이미 저장한 일정이에요'); }
     c.state = 'saving'; this.paintCard(i, j);
     if (!d.chained && (!c.action.origin || c.action.origin === 'home') && typeof DayPlan !== 'undefined' && DayPlan.applyAuto(d)) {
-      try { d.route = (await Routes.options(d.origin, d.dest, d.mode, Planner.at(d.date, d.arriveBy)))[0] || d.route; } catch (e) {}
+      try { const p = await Routes.routeFor(d, d.origin, d.dest, Planner.at(d.date, d.arriveBy)); if (p.route) Object.assign(d, p); } catch (e) {}
     }
     State.upsert(d);
     if (typeof DayPlan !== 'undefined') { try { const n = await DayPlan.rechainNext(d); if (n) c.rechained = n; } catch (e) {} }
