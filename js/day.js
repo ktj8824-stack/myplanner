@@ -32,6 +32,34 @@ const DayPlan = {
     if (!a || !b || a.lat == null || b.lat == null) return false;
     return Math.abs(a.lat - b.lat) < 0.002 && Math.abs(a.lng - b.lng) < 0.0025; // 약 200m
   },
+  /** 두 곳 사이 직선거리(m). 좌표가 없으면 null */
+  distM(a, b) {
+    if (!a || !b || a.lat == null || b.lat == null || a.lng == null || b.lng == null) return null;
+    const R = 6371000, rad = x => x * Math.PI / 180;
+    const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  },
+  NEAR_HOME_M: 300,
+  /** a와 b가 m미터 안 (좌표를 모르면 false) */
+  within(a, b, m = this.NEAR_HOME_M) {
+    const x = this.distM(a, b);
+    return x != null && x <= m;
+  },
+
+  /* ---------- 집이 아닌 곳에서 출발 (11-23 점검: 회사에서 바로 가는데 준비 알람이 회사에서 울림) ---------- */
+  /** 출발지가 집에서 300m보다 멀면 true (집 주소가 없거나 좌표를 모르면 false) */
+  awayFromHome(origin, home = State.settings && State.settings.home) {
+    const x = this.distM(origin, home);
+    return x != null && x > this.NEAR_HOME_M;
+  },
+  /** 집이 아닌 곳에서 출발로 고르면: 준비 '바로 출발'(0) + 준비(기상) 알람 끔. 바꿨으면 true */
+  applyAway(d, home = State.settings && State.settings.home) {
+    if (!d || d.chained || d.startNow || !this.awayFromHome(d.origin, home)) return false;
+    d.prepMin = 0;
+    d.alarm = { ...(d.alarm || {}), wake: false };
+    return true;
+  },
 
   /**
    * [{s, plan}] → 출발 순서대로 [{ s, plan, start, end, prev?, gapMin?, knownEnd?, conflict?, canChain? }]
@@ -85,6 +113,38 @@ const DayPlan = {
   },
 
   /**
+   * 집(300m 안)으로 가는 일정: 같은 날 바로 앞 약속 { s, place, end } — 앞 약속이 끝나는 시간을 몰라도 시작 기준으로 (11-23 점검:
+   * 잠실역에서 아이를 태우고 바로 옆 집으로 가는데 '집에서 준비 60분 → 1분 이동'으로 잡힘). 없으면 null
+   */
+  prevForHome(d, extra = []) {
+    const home = State.settings && State.settings.home;
+    if (!d || !d.dest || !home || !this.within(d.dest, home)) return null;
+    const start = this.startOfDraft(d);
+    if (!start || !d.date) return null;
+    const list = State.byDate(d.date).concat(extra.filter(x => x && x.date === d.date))
+      .filter(o => (o.baseId || o.id) !== (d.baseId || d.id) && !o._shared)
+      .map(o => { try { return { s: o, plan: Planner.compute(o) }; } catch (e) { return null; } })
+      .filter(x => x && !x.plan.invalid)
+      .map(x => { const st = this.startOf(x), end = this.endOf(x); return { s: x.s, start: st, end: end || st, place: this.placeOf(x) }; })
+      .filter(x => x.place && x.start < start && x.end <= start)
+      .sort((a, b) => b.end - a.end);
+    const p = list[0];
+    if (!p || (start - p.end) / 60000 > this.CHAIN_MAX_GAP_MIN) return null;
+    return p;
+  },
+
+  /** 앞 약속 장소에서 이어서 출발로 바꿈 (기상·준비 없이 출발 알람만) */
+  chainTo(d, prev) {
+    const p = prev.place;
+    d.origin = { name: p.name, address: p.address || '', lat: p.lat, lng: p.lng };
+    d.chained = { from: prev.s.baseId || prev.s.id };
+    d.prepMin = 0;
+    d.alarm = { ...(d.alarm || {}), wake: false, nightBefore: false };
+    d.route = null;
+    return prev;
+  },
+
+  /**
    * 시간·날짜를 바꾼 뒤에도 '앞 일정에서 이어서 출발'이 말이 되는지.
    * 앞 일정이 그날 없거나, 이 일정이 앞 일정이 끝나기 전에 시작하면 true (연결을 풀어야 함)
    */
@@ -118,18 +178,15 @@ const DayPlan = {
   applyAuto(d, extra = []) {
     // 반복 일정은 첫날 앞 약속 하나 때문에 매일 그 장소에서 출발로 바뀌면 안 됨 (수동 연결 버튼도 반복은 뺌)
     if (!d || d.startNow || d.homeFirst || d.chained || Planner.isTrip(d.mode) || (typeof Recur !== 'undefined' && Recur.isRepeating(d))) return null;
+    // 집 근처로 가는 일정은 앞 약속 장소가 집 바로 옆이어도 이어서 출발 (집에서 준비할 일이 없음)
+    const hp = this.prevForHome(d, extra);
+    if (hp) return this.chainTo(d, hp);
     const prev = this.prevFor(d, extra);
     if (!prev) return null;
     const start = this.startOfDraft(d);
     if ((start - prev.end) / 60000 > this.CHAIN_MAX_GAP_MIN) return null;
     if (this.near(d.origin, prev.place)) return null;
-    const p = prev.place;
-    d.origin = { name: p.name, address: p.address || '', lat: p.lat, lng: p.lng };
-    d.chained = { from: prev.s.baseId || prev.s.id };
-    d.prepMin = 0;
-    d.alarm = { ...(d.alarm || {}), wake: false, nightBefore: false };
-    d.route = null;
-    return prev;
+    return this.chainTo(d, prev);
   },
 
   /**
@@ -234,7 +291,7 @@ const DayView = {
         <div class="lb"><span>${U.dateLabel(ymd)}${hol ? ' · ' + hol : ''}</span><span>일정 ${list.length}개</span></div>
         <div class="tt">${list.length ? list.map(x => U.esc(x.s.title)).join(' → ') : '일정이 없어요'}</div>
         ${list.length ? `<div class="tri">
-          <div class="on"><small>첫 기상</small><b>${first ? U.hm(first.plan.wakeAt) : '--:--'}</b></div>
+          <div class="on"><small>첫 ${first ? Planner.wakeWord(first.plan) : '기상'}</small><b>${first ? U.hm(first.plan.wakeAt) : '--:--'}</b></div>
           <div><small>첫 출발</small><b>${U.hm(list[0].plan.departAt)}</b></div>
           ${last.plan.homeAt ? `<div><small>집 도착</small><b>${U.hm(last.plan.homeAt)}</b></div>` : `<div><small>${last.end ? '마지막 끝' : '마지막 일정'}</small><b>${U.hm(last.end || last.start)}</b></div>`}
         </div>` : ''}

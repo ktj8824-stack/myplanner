@@ -145,6 +145,9 @@ input[type=date].input, input[type=time].input { -webkit-appearance: none; appea
 .chip { display: inline-flex; align-items: center; gap: 5px; padding: 9px 14px; border-radius: 12px; background: var(--fill); font-size: 15px; font-weight: 600; color: var(--ink-2); }
 .chip .emo { width: 18px; height: 18px; }
 .chip.on, .chip:active { background: var(--navy); color: #fff; }
+.chip.hint { background: var(--blue-soft); color: var(--blue-ink); }
+.date-chips { display: flex; gap: 6px; margin-top: 6px; }
+.date-chips .chip { padding: 6px 12px; font-size: 14px; }
 
 /* 이동수단 3×2 */
 .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -1064,7 +1067,7 @@ p.small a[href] { display: inline-block; padding: 12px 2px; margin: -12px 0; }
 .tp-panel { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 22px 22px 0 0; padding: 18px 20px calc(18px + env(safe-area-inset-bottom)); }
 .tp-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
 .tp-head b { font-size: 18px; }
-.tp-head small { color: #8B95A1; font-size: 14px; }
+.tp-head small { color: var(--muted); font-size: 14px; }
 .tp-wheels { position: relative; display: flex; justify-content: center; align-items: stretch; height: 220px; }
 .tp-band { position: absolute; left: 0; right: 0; top: 88px; height: 44px; background: #F2F4F6; border-radius: 12px; pointer-events: none; }
 .tp-col { position: relative; width: 76px; height: 220px; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none;
