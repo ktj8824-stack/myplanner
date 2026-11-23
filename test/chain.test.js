@@ -9,7 +9,8 @@ global.U = load('core.js', 'U'); global.State = load('core.js', 'State');
 global.Planner = require('../js/planner.js'); global.Recur = require('../js/recur.js');
 global.Cloud = undefined;
 let routeCalls = [];
-global.Routes = { options: async (o, d, m) => { routeCalls.push([o.name, d.name, m]); return [{ travelMin: 30, source: 'odsay', steps: [{ type: 'subway', label: '지하철', min: 30 }] }]; } };
+// 실제 Routes(가까우면 도보로 바꾸는 routeFor 포함)에 경로 조회만 가짜로
+global.Routes = Object.assign(load('routes.js', 'Routes'), { options: async (o, d, m) => { routeCalls.push([o.name, d.name, m]); return [{ travelMin: 30, source: 'odsay', steps: [{ type: 'subway', label: '지하철', min: 30 }] }]; } });
 const { DayPlan } = require('../js/day.js');
 const D = '2030-12-10';
 const home = { name: '집', lat: 37.5446, lng: 126.9516 };

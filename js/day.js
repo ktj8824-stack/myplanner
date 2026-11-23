@@ -164,11 +164,13 @@ const DayPlan = {
   async unchainPatch(d) {
     const st = State.settings;
     const home = st.home ? { ...st.home } : null;
-    let route = null;
+    let rp = null;
     if (home && d.dest && !Planner.isTrip(d.mode)) {
-      try { route = (await Routes.options(home, d.dest, d.mode, d.arriveBy ? Planner.at(d.date, d.arriveBy) : null))[0] || null; } catch (e) {}
+      try { rp = await Routes.routeFor(d, home, d.dest, d.arriveBy ? Planner.at(d.date, d.arriveBy) : null); } catch (e) {}
     }
-    return { chained: false, origin: home || d.origin, route: home ? route : d.route, prepMin: +st.prepMin || 60 };
+    // 가까우면 도보로 (집 → 유치원 300m에 '정류장·역 대기'가 붙지 않게), 자동 도보였는데 멀어지면 버스·지하철로
+    const mp = home && rp && rp.mode !== d.mode ? { mode: rp.mode, walkAuto: rp.walkAuto } : {};
+    return { chained: false, origin: home || d.origin, route: home ? (rp && rp.route) || null : d.route, prepMin: +st.prepMin || 60, ...mp };
   },
 
   /**
@@ -217,11 +219,11 @@ const DayPlan = {
     if (!fromHome && !fromPrevOfX && n.o.chained) return null;
     if (!fromHome && !n.o.chained) return null;
     const origin = { name: xPlace.name, address: xPlace.address || '', lat: xPlace.lat, lng: xPlace.lng };
-    let route = null;
-    try { route = (await Routes.options(origin, n.o.dest, n.o.mode, n.o.arriveBy ? Planner.at(x.date, n.o.arriveBy) : null))[0] || null; } catch (e) {}
+    let rp = null;
+    try { rp = await Routes.routeFor(n.o, origin, n.o.dest, n.o.arriveBy ? Planner.at(x.date, n.o.arriveBy) : null); } catch (e) {}
     const base = State.get(n.o.baseId || n.o.id);
     if (!base) return null;
-    const patch = { origin, route, chained: { from: xId }, prepMin: 0 };
+    const patch = { origin, route: rp ? rp.route : null, chained: { from: xId }, prepMin: 0, ...(rp && rp.mode !== n.o.mode ? { mode: rp.mode, walkAuto: rp.walkAuto } : {}) };
     if (Recur.isRepeating(base)) base.overrides = { ...(base.overrides || {}), [x.date]: { ...((base.overrides || {})[x.date] || {}), ...patch } };
     else { Object.assign(base, patch); base.alarm = { ...(base.alarm || {}), wake: false, nightBefore: false }; }
     State.upsert(base);
@@ -370,10 +372,11 @@ const DayView = {
     const occ = Recur.instance(b, ymd);
     U.toast('이 날만 앞 일정 장소에서 출발하도록 경로를 찾는 중…');
     const origin = { name: place.name, address: place.address || '', lat: place.lat, lng: place.lng };
-    let route = null;
-    try { route = (await Routes.options(origin, occ.dest, occ.mode, occ.arriveBy ? Planner.at(ymd, occ.arriveBy) : null))[0] || null; } catch (e) {}
+    let rp = null;
+    try { rp = await Routes.routeFor(occ, origin, occ.dest, occ.arriveBy ? Planner.at(ymd, occ.arriveBy) : null); } catch (e) {}
+    const route = rp && rp.route;
     if (!route) return U.toast('경로를 찾지 못했어요. 잠시 후 다시 해 주세요');
-    const ov = { ...((b.overrides || {})[ymd] || {}), origin, route, chained: { from: prevId }, prepMin: 0 };
+    const ov = { ...((b.overrides || {})[ymd] || {}), origin, route, chained: { from: prevId }, prepMin: 0, ...(rp.mode !== occ.mode ? { mode: rp.mode, walkAuto: rp.walkAuto } : {}) };
     b.overrides = { ...(b.overrides || {}), [ymd]: ov };
     State.upsert(b);
     await Alarm.rescheduleAll();

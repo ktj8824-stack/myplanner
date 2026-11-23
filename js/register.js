@@ -386,7 +386,9 @@ const Register = {
     const chosen = isTrip ? d.accessRoute : d.route;
     if (!list.length && !chosen) return `<button class="btn ghost" onclick="Register.fetchRoutes()">🔎 경로 찾기</button>`;
     const shown = list.length ? list : [chosen];
-    return `
+    const auto = !isTrip && d.mode === 'walk' && d.walkAuto && !d.modeSet
+      ? `<p class="walk-auto">🚶 가까운 거리라 도보로 바꿨어요 · <button class="link" onclick="Register.set('mode','transit')">바꾸기</button></p>` : '';
+    return `${auto}
       <label class="lbl" style="margin-top:16px">${isTrip ? (d.mode === 'flight' ? '공항' : '역') + '까지 ' : ''}경로 ${shown.length > 1 ? '· 하나를 고르세요' : ''}</label>
       ${shown.map((r, i) => `
         <button class="route-opt ${chosen && JSON.stringify(chosen.steps) === JSON.stringify(r.steps) ? 'on' : ''}" onclick="Register.chooseRoute(${i})">
@@ -475,6 +477,8 @@ const Register = {
       this.d.alarm = { ...this.d.alarm, wake: State.settings.alarm.wake };
     }
     if (k === 'mode') {
+      // 직접 고른 수단은 그대로 (가까워도 다시 도보로 바꾸지 않음)
+      this.d.modeSet = true; delete this.d.walkAuto;
       this.opts = []; this.accessOpts = []; this.d.route = null; this.d.accessRoute = null;
       // 기차·비행기는 탑승 시각이 기준이라 '도착 희망'은 비워 둠 (넣으면 늦을 때 경고)
       // 기차·비행기로 바꿀 때 지운 도착 시간은 기억해 두었다가 일반 수단으로 돌아오면 되살림 (말없이 09:00으로 바뀌지 않게)
@@ -560,6 +564,8 @@ const Register = {
     }
     const seq = this._seq = (this._seq || 0) + 1;
     const stale = () => seq !== this._seq || d !== this.d;
+    // 가까워서 자동으로 도보가 된 일정: 장소를 바꿔 다시 찾을 때는 버스·지하철부터 (멀어지면 그대로 버스·지하철)
+    if (!keep && d.mode === 'walk' && d.walkAuto && !d.modeSet) { d.mode = 'transit'; delete d.walkAuto; }
     const isTrip = Planner.isTrip(d.mode);
     const mode0 = d.mode, access0 = d.trip && d.trip.accessMode;
     const from = d.origin, to = isTrip ? d.trip.departStation : d.dest;
@@ -582,6 +588,10 @@ const Register = {
         const due = d.arriveBy ? Planner.at(d.date, d.arriveBy) : null;
         const list = await Routes.options(from, to, mode0, due);
         if (stale() || d.mode !== mode0) return;
+        // 걷기만 있는 경로이거나 700m 안쪽이면 도보로 ('정류장·역 대기 5분'이 붙지 않게)
+        const walk = await Routes.shortWalk(d, from, to, keep && d.route ? d.route : list[0]);
+        if (stale() || d.mode !== mode0) return;
+        if (walk) { d.mode = 'walk'; d.walkAuto = true; d.route = walk; this.opts = [walk]; this.loading = false; return this.draw(); }
         if (keep && d.route) this.opts = withChosen(list, d.route);
         else { this.opts = list; d.route = list[0] || null; }
         // 급한 약속이면 택시로 가면 언제 도착하는지도 (늦을 때 보여 줌)
