@@ -725,6 +725,7 @@ html[data-text="large"] .acts, html[data-text="xlarge"] .acts { grid-template-co
 .wa-sub { min-height: 52px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, .22); background: transparent; color: #fff; font-size: 17px; font-weight: 700; }
 .wa-sub:disabled { opacity: .4; }
 .wa-foot { text-align: center; font-size: 12px; color: var(--on-navy); margin-top: 2px; }
+.wa-go.late, .wa-foot.late { color: #FF6B76; } /* 지금 나가도 늦음 (어두운 배경에서 읽히는 빨강) */
 @media (max-height: 700px) {.wa { gap: 18px; padding-top: calc(env(safe-area-inset-top, 0px) + 28px); }.wa-time { font-size: 76px; } }
 @media (prefers-reduced-motion: reduce) {.wa-time { animation: none; } }
 

@@ -41,6 +41,8 @@ public final class AlarmStore {
         public long snoozeUntil;
         /** snoozeUntil 이 기차·비행기 탑승 기준인지 (막을 때 '택시로 가기'), 아니면 약속 시각 */
         public boolean snoozeTrip;
+        /** 약속(기차·비행기 출발) 시각 — 막을 때 '약속 시각이 지나' / '5분 뒤에 나가면 늦어요' 구분 (0 = 모름) */
+        public long snoozeDue;
 
         public Item(int id, long at, String title, String body, String scheduleId) {
             this.id = id;
@@ -63,6 +65,7 @@ public final class AlarmStore {
                 o.put("rep", rep);
                 o.put("snoozeUntil", snoozeUntil);
                 o.put("snoozeTrip", snoozeTrip);
+                o.put("snoozeDue", snoozeDue);
                 return o.toString();
             } catch (Exception e) {
                 return "{}";
@@ -78,6 +81,7 @@ public final class AlarmStore {
                 it.rep = o.optInt("rep", 0);
                 it.snoozeUntil = o.optLong("snoozeUntil", 0);
                 it.snoozeTrip = o.optBoolean("snoozeTrip", false);
+                it.snoozeDue = o.optLong("snoozeDue", 0);
                 return it;
             } catch (Exception e) {
                 return null;

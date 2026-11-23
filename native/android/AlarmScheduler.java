@@ -94,6 +94,7 @@ public final class AlarmScheduler {
             it.kind = "note".equals(a.optString("kind")) ? AlarmStore.KIND_NOTE : AlarmStore.KIND_FULL;
             it.snoozeUntil = a.optLong("snoozeUntil", 0);
             it.snoozeTrip = a.optBoolean("snoozeTrip", false);
+            it.snoozeDue = a.optLong("snoozeDue", 0);
             want.put(it.id, it);
         }
         JSONArray rechecks = plan.optJSONArray("rechecks");
@@ -173,6 +174,7 @@ public final class AlarmScheduler {
         i.putExtra("rep", item.rep);
         i.putExtra("snoozeUntil", item.snoozeUntil);
         i.putExtra("snoozeTrip", item.snoozeTrip);
+        i.putExtra("snoozeDue", item.snoozeDue);
         return PendingIntent.getBroadcast(ctx, item.id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 }
