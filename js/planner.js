@@ -8,7 +8,7 @@
 const Planner = {
   // 이동수단 정의 — extraMin: 수단별 추가 여유, extraAt: 'start'(출발 직후) | 'end'(도착 직전)
   MODES: {
-    transit: { label: '버스·지하철', emoji: '🚌', extraMin: 5,  extraAt: 'start', extraLabel: '정류장·역 대기' },
+    transit: { label: '버스·지하철', short: '대중교통', emoji: '🚌', extraMin: 5,  extraAt: 'start', extraLabel: '정류장·역 대기' },
     car:     { label: '자가용',     emoji: '🚗', extraMin: 10, extraAt: 'end',   extraLabel: '주차 후 이동' },
     taxi:    { label: '택시',       emoji: '🚕', extraMin: 10, extraAt: 'start', extraLabel: '택시 호출 대기' },
     walk:    { label: '도보',       emoji: '🚶', extraMin: 0,  extraAt: 'start', extraLabel: '' },

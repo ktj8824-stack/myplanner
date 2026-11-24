@@ -86,14 +86,16 @@ const Register = {
           <div><label class="lbl">목적지 도착 희망 (선택)</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
         </div>` : `<label class="lbl">${Recur.isRepeating(d) ? '도착 일시 (첫날)' : '도착 일시'}</label>${this.whenBtn(false)}
         ${d.endBy ? `<div class="end-old">끝나는 시간 ${U.esc(d.endBy)} <button class="link" onclick="Register.setEnd('')">지우기</button></div>` : ''}`}
-        <label class="lbl">일정 이름</label>
-        <input class="input" id="rTitle" placeholder="예: 강남 거래처 미팅" value="${U.esc(d.title)}" oninput="Register.d.title=this.value">
-        <div class="chips">${this.QUICK.map(q => `<button class="chip" onclick="Register.quick('${q}')">${q}</button>`).join('')}</div>
+        <label class="lbl">무슨 일정이에요?</label>
+        <div class="title-row">
+          <input class="input" id="rTitle" placeholder="예: 강남 거래처 미팅" value="${U.esc(d.title)}" oninput="Register.d.title=this.value">
+          <button type="button" class="input kind-btn" onclick="Register.kindMenu(this)" aria-haspopup="listbox">종류 <span aria-hidden="true">▾</span></button>
+        </div>
         <label class="lbl">출발할 곳${d.chained ? ' · 앞 일정에서 바로 출발' : ''}</label>
-        ${placeBtn('origin', '출발지', '출발지 검색', 'home')}
-        ${isTrip ? '' : d.startNow
+        ${this.originRow(isTrip)}
+        ${d.startNow
           ? `<div class="now-on"><span><b>📍 지금 위치에서 바로 출발</b><small>기상·준비 없이 출발 알람만 울려요</small></span><button class="link" onclick="Register.stopNow()">취소</button></div>`
-          : `<button class="now-btn" onclick="Register.startNow()">📍 지금 위치에서 바로 출발 <small>이미 밖이에요</small></button>`}
+          : placeBtn('origin', '출발지', '출발지 검색', d.origin && State.settings.home && d.origin.name === State.settings.home.name ? 'home' : 'pin')}
         ${d.startNow ? '' : this.chainChips()}
         ${d.chained && !d.startNow ? `<button class="link" style="padding:8px 2px 0" onclick="Register.homeFirst()">🏠 집에 들렀다 가요 (집에서 출발로)</button>` : ''}
         ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label>${placeBtn('dest', '목적지', '목적지 검색', 'pin')}` : ''}
@@ -101,8 +103,8 @@ const Register = {
 
       <div class="card">
         <div class="q">어떻게 가세요?</div>
-        <div class="modes">${Object.entries(Planner.MODES).map(([k, m]) =>
-          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k, '3d')}${m.label}</button>`).join('')}</div>
+        <div class="modes one-row">${Object.entries(Planner.MODES).map(([k, m]) =>
+          `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k, '3d')}<span>${m.short || m.label}</span></button>`).join('')}</div>
         ${isTrip ? this.tripForm() : ''}
         <div id="routeBox">${this.routeBox()}</div>
         <div id="preview">${this.preview()}</div>
@@ -110,7 +112,7 @@ const Register = {
 
       <div class="card">
         <div class="q">준비는 얼마나 걸려요?</div>
-        <div class="seg">${(d.chained || d.startNow || this.away() ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? U.durLabel(v) : '바로 출발'}</button>`).join('')}</div>
+        <div class="seg one-row">${(d.chained || d.startNow || this.away() ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? (v < 60 ? v + '분' : `${v / 60}시간`) : '바로'}</button>`).join('')}</div>
         <label class="lbl">약속보다 일찍 도착 (여유)</label>
         <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
         ${this.repeatForm()}
@@ -245,6 +247,85 @@ const Register = {
     d.prepMin = 0;
     d.alarm = { ...d.alarm, wake: false, nightBefore: false };
     d.route = null; d.accessRoute = null; this.opts = []; this.accessOpts = [];
+  },
+
+  /** 일정 종류 고르기: 이름 칸 오른쪽 [종류 ▾] → 출근·회의… 한 줄씩 나오는 목록 (11-24) */
+  kindMenu(btn) {
+    const old = document.getElementById('kindMenu');
+    if (old) { old.remove(); return; }
+    const m = document.createElement('div');
+    m.id = 'kindMenu'; m.className = 'kind-menu'; m.setAttribute('role', 'listbox');
+    m.innerHTML = this.QUICK.map(q => `<button type="button" role="option" onclick="document.getElementById('kindMenu').remove();Register.quick('${q}')">${q}</button>`).join('');
+    btn.parentElement.appendChild(m);
+    setTimeout(() => document.addEventListener('click', function off(e) {
+      if (!m.contains(e.target) && e.target !== btn) { m.remove(); document.removeEventListener('click', off, true); }
+    }, true), 0);
+  },
+
+  /** 출발할 곳 한 줄: 집 · 회사 · 지정한 곳 · 바로 출발 (11-24) */
+  originRow(isTrip) {
+    const d = this.d, st = State.settings, places = st.places || {};
+    const near = (a, b) => a && b && isFinite(a.lat) && Math.abs(a.lat - b.lat) < 0.0005 && Math.abs(a.lng - b.lng) < 0.0005;
+    const isHome = !d.startNow && near(d.origin, st.home), isWork = !d.startNow && near(d.origin, places['회사']);
+    const isMine = !d.startNow && !isHome && !isWork && Object.keys(places).some(k => k !== '회사' && near(d.origin, places[k]));
+    const b = (on, act, ic, label) => `<button type="button" class="${on ? 'on' : ''}" onclick="${act}"><span aria-hidden="true">${ic}</span>${label}</button>`;
+    return `<div class="origin-row">
+      ${b(isHome, "Register.originHome()", '🏠', '집')}
+      ${b(isWork, "Register.originSaved('회사')", '🏢', '회사')}
+      ${b(isMine, 'Register.originMine()', '⭐', '지정한 곳')}
+      ${isTrip ? '' : b(!!d.startNow, 'Register.startNow()', '📍', '바로 출발')}
+    </div>`;
+  },
+  _useOrigin(p) {
+    const d = this.d;
+    if (d.startNow) { d.startNow = false; delete d.leftAt; const st = State.settings; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore }; }
+    d.origin = { ...p };
+    d.route = null; d.accessRoute = null; this.opts = []; this.accessOpts = []; this.taxiAlt = null;
+    this.unchain(); this.awayCheck();
+    this.draw(); this.fetchRoutes();
+  },
+  originHome() {
+    const h = State.settings.home;
+    if (h) return this._useOrigin(h);
+    PlacePicker.open('집 주소', p => { State.settings.home = { name: p.name, address: p.address || '', lat: p.lat, lng: p.lng }; State.save(); U.toast('집으로 저장했어요'); this._useOrigin(p); });
+  },
+  originSaved(name) {
+    const p = (State.settings.places || {})[name];
+    if (p) return this._useOrigin(p);
+    PlacePicker.open(`${name} 주소`, q => { this._savePlace(name, q); U.toast(`${name}(으)로 저장했어요`); this._useOrigin(q); });
+  },
+  _savePlace(name, p) {
+    State.settings.places = State.settings.places || {};
+    State.settings.places[name] = { name: p.name, address: p.address || '', lat: p.lat, lng: p.lng };
+    State.save();
+  },
+  /** 지정한 곳: 저장해 둔 곳(회사 말고) 목록 + 새로 지정하기 */
+  originMine() {
+    const places = State.settings.places || {}, names = Object.keys(places).filter(k => k !== '회사');
+    Sheet.open(`<div class="sheet-head"><b>지정한 곳에서 출발</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+      ${names.map(n => `<button class="input place-btn" style="margin-bottom:8px" onclick="Sheet.close();Register.originSaved('${U.esc(n).replace(/'/g, '&#39;')}')">⭐ <b>${U.esc(n)}</b> <small class="muted">${U.esc(places[n].name || '')}</small></button>`).join('')}
+      <button class="btn big" style="width:100%" onclick="Sheet.close();Register.addMine()">+ 새로 지정하기</button>
+      <p class="muted small" style="margin-top:8px">예: 친구 집, 부모님 댁, 단골 카페</p>`);
+  },
+  addMine() {
+    PlacePicker.open('지정할 곳', p => {
+      Sheet.open(`<div class="sheet-head"><b>이름을 붙여 주세요</b><button class="x" aria-label="닫기" onclick="Sheet.close()">✕</button></div>
+        <p class="muted small">📍 ${U.esc(p.name)}</p>
+        <input class="input" id="mineName" maxlength="12" placeholder="예: 친구 집" value="">
+        <button class="btn primary big" style="width:100%;margin-top:10px" onclick="Register._addMineSave()">저장하고 여기서 출발</button>`);
+      this._minePlace = p;
+      setTimeout(() => { const i = document.getElementById('mineName'); if (i) i.focus(); }, 50);
+    });
+  },
+  _addMineSave() {
+    const i = document.getElementById('mineName'), p = this._minePlace;
+    const name = ((i && i.value) || '').trim() || (p && p.name) || '';
+    if (!p || !name) return;
+    if (/^(집|home|회사)$/i.test(name)) return U.toast('집·회사는 위 버튼으로 바꿔 주세요');
+    this._savePlace(name, p);
+    Sheet.close();
+    U.toast(`'${name}'(으)로 저장했어요`);
+    this._useOrigin(p);
   },
 
   /** '도착 일시' 한 칸: 날짜(월·일·요일)와 시간을 한 창에서 고름 (11-24 시안 1·2). 기차·비행기는 날짜만 */

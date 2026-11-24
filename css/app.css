@@ -1090,3 +1090,19 @@ p.small a[href] { display: inline-block; padding: 12px 2px; margin: -12px 0; }
 .when-btn .when-ic { font-size: 20px; }
 .end-old { margin: 8px 4px 0; font-size: 13px; color: #8B95A1; }
 .end-old .link { padding: 0 0 0 6px; font-size: 13px; }
+
+/* ---------- 일정 추가 한 줄씩 (11-24) ---------- */
+.title-row { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.kind-btn { width: auto; padding: 0 14px; font-weight: 700; color: var(--ink-2); white-space: nowrap; }
+.kind-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; background: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(0,0,0,.14); padding: 6px; min-width: 140px; }
+.kind-menu button { display: block; width: 100%; text-align: left; padding: 11px 14px; border-radius: 10px; font-size: 16px; font-weight: 600; }
+.kind-menu button:active { background: var(--fill); }
+.origin-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px; }
+.origin-row button { height: 56px; border-radius: 14px; background: var(--fill); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 13px; font-weight: 700; color: var(--ink-2); }
+.origin-row button span { font-size: 18px; line-height: 1; }
+.origin-row button.on { background: var(--navy); color: #fff; }
+.modes.one-row { grid-template-columns: repeat(6, 1fr); gap: 5px; }
+.modes.one-row .mode { height: 62px; font-size: 12px; gap: 2px; padding: 0 2px; }
+.modes.one-row .mode img, .modes.one-row .mode svg { width: 24px; height: 24px; }
+.seg.one-row { flex-wrap: nowrap; gap: 5px; }
+.seg.one-row button { flex: 1 1 0; padding: 0 2px; justify-content: center; font-size: 13.5px; min-width: 0; }
