@@ -1107,3 +1107,7 @@ p.small a[href] { display: inline-block; padding: 12px 2px; margin: -12px 0; }
 .seg.one-row { flex-wrap: nowrap; gap: 5px; }
 .seg.one-row button { flex: 1 1 0; padding: 0 2px; justify-content: center; font-size: 13.5px; min-width: 0; }
 .trip-paste { margin: 12px 0 4px; box-shadow: none; background: #F3F0FF; }
+/* 반복: 한 줄 (평일 아래 작게 월~금) — 11-24 */
+.seg.one-row button small { display: block; font-size: 10.5px; font-weight: 600; opacity: .7; line-height: 1.1; }
+.seg.one-row button:has(small) { flex-direction: column; gap: 1px; }
+.seg.one-row button { white-space: nowrap; }

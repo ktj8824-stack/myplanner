@@ -115,9 +115,9 @@ const Register = {
 
       <div class="card">
         <div class="q">준비는 얼마나 걸려요?</div>
-        <div class="seg one-row">${(d.chained || d.startNow || this.away() ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? (v < 60 ? v + '분' : `${v / 60}시간`) : '바로'}</button>`).join('')}</div>
+        <div class="seg one-row">${(d.chained || d.startNow || this.away() ? [0, 20, 30, 45, 60, 90, 120] : [20, 30, 45, 60, 90, 120]).map(v => `<button class="${+d.prepMin === v ? 'on' : ''}" onclick="Register.set('prepMin',${v})">${v ? (v < 60 || v % 60 ? v + '분' : `${v / 60}시간`) : '바로'}</button>`).join('')}</div>
         <label class="lbl">약속보다 일찍 도착 (여유)</label>
-        <div class="seg">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
+        <div class="seg one-row">${[0, 5, 10, 20, 30].map(v => `<button class="${+d.bufferMin === v ? 'on' : ''}" onclick="Register.set('bufferMin',${v})">${v ? v + '분' : '없음'}</button>`).join('')}</div>
         ${this.repeatForm()}
       </div>
 
@@ -426,7 +426,7 @@ const Register = {
     const r = this.d.repeat;
     return `
       <label class="lbl">반복</label>
-      <div class="seg wrap">${Object.entries(Recur.TYPES).map(([k, l]) => `<button class="${r.type === k ? 'on' : ''}" onclick="Register.setRepeat('type','${k}')">${l}</button>`).join('')}</div>
+      <div class="seg one-row">${Object.entries(Recur.TYPES).map(([k, l]) => `<button class="${r.type === k ? 'on' : ''}" onclick="Register.setRepeat('type','${k}')">${k === 'weekdays' ? '평일<small>월~금</small>' : k === 'none' ? '안 함' : l}</button>`).join('')}</div>
       ${r.type === 'weekly' ? `<div class="dow-pick">${U.DOW.map((n, i) => `<button class="${(r.days || []).includes(i) ? 'on' : ''} ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}" onclick="Register.toggleDay(${i})">${n}</button>`).join('')}</div>` : ''}
       ${r.type !== 'none' ? `
         <label class="toggle-row"><span>공휴일에는 쉬기</span><input type="checkbox" ${r.skipHolidays ? 'checked' : ''} onchange="Register.d.repeat.skipHolidays=this.checked;Register.refreshParts()"></label>
