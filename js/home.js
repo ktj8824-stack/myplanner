@@ -87,7 +87,9 @@ const Home = {
   nextCard({ s, plan }) {
     const now = Date.now();
     // 앞 일정에서 이어서·지금 위치에서 바로 출발이면 기상 단계가 없음 → '기상까지 0분' 대신 '출발까지'
-    const wakePassed = !!plan.chained || plan.wakeAt.getTime() < now;
+    // 11/24: 준비 '바로'·기상 알람 끔(밖에서 바로 출발 등)이면 기상 칸 대신 출발·도착·약속
+    const noWake = !plan.chained && !s.startNow && (+s.prepMin === 0 || !!(s.alarm && s.alarm.wake === false));
+    const wakePassed = !!plan.chained || noWake || plan.wakeAt.getTime() < now;
     const moving = plan.departAt.getTime() < now || !!s.startNow; // 지금 위치에서 바로 출발 = 이미 나감
     // 실제로 나갔는지('지금 출발' 버튼·차에서 자동 길안내 기록). 기록이 없으면 '이동 중'이라고 단정하지 않고 지난 시간을 알려 줌
     let hasLeft = false;
@@ -145,7 +147,7 @@ const Home = {
       goTxt = Ico('alarm') + (trip
         ? ` 지금 나가면 ${s.mode === 'flight' ? '공항' : '역'} ${U.hm(ln.at)} 도착${ln.lateMin > 0 ? ` · ${U.esc(s.trip.departTime)} ${m.label}를 놓칠 수 있어요` : ''}`
         : ` 지금 나가면 ${U.hm(ln.at)} 도착${ln.lateMin > 0 ? ` · ${U.durLabel(ln.lateMin)} 늦어요` : ''}`);
-    } else goTxt = Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : Planner.wakeWord(plan) + '까지 ') + U.durLabel(left);
+    } else goTxt = Ico('alarm') + ' ' + (wakePassed ? '출발까지 ' : Planner.wakeWord(plan) + '까지 ') + U.durLabel(left) + (noWake && !Planner.isTrip(s.mode) ? ' · 기상 알람 없음' : '');
     // 비·눈 예보인 반복 일정: 그날만 10분 일찍 (출발 전, 아직 안 눌렀을 때만)
     const rainChip = !far && !moving && !during && Recur.isRepeating(s) && s.isOccurrence && !s.rainEarly && typeof Weather !== 'undefined' && Weather.isWet(plan);
     return `
@@ -154,7 +156,8 @@ const Home = {
         <div class="tt">${U.esc(s.title)}</div>
         <div class="tri">
           ${plan.chained ? `<div class="${moving ? 'dim' : 'on'}"><small>출발 · ${U.esc((s.origin && s.origin.name) || '앞 일정')}</small><b>${U.hm(plan.departAt)}</b></div>
-          <div><small>시작</small><b>${s.arriveBy || U.hm(plan.arriveAt)}</b></div>` : `<div class="${wakePassed ? 'dim' : 'on'}"><small>${Planner.wakeWord(plan)}${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
+          <div><small>시작</small><b>${s.arriveBy || U.hm(plan.arriveAt)}</b></div>` : noWake && !trip ? `<div class="${moving ? 'dim' : 'on'}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>
+          <div><small>도착</small><b>${U.hm(plan.arriveAt)}</b></div>` : `<div class="${wakePassed ? 'dim' : 'on'}"><small>${Planner.wakeWord(plan)}${wakePrev ? ' · 전날' : ''}</small><b>${U.hm(plan.wakeAt)}</b></div>
           <div class="${moving ? 'dim' : ''}"><small>출발</small><b>${U.hm(plan.departAt)}</b></div>`}
           ${plan.chained ? `<div><small>끝</small><b>${s.endBy || '--:--'}</b></div>` : `<div><small>${trip ? '탑승' : '약속'}</small><b>${trip ? s.trip.departTime : s.arriveBy}</b></div>`}
         </div>
