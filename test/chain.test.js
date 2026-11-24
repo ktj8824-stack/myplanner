@@ -92,7 +92,7 @@ const mk = (id, title, arriveBy, endBy, dest, extra = {}) => ({ id, title, date:
   // 반복 일정의 그 날만 푼 경우(chained:false)도 기상 알람이 울림
   const ovOcc = { ...nx, ...patch, route: patch.route };
   const pl2 = Planner.compute(ovOcc);
-  assert.ok(!pl2.chained && Planner.alarms(ovOcc, pl2).some(a => a.key === 'wake'));
+  assert.ok(!pl2.chained && Planner.alarms(ovOcc, pl2).some(a => +a.at === +pl2.wakeAt));   // 낮 일정이면 기상 알람 대신 준비 시작 알림
   // 앞 약속 사이(11:00)로 당겨도 깨짐
   assert.strictEqual(DayPlan.chainBroken({ ...nx, arriveBy: '11:00' }), true);
   console.log('✓ 시간을 앞 약속보다 이르게 바꾸면 연결 풀고 집에서 출발·기상 알람 복구');

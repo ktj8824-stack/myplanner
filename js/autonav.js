@@ -165,7 +165,7 @@ const AutoNav = {
     const r = this.nextLeg(now);
     const l = r && (r.leg || r.later);
     if (!l || !l.s || l.home) return null;
-    if (l.s.alarmOff || (l.s.alarm && l.s.alarm.preDepart === false)) return null;   // 알람·'출발 1시간·10분 전'을 끈 일정은 알림 안 올림
+    if (l.s.alarmOff) return null;   // 알람을 끈 일정은 알림 안 올림
     const left = (l.dep.getTime() - now.getTime()) / 60000;
     if (left > 65 || left < -20) return null;
     const sid = l.s.occId || l.s.id;

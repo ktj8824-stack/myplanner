@@ -51,6 +51,6 @@ console.log('✓ 지각 경고');
 
 // 6) 알람: 기상·출발 알람 포함
 const al = Planner.alarms({ ...s, date: '2099-01-02' }, Planner.compute({ ...s, date: '2099-01-02' }));
-assert.deepStrictEqual(al.map(a => a.key), ['night', 'wake', 'pre', 'depart']);
+assert.deepStrictEqual(al.map(a => a.key), ['night', 'wake', 'next', 'pre', 'depart']);
 console.log('✓ 알람', al.map(a => `${a.key} ${hm(a.at)}`).join(', '));
 console.log('\n모든 계산 확인 완료');

@@ -16,16 +16,14 @@ let s = mk(), p = Planner.compute(s);
 assert.strictEqual(U.hm(p.homeDepartAt), '16:35');
 assert.strictEqual(U.hm(p.homeAt), '17:30');
 assert.ok(p.items.find(i => i.kind === 'home'));
-assert.ok(keys(s, p).includes('home'));
+assert.ok(!keys(s, p).includes('home'));   // 11/24: 귀가 알림 없앰 (홈 화면 카드가 대신)
 assert.ok(!keys(s, p).includes('last'));
 console.log('✓ 귀가 출발·집 도착 계산 · 귀가 알림');
 
 // 2) 막차: 23:40 막차, 역까지 걸어서 6분 + 여유 5분 → 23:29에는 나서야, 알람은 23:14
 s = mk({ arriveBy: '19:00', endBy: '22:30', goHome: { ...mk().goHome, lastTime: '23:40' } }); p = Planner.compute(s);
 assert.strictEqual(U.hm(p.lastLeaveAt), '23:29');
-const last = Planner.alarms(s, p).find(a => a.key === 'last');
-assert.strictEqual(U.hm(last.at), '23:14');
-assert.strictEqual(last.alarm, true);
+assert.ok(!Planner.alarms(s, p).some(a => a.key === 'last')); // 11/24: 막차 알람 없앰
 assert.ok(!p.warnings.some(w => w.includes('막차')));
 console.log('✓ 막차 출발 마감 · 15분 전 알람');
 

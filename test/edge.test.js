@@ -77,12 +77,13 @@ assert.deepStrictEqual(Recur.between([wk], '2026-12-01', '2026-12-10').map(o => 
 assert.strictEqual(Recur.label({ repeat: { type: 'weekly', days: ['3', '1'] } }), '매주 월·수');
 console.log('✓ 반복 일정 펼치기');
 
-// 9) 모든 알람이 시간 순서가 맞음 (전날 안내 < 기상 ≤ 출발 10분 전 ≤ 출발)
+// 9) 모든 알람이 시간 순서가 맞음 (전날 안내 < 기상 ≤ 출발 · 1시간 전 < 30분 전 ≤ 출발)
 [['09:00', 60], ['06:00', 20], ['23:30', 45], ['00:10', 90]].forEach(([t, prep]) => {
   const { al } = run(base({ arriveBy: t, prepMin: prep }));
   const at = k => get(al, k).at.getTime();
-  assert.ok(at('night') < at('wake'), t);
-  assert.ok(at('wake') <= at('depart') && at('pre') <= at('depart'), t);
+  const w = get(al, 'wake') ? 'wake' : get(al, 'prep') ? 'prep' : 'next';   // 낮·밤 일정은 기상 알람 대신 준비 알림
+  assert.ok(at('night') < at(w), t);
+  assert.ok(at(w) <= at('depart') && at('next') < at('pre') && at('pre') <= at('depart'), t);
 });
 console.log('✓ 알람 순서');
 // 10) 실시간 교통: 이른 아침 한산한 값으로 늦게 깨우지 않음

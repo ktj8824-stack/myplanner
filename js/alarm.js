@@ -418,7 +418,7 @@ const Alarm = {
     const left = this.SNOOZE_MAX - this.snoozeCount(id);
     const next = Planner.alarms(s, plan).find(a => (a.key === 'pre' || a.key === 'depart') && a.at > now);
     const foot = [left > 0 ? `다시 울림까지 ${left}번 남았어요` : '다시 울림을 모두 썼어요',
-      next ? `${hm(next.at)}에 ${next.key === 'pre' ? '출발 10분 전' : '출발'} 알림` : ''].filter(Boolean).join(' · ');
+      next ? `${hm(next.at)}에 ${next.key === 'pre' ? '출발 30분 전' : '출발'} 알림` : ''].filter(Boolean).join(' · ');
     return `
       <div class="wa">
         <div class="wa-top">

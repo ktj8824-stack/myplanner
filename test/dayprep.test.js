@@ -54,7 +54,8 @@ assert.strictEqual(DayPlan.applyAway(mk('c', 'x', '19:00', '', P.hongdae, { orig
 const back = { ...m14, prepMin: 30, alarm: { ...m14.alarm, wake: true } };
 plan = Planner.compute(back);
 assert.strictEqual((plan.departAt - plan.wakeAt) / 60000, 30);
-assert.ok(Planner.alarms(back, plan).some(a => a.key === 'wake'));
+assert.ok(Planner.alarms(back, plan).some(a => +a.at === +plan.wakeAt));   // 낮 일정: 준비 시작 시각에 알림 (30분 전 알림과 겹침)
+assert.ok(!Planner.alarms(back, plan).some(a => a.key === 'wake'));      // 낮 일정은 전체 화면 기상 알람 없음
 console.log('✓ 집이 아닌 곳에서 출발: 바로 출발 · 준비 알람 끔');
 
 // 2) 시간 바퀴 시작 시각
@@ -104,3 +105,22 @@ assert.strictEqual(DayPlan.applyAuto(mk('din', '집 저녁', '19:30', '', P.home
 State.schedules = [];
 assert.strictEqual(DayPlan.applyAuto(mk('din', '집 저녁', '19:30', '', P.homeDoor)), null);
 console.log('✓ 집으로 가는 일정: 앞 일정 장소에서 이어서 (준비·기상 알람 없음)');
+
+// 기상 알람은 아침 일정만 · 1시간 전·30분 전 알림과 출발 알람은 항상 (2026-11-24)
+{
+  const base = { title: 'T', date: D, mode: 'car', prepMin: 60, bufferMin: 0, origin: home, dest: P.office, route: { travelMin: 40, steps: [] },
+    alarm: { wake: false, preDepart: false, depart: false, nightBefore: false } };   // 예전에 끈 값이 남아 있어도 기상 외에는 무시
+  const ks = o => { const s = { ...base, ...o }; return Planner.alarms(s, Planner.compute(s)); };
+  const am = ks({ arriveBy: '09:00', alarm: { wake: true } });
+  assert.deepStrictEqual(am.map(a => a.key), ['night', 'wake', 'next', 'pre', 'depart']);
+  assert.strictEqual(am.find(a => a.key === 'wake').alarm, true);
+  assert.strictEqual((am.find(a => a.key === 'depart').at - am.find(a => a.key === 'pre').at) / 60000, 30);
+  assert.strictEqual((am.find(a => a.key === 'depart').at - am.find(a => a.key === 'next').at) / 60000, 60);
+  assert.ok(!am.find(a => a.key === 'next').alarm && !am.find(a => a.key === 'pre').alarm);
+  const pm = ks({ arriveBy: '15:00', prepMin: 90, alarm: { wake: true } });          // 준비 12:50 → 낮 일정
+  assert.deepStrictEqual(pm.map(a => a.key), ['night', 'prep', 'next', 'pre', 'depart']);
+  assert.ok(!pm.find(a => a.key === 'prep').alarm);
+  const off = ks({ arriveBy: '09:00' });                                              // 집이 아닌 곳에서 바로 출발(wake:false)
+  assert.deepStrictEqual(off.map(a => a.key), ['night', 'next', 'pre', 'depart']);
+  console.log('✓ 기상 알람은 아침 일정만 · 1시간·30분 전 알림 · 출발 알람 항상');
+}

@@ -316,7 +316,7 @@ const Share = {
     if (!o.origin) useHome = true;
     const st = State.settings;
     const draft = {
-      ...o, id: U.uid(), alarm: { ...st.alarm }, skips: [], overrides: {},
+      ...o, id: U.uid(), alarm: { wake: true, nightBefore: true, preDepart: true, depart: true }, skips: [], overrides: {},
       repeat: o.repeat || { type: 'none', days: [], until: '', skipHolidays: true },
       trip: o.trip || { accessMode: 'transit', egressMode: 'transit', departTime: '08:00', arriveTime: '', international: false }
     };

@@ -516,9 +516,8 @@ const Settings = {
       </div>
 
       <div class="card">
-        <label class="lbl q-lbl">새 일정의 기본 알림</label>
-        ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람 (전체 화면)'], ['preDepart', '출발 1시간·10분 전'], ['depart', '출발 알람 (전체 화면)']].map(([k, l]) => `
-          <label class="toggle-row"><span>${l}</span><input type="checkbox" ${st.alarm[k] ? 'checked' : ''} onchange="State.settings.alarm['${k}']=this.checked;State.save()"></label>`).join('')}
+        <label class="lbl q-lbl">알림</label>
+        <div class="muted small" style="line-height:1.7">모든 일정에 자동으로 울려요<br>· 전날 밤 9시 미리 안내<br>· 기상 알람 — 아침 일정일 때만 (전체 화면)<br>· 출발 1시간 전 · 30분 전 알림<br>· 출발 알람 (전체 화면)</div>
         <button class="btn ghost" onclick="Settings.test()">🔊 알람 미리 듣기</button>
       </div>
 

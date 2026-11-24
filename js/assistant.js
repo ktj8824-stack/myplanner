@@ -377,7 +377,7 @@ const Assistant = {
       trip: { accessMode: isTrip ? (a.mode || 'transit') : 'transit', egressMode: 'transit', departTime: isTrip ? a.time : '08:00',
         arriveTime: a.arrive_time || '', number: a.number || '', international: !!a.international },
       repeat: { type: a.repeat && a.repeat !== 'none' ? a.repeat : 'none', days: a.repeat_days || [], until: '', skipHolidays: true },
-      alarm: { ...st.alarm }, skips: [], overrides: {}
+      alarm: { wake: true, nightBefore: true, preDepart: true, depart: true }, skips: [], overrides: {}
     };
     c.draft = d;
     if (!d.origin) {
@@ -559,7 +559,7 @@ const Assistant = {
       if (occ.chained && DayPlan.chainBroken(occ)) {
         const patch = await DayPlan.unchainPatch(occ);
         if (Recur.isRepeating(base)) base.overrides[cur.date] = { ...base.overrides[cur.date], ...patch };
-        else { Object.assign(base, patch); delete base.chained; base.alarm = { ...(base.alarm || {}), wake: State.settings.alarm.wake, nightBefore: State.settings.alarm.nightBefore }; }
+        else { Object.assign(base, patch); delete base.chained; base.alarm = { ...(base.alarm || {}), wake: true, nightBefore: true }; }
       }
     }
     State.upsert(base);

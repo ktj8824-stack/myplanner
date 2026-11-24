@@ -34,7 +34,7 @@ const Register = {
     if (params.id && State.get(params.id)) {
       this.d = JSON.parse(JSON.stringify(State.get(params.id)));
       this.d.repeat = this.d.repeat || { type: 'none', days: [], until: '', skipHolidays: true };
-      this.d.alarm = this.d.alarm || { ...State.settings.alarm };
+      this.d.alarm = this.d.alarm || { wake: true, nightBefore: true, preDepart: true, depart: true };
       this.editing = true;
       this.opts = []; this.accessOpts = [];
     } else if (!params.keep) {
@@ -45,7 +45,7 @@ const Register = {
         origin: st.home ? { ...st.home } : null, dest: null,
         mode: st.defaultMode || 'transit', prepMin: st.prepMin, bufferMin: st.bufferMin,
         route: null, trip: { accessMode: 'transit', egressMode: 'transit', departTime: '08:00', arriveTime: '10:30', international: false },
-        accessRoute: null, egressRoute: null, alarm: { ...st.alarm }, memo: '',
+        accessRoute: null, egressRoute: null, alarm: { wake: true, nightBefore: true, preDepart: true, depart: true }, memo: '',
         repeat: { type: 'none', days: [], until: '', skipHolidays: true }, skips: [], overrides: {}
       };
       this.editing = false;
@@ -121,13 +121,8 @@ const Register = {
         ${this.repeatForm()}
       </div>
 
-      ${this.d.endBy ? this.goHomeForm() : ''}
-
       <div class="card">
-        <div class="q">알림</div>
-        ${[['nightBefore', '전날 밤 9시 미리 안내'], ['wake', '기상 알람'], ['preDepart', '출발 1시간·10분 전 알림'], ['depart', '출발 알람']].map(([k, label]) => `
-          <label class="toggle-row"><span>${label}</span><input type="checkbox" ${d.alarm[k] ? 'checked' : ''} onchange="Register.d.alarm['${k}']=this.checked"></label>`).join('')}
-        <label class="lbl">메모</label>
+        <label class="lbl q-lbl">메모</label>
         <textarea class="input" rows="2" placeholder="챙길 것, 참고할 내용" oninput="Register.d.memo=this.value">${U.esc(d.memo || '')}</textarea>
       </div>
 
@@ -281,7 +276,7 @@ const Register = {
   },
   _useOrigin(p) {
     const d = this.d;
-    if (d.startNow) { d.startNow = false; delete d.leftAt; const st = State.settings; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore }; }
+    if (d.startNow) { d.startNow = false; delete d.leftAt; const st = State.settings; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: true, nightBefore: true }; }
     d.origin = { ...p };
     d.route = null; d.accessRoute = null; this.opts = []; this.accessOpts = []; this.taxiAlt = null;
     this.unchain(); this.awayCheck();
@@ -413,18 +408,18 @@ const Register = {
     delete d.leftAt;
     d.origin = st.home ? { ...st.home } : null;
     d.prepMin = st.prepMin;
-    d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore };
+    d.alarm = { ...d.alarm, wake: true, nightBefore: true };
     d.route = null; this.opts = []; this.taxiAlt = null;
     this.draw(); this.fetchRoutes();
   },
 
   unchain() {
     const d = this.d, st = State.settings;
-    if (d.startNow) { d.startNow = false; delete d.leftAt; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore }; return; }
+    if (d.startNow) { d.startNow = false; delete d.leftAt; d.prepMin = st.prepMin; d.alarm = { ...d.alarm, wake: true, nightBefore: true }; return; }
     if (!d.chained) return;
     delete d.chained;
     d.prepMin = st.prepMin;
-    d.alarm = { ...d.alarm, wake: st.alarm.wake, nightBefore: st.alarm.nightBefore };
+    d.alarm = { ...d.alarm, wake: true, nightBefore: true };
   },
 
   repeatForm() {
@@ -572,7 +567,7 @@ const Register = {
     if (k === 'prepMin' && this._awayAuto && +v > 0) {
       // 집이 아닌 곳 출발로 껐던 준비 알람: 사용자가 준비 시간을 다시 고르면 그 선택대로 (알람도 기본값으로)
       this._awayAuto = false;
-      this.d.alarm = { ...this.d.alarm, wake: State.settings.alarm.wake };
+      this.d.alarm = { ...this.d.alarm, wake: true };
     }
     if (k === 'mode') {
       // 직접 고른 수단은 그대로 (가까워도 다시 도보로 바꾸지 않음)
@@ -631,7 +626,7 @@ const Register = {
     if (this._awayAuto) { // 회사로 골랐다가 다시 집으로
       this._awayAuto = false;
       d.prepMin = st.prepMin;
-      d.alarm = { ...d.alarm, wake: st.alarm.wake };
+      d.alarm = { ...d.alarm, wake: true };
     }
   },
 

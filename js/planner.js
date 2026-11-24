@@ -509,9 +509,13 @@ const Planner = {
   alarms(s, plan) {
     const out = [];
     if (plan.invalid) return out;
-    const opt = Object.assign({ wake: true, preDepart: true, depart: true, nightBefore: true }, s.alarm || {});
+    // 알림은 고르는 게 아니라 항상: 전날 밤 9시 안내 · 출발 1시간 전 · 30분 전 알림 · 출발 알람 (11/24 사용자 결정)
+    // 기상 알람(전체 화면)만 조건부: 아침 일정(준비 시작이 오전 11시 전·밤 10시 이후)일 때만.
+    //   낮 일정은 깨울 필요가 없으니 '준비 시작' 알림(소리 알림)만, 이어서 가는 일정·집이 아닌 곳에서 바로 출발이면 없음
+    const opt = { wake: !(s.alarm && s.alarm.wake === false), preDepart: true, depart: true, nightBefore: true };
     if (plan.chained) opt.wake = false; // 앞 일정에서 바로 이어서 가는 일정은 깨울 필요 없음 (출발 알람만)
-    else if (s.chained || s.chained === false) { opt.wake = true; opt.nightBefore = true; } // 앞 일정이 없어졌거나 이 날만 연결을 푼 날: 다시 깨워 줌
+    else if (s.chained || s.chained === false) opt.wake = true; // 앞 일정이 없어졌거나 이 날만 연결을 푼 날: 다시 깨워 줌
+    const dayPrepPlan = this.isDayPrep(plan);
     const firstMove = plan.items.find(i => i.kind === 'move' || i.kind === 'board');
     const firstLabel = firstMove ? `${firstMove.title}${firstMove.detail ? ' (' + firstMove.detail + ')' : ''}` : '';
     const hm = d => U.hm(d);
@@ -532,28 +536,24 @@ const Planner = {
       out.push({ key: 'night', at: night, title: head,
         body: `${s.title} ${s.arriveBy || ''} · ${hm(plan.departAt)} 출발 (${this.MODES[s.mode].label}).${wxTxt}${packTxt}` });
     }
-    if (opt.wake) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: this.isDayPrep(plan) ? `⏰ 준비 시작할 시간이에요 — ${s.title}` : `⏰ 일어날 시간이에요 — ${s.title}`,
+    const nextAt = this.addMin(plan.departAt, -60), preAt = this.addMin(plan.departAt, -30);
+    const prepMin = Math.round((plan.departAt - plan.wakeAt) / 60000);
+    if (opt.wake && !dayPrepPlan) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
       body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}${packTxt}` });
-    // 출발 1시간 전 '다음 일정' 안내: 알림 목록에 남겨 두면 차에 타서(집을 나서며) 눌러 바로 길안내. 일어나기 전이면 넣지 않음
-    // (회사 등 집이 아닌 곳에서 '바로 출발'·준비 알람 끔이면 이어서 가는 일정처럼 넣음)
-    const nextAt = this.addMin(plan.departAt, -60);
-    if (opt.preDepart && (plan.chained || (!opt.wake && !Number(s.prepMin)) || plan.wakeAt.getTime() <= nextAt.getTime())) out.push({ key: 'next', at: nextAt, title: `🚗 다음 일정 · ${hm(plan.departAt)} 출발`,
+    // 낮 일정: 알람 대신 '준비 시작' 알림. 1시간·30분 전 알림과 겹치면(5분 안) 생략
+    else if (opt.wake && prepMin > 0 && [nextAt, preAt].every(x => Math.abs(x - plan.wakeAt) > 5 * 60000))
+      out.push({ key: 'prep', at: plan.wakeAt, title: `⏰ 준비 시작할 시간이에요 — ${s.title}`,
+        body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착.${wxTxt}${packTxt}` });
+    // 출발 1시간 전 '다음 일정' 알림: 알림 목록에 남겨 두면 나갈 때 눌러 바로 길안내
+    out.push({ key: 'next', at: nextAt, title: `🚗 출발 1시간 전 · ${hm(plan.departAt)} 출발`,
       body: `${s.title}${dest ? ' · ' + dest : ''}\n나갈 때 눌러서 바로 길안내` });
-    if (opt.preDepart) out.push({ key: 'pre', at: this.addMin(plan.departAt, -10), title: '출발 10분 전',
-      body: `${hm(plan.departAt)} 출발 · ${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
+    out.push({ key: 'pre', at: preAt, title: `출발 30분 전 · ${hm(plan.departAt)} 출발`,
+      body: `${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
     const bus = this.busLeaveFor(s);
     const busOk = bus && bus < plan.departAt && bus.getTime() > plan.departAt.getTime() - 60 * 60000;
     if (opt.depart) out.push({ key: 'depart', at: busOk ? bus : plan.departAt, alarm: true, title: `🚪 지금 출발하세요 — ${s.title}`,
       body: busOk ? `${s.live[s.date].busName || '버스'} 시간에 맞춰 지금 나가세요` : (firstLabel || `${dest}로 출발`) });
-    if (plan.homeDepartAt && opt.goHome !== false) {
-      const gh = s.goHome || {};
-      out.push({ key: 'home', at: plan.homeDepartAt, title: `🏠 집에 갈 시간이에요 — ${s.title}`,
-        body: `지금 나서면 ${hm(plan.homeAt)}에 집에 도착해요 (${this.MODES[gh.mode || 'transit'].label}${gh.route ? ' ' + gh.route.travelMin + '분' : ''}).` });
-    }
-    if (plan.lastLeaveAt) {
-      out.push({ key: 'last', at: this.addMin(plan.lastLeaveAt, -15), alarm: true, title: `🚇 막차까지 15분 — ${s.title}`,
-        body: `${hm(plan.lastLeaveAt)}에는 나서야 막차(${s.goHome.lastTime})를 탈 수 있어요.` });
-    }
+    // '끝나고 집에 갈 때' 알림은 없앰 (11/24) — 일정이 끝나면 홈 화면 카드가 집 도착 시각을 보여 줌
     return out.filter(a => a.at.getTime() > Date.now());
   }
 };

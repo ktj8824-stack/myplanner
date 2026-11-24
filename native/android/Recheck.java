@@ -107,7 +107,7 @@ public final class Recheck {
                 }
                 JSONObject pre = PlanStore.findById(alarms, spec.optInt("preId"));
                 if (pre != null) {
-                    long preAt = r.newDepart - 10 * 60_000L;
+                    long preAt = r.newDepart - 30 * 60_000L;
                     if (preAt > now + RecheckMath.MIN_LEAD_MS) {
                         pre.put("at", preAt);
                         pre.put("body", hmDepart + " 출발 · " + src + " " + live + "분 반영");
