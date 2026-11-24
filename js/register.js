@@ -81,14 +81,11 @@ const Register = {
       <div class="card">
         <div class="q">${isTrip ? '언제 어디로 가세요?' : '어디에 몇 시까지 가세요?'}</div>
         ${isTrip ? '' : placeBtn('dest', '목적지', '병원, 회사, 역 이름으로 검색', 'pin')}
-        <div class="grid2 mt">
-          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label><input type="date" class="input" value="${d.date}" onchange="Register.set('date',this.value)">${this.dateChips()}</div>
-          <div><label class="lbl">${isTrip ? '목적지 도착 희망 (선택)' : '도착 시간'}</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
-        </div>
-        ${isTrip ? '' : `<div class="grid2 mt">
-          <div><label class="lbl">끝나는 시간 (선택)</label><input type="time" class="input" value="${d.endBy || ''}" onchange="Register.setEnd(this.value)"></div>
-          <div class="end-hint">다음 일정·귀가 시간을<br>계산할 때 써요</div>
-        </div>`}
+        ${isTrip ? `<div class="grid2 mt">
+          <div><label class="lbl">${Recur.isRepeating(d) ? '시작 날짜' : '날짜'}</label>${this.whenBtn(true)}</div>
+          <div><label class="lbl">목적지 도착 희망 (선택)</label><input type="time" class="input" value="${d.arriveBy || ''}" onchange="Register.set('arriveBy',this.value)"></div>
+        </div>` : `<label class="lbl">${Recur.isRepeating(d) ? '도착 일시 (첫날)' : '도착 일시'}</label>${this.whenBtn(false)}
+        ${d.endBy ? `<div class="end-old">끝나는 시간 ${U.esc(d.endBy)} <button class="link" onclick="Register.setEnd('')">지우기</button></div>` : ''}`}
         <label class="lbl">일정 이름</label>
         <input class="input" id="rTitle" placeholder="예: 강남 거래처 미팅" value="${U.esc(d.title)}" oninput="Register.d.title=this.value">
         <div class="chips">${this.QUICK.map(q => `<button class="chip" onclick="Register.quick('${q}')">${q}</button>`).join('')}</div>
@@ -119,7 +116,7 @@ const Register = {
         ${this.repeatForm()}
       </div>
 
-      ${this.goHomeForm()}
+      ${this.d.endBy ? this.goHomeForm() : ''}
 
       <div class="card">
         <div class="q">알림</div>
@@ -248,6 +245,23 @@ const Register = {
     d.prepMin = 0;
     d.alarm = { ...d.alarm, wake: false, nightBefore: false };
     d.route = null; d.accessRoute = null; this.opts = []; this.accessOpts = [];
+  },
+
+  /** '도착 일시' 한 칸: 날짜(월·일·요일)와 시간을 한 창에서 고름 (11-24 시안 1·2). 기차·비행기는 날짜만 */
+  whenBtn(dateOnly) {
+    const d = this.d, lab = TimePick.whenLabel(d.date, dateOnly ? '' : d.arriveBy);
+    const [tag, rest] = lab.includes(' · ') ? lab.split(' · ') : ['', lab];
+    return `<button type="button" class="input when-btn" onclick="Register.pickWhen(${dateOnly})">
+      <span>${tag ? `<small>${tag}</small>` : ''}<b>${U.esc(rest)}</b></span><span class="when-ic" aria-hidden="true">🗓</span></button>`;
+  },
+  pickWhen(dateOnly) {
+    const d = this.d;
+    TimePick.openWhen({ date: d.date, time: d.arriveBy, dateOnly, fresh: !this.editing, title: dateOnly ? '날짜' : '도착 일시',
+      onPick: ({ date, time }) => {
+        if (!dateOnly && time && time !== d.arriveBy) d.arriveBy = time;
+        if (date !== d.date) this.set('date', date);
+        else this.set('arriveBy', d.arriveBy);
+      } });
   },
 
   /** 날짜 칸 옆 '오늘'·'내일' (오전 11시가 지나 새 일정을 열면 '오늘'을 살짝 강조 — 값은 그대로 내일) */

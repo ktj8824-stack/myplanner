@@ -111,6 +111,81 @@ const TimePick = {
     }));
   },
 
+  /* ---------- 날짜+시간 한 번에 (일정 추가의 '도착 일시' 칸, 11-24 사용자 시안) ----------
+     연도 없이 '11월 25일 (수)', 오늘·내일은 앞에 표시. 분은 5분 단위(원래 값이 5분 단위가 아니면 그 값도 넣음).
+     '선택'을 눌러야 onPick({date, time}) 호출. dateOnly면 시간 바퀴 없이 날짜만 */
+  WD: ['일', '월', '화', '수', '목', '금', '토'],
+  ymd(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; },
+  dayLabel(ymd, today = this.ymd(new Date())) {
+    const [y, m, d] = ymd.split('-').map(Number), dt = new Date(y, m - 1, d);
+    const base = `${m}월 ${d}일 (${this.WD[dt.getDay()]})`;
+    const t = new Date(today + 'T00:00:00'), diff = Math.round((dt - t) / 86400000);
+    return diff === 0 ? `오늘 · ${base}` : diff === 1 ? `내일 · ${base}` : diff === 2 ? `모레 · ${base}` : base;
+  },
+  /** 칸에 보이는 글자: '내일 · 11월 25일 (수) 오전 9:00' */
+  whenLabel(date, time) {
+    if (!date) return '';
+    let s = this.dayLabel(date);
+    if (/^\d{1,2}:\d{2}/.test(time || '')) {
+      const h = +time.slice(0, 2), m = time.slice(3, 5);
+      s += ` ${h < 12 ? '오전' : '오후'} ${(h % 12) || 12}:${m}`;
+    }
+    return s;
+  },
+  openWhen({ date, time = '', dateOnly = false, title = '도착 일시', fresh = false, onPick } = {}) {
+    const today = this.ymd(new Date());
+    const start = new Date(today + 'T00:00:00'); start.setDate(start.getDate() - 1);
+    if (date && date < this.ymd(start)) { const [y, m, d] = date.split('-').map(Number); start.setTime(new Date(y, m - 1, d).getTime()); }
+    const days = [];
+    for (let i = 0; i < 400; i++) { const d = new Date(start); d.setDate(start.getDate() + i); days.push(this.ymd(d)); }
+    // 새 일정(기본값 그대로)이면 바퀴는 '지금+2시간'이 있는 날에서 시작 (낮에 열면 오늘, 밤 10시 넘으면 내일)
+    const freshDefault = fresh && (!time || time.slice(0, 5) === '09:00');
+    const startDay = freshDefault ? this.ymd(new Date(Date.now() + 2.5 * 3600000)) : (date || today);
+    const di = Math.max(0, days.indexOf(startDay));
+    const [h, m] = this.startAt({ value: time, kind: 'arrive', fresh });
+    const mins = []; for (let i = 0; i < 60; i += 5) mins.push(i);
+    if (!mins.includes(m)) { mins.push(m); mins.sort((a, b) => a - b); }
+    this._when = { days, mins, dateOnly, onPick };
+    const col = (id, items, w) => `<div class="tp-col" id="${id}"${w ? ` style="width:${w}px"` : ''}>
+        <div class="tp-pad"></div>${items.map(t => `<div class="tp-item">${t}</div>`).join('')}<div class="tp-pad"></div>
+      </div>`;
+    let box = document.getElementById('tpick');
+    if (!box) { box = document.createElement('div'); box.id = 'tpick'; document.body.appendChild(box); }
+    box.innerHTML = `<div class="tp-bg" onclick="TimePick.close()"></div>
+      <div class="tp-panel" role="dialog" aria-label="${U.esc(title)} 고르기">
+        <div class="tp-head"><b>${U.esc(title)}</b></div>
+        <div class="tp-wheels tp-when">
+          <div class="tp-band"></div>
+          ${col('tpD', days.map(v => { const l = this.dayLabel(v, today); return l.includes(' · ') ? `<em>${l.split(' · ')[0]}</em> ${l.split(' · ')[1]}` : l; }), dateOnly ? 230 : 168)}
+          ${dateOnly ? '' : col('tpAp', ['오전', '오후'], 52) + col('tpH', Array.from({ length: 12 }, (_, i) => String(i + 1)), 40) + '<div class="tp-colon">:</div>' + col('tpM', mins.map(x => String(x).padStart(2, '0')), 46)}
+        </div>
+        <div class="tp-btns">
+          <button class="btn" onclick="TimePick.close()">취소</button>
+          <button class="btn primary" onclick="TimePick.pickWhen()">선택</button>
+        </div>
+      </div>`;
+    box.classList.add('show');
+    const set = (id, idx) => { const c = document.getElementById(id); if (c) c.scrollTop = idx * this.ROW; };
+    set('tpD', di);
+    if (!dateOnly) { set('tpAp', h < 12 ? 0 : 1); set('tpH', ((h % 12) || 12) - 1); set('tpM', mins.indexOf(m)); }
+    box.querySelectorAll('.tp-col').forEach(c => c.querySelectorAll('.tp-item').forEach((it, i) => {
+      it.onclick = () => c.scrollTo({ top: i * this.ROW, behavior: 'smooth' });
+    }));
+  },
+  pickWhen() {
+    const w = this._when;
+    if (!w) return this.close();
+    const date = w.days[this._idx('tpD', w.days.length - 1)];
+    let time = '';
+    if (!w.dateOnly) {
+      const ap = this._idx('tpAp', 1), h12 = this._idx('tpH', 11) + 1, m = w.mins[this._idx('tpM', w.mins.length - 1)];
+      time = `${String((h12 % 12) + (ap ? 12 : 0)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    this.close();
+    this._when = null;
+    if (w.onPick) w.onPick({ date, time });
+  },
+
   _idx(id, max) {
     const c = document.getElementById(id);
     return Math.max(0, Math.min(max, Math.round(c.scrollTop / this.ROW)));

@@ -1080,3 +1080,13 @@ p.small a[href] { display: inline-block; padding: 12px 2px; margin: -12px 0; }
 .tp-colon { position: relative; line-height: 220px; font-size: 22px; font-weight: 700; width: 12px; text-align: center; }
 .tp-btns { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; margin-top: 14px; }
 .tp-btns .btn { height: 54px; font-size: 17px; }
+/* 날짜+시간 한 번에 (TimePick.openWhen) */
+.tp-when .tp-item { font-size: 18px; }
+.tp-when #tpD .tp-item { font-size: 15.5px; white-space: nowrap; }
+.tp-when #tpD .tp-item em { font-style: normal; color: #3182F6; font-weight: 800; }
+.when-btn { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; text-align: left; }
+.when-btn b { font-size: 18px; font-weight: 700; color: #191F28; }
+.when-btn small { display: block; font-size: 12px; font-weight: 700; color: #3182F6; margin-bottom: 2px; }
+.when-btn .when-ic { font-size: 20px; }
+.end-old { margin: 8px 4px 0; font-size: 13px; color: #8B95A1; }
+.end-old .link { padding: 0 0 0 6px; font-size: 13px; }

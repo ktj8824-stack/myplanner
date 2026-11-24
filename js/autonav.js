@@ -404,8 +404,63 @@ const AutoNav = {
     const a = t(w.from), b = t(w.to);
     return a <= b ? m >= a && m < b : m >= a || m < b;   // 22:00~02:00처럼 자정을 넘겨도
   },
+  /**
+   * 약속 장소에 도착한 뒤 '집으로' 카드 (끝나는 시간을 묻지 않는 대신, 11-24 시안 3)
+   * 오늘 일정의 약속 시각이 지났고(6시간 안), 오늘 뒤에 다른 일정이 없을 때만.
+   * 다음 일정이 있으면 홈 큰 카드가 그 일정의 '출발까지'를 보여 주므로 여기서는 안 띄움.
+   */
+  afterAppt(now = new Date()) {
+    const list = State.byDate(U.ymd(now)).filter(x => x && !x._shared && !Planner.isTrip(x.mode) && x.arriveBy && x.dest && isFinite(x.dest.lat));
+    let cur = null;
+    for (const x of list) {
+      const at = Planner.at(x.date, x.arriveBy);
+      if (at <= now && now - at < 6 * 3600000 && (!cur || at > cur.at)) cur = { s: x, at };
+    }
+    if (!cur) return null;
+    if (list.some(x => Planner.at(x.date, x.arriveBy) > now)) return null;
+    // 돌아갈 때 수단: 갈 때와 같은 수단 (택시는 자가용 길로 시간 계산)
+    const mode = cur.s.mode === 'taxi' ? 'taxi' : cur.s.mode === 'walk' ? 'walk' : cur.s.mode === 'car' ? 'car' : 'transit';
+    return { s: cur.s, mode };
+  },
+  _ghCache: {},
+  /** 약속 장소 → 집 걸리는 시간 (10분 저장). 다 받으면 카드 글자를 바꿈 */
+  async _homeEta(a) {
+    const h = State.settings.home, key = (a.s.baseId || a.s.id) + '|' + a.mode, c = this._ghCache[key];
+    if (c && Date.now() - c.at < 600000) return c.min;
+    try {
+      const r = (await Routes.options(a.s.dest, h, a.mode === 'taxi' ? 'car' : a.mode))[0];
+      const min = r && isFinite(r.travelMin) ? Math.round(r.travelMin) : null;
+      this._ghCache[key] = { at: Date.now(), min };
+      return min;
+    } catch (e) { return null; }
+  },
+  _apptCardHtml(a) {
+    const h = State.settings.home, m = Planner.MODES[a.mode];
+    setTimeout(async () => {
+      const min = await this._homeEta(a), el = document.getElementById('ghEta');
+      if (!el) return;
+      if (min == null) { el.textContent = `${m.label}로 집까지 길안내`; return; }
+      const arrive = new Date(Date.now() + (min + Planner.HOME_READY_MIN) * 60000);
+      el.innerHTML = `지금 나가면 <b>${U.hm(arrive)}</b> 집 도착 · ${m.label} ${U.durLabel(min)}`;
+    }, 0);
+    return `<div class="gohome appt" role="group" aria-label="약속 끝나고 집으로">
+      <button type="button" class="gohome-go" onclick="AutoNav.goHomeBy('${a.mode === 'taxi' ? 'car' : a.mode}')">
+        <span class="gohome-ic" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></span>
+        <span class="gohome-t"><b>${this._esc(a.s.title || '약속')} 끝나면 집으로</b><small id="ghEta">${m.label}로 ${this._esc(h.name || '집')}까지 시간 계산 중…</small></span>
+        <span class="gohome-btn">집으로</span>
+      </button>
+      <button type="button" class="gohome-x" aria-label="오늘은 그만 보기" onclick="AutoNav.hideHomeToday()">✕</button>
+    </div>`;
+  },
+
   homeCardHtml() {
     const h = State.settings.home, w = this.homeWin();
+    if (h && isFinite(h.lat)) {
+      let off = false;
+      try { off = localStorage.getItem('mp_gohome_off') === U.ymd(new Date()); } catch (e) { }
+      const a = !off && this.afterAppt();
+      if (a) return this._apptCardHtml(a);
+    }
     if (!w.on || !h || !isFinite(h.lat) || !this._inWin()) return '';
     try { if (localStorage.getItem('mp_gohome_off') === U.ymd(new Date())) return ''; } catch (e) { }
     return `<div class="gohome" role="group" aria-label="집으로">

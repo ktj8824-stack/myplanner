@@ -14,6 +14,7 @@ global.Cloud = undefined;
 const { DayPlan } = require('../js/day.js'); global.DayPlan = DayPlan;
 let html = ''; global.App = { setMain(h) { html = h; }, navigate() {} };
 U.toast = () => {};
+global.TimePick = require('../js/timepick.js');
 global.Register = load('register.js', 'Register');
 
 const D = Recur.shift(U.today(), 3);
