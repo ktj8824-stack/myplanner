@@ -544,10 +544,15 @@ const Planner = {
     else if (opt.wake && prepMin > 0 && [nextAt, preAt].every(x => Math.abs(x - plan.wakeAt) > 5 * 60000))
       out.push({ key: 'prep', at: plan.wakeAt, title: `⏰ 준비 시작할 시간이에요 — ${s.title}`,
         body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착.${wxTxt}${packTxt}` });
+    // 기상 알람이 울리는 아침 일정: 기상 전(또는 기상과 5분 안)에 울리는 '1시간 전'·'30분 전' 알림은 넣지 않음
+    // (준비 30분이면 '출발 1시간 전'이 기상 알람보다 30분 먼저 울려 깨우던 문제, 11-25 점검)
+    const wakeOn = opt.wake && !dayPrepPlan && prepMin > 0;
+    // ('1시간 전'은 기상과 같은 시각이면 그대로 — 준비 60분이면 기상 때 알림 목록에 길안내가 남음)
+    const beforeWake = (x, gap) => wakeOn && x.getTime() < plan.wakeAt.getTime() + gap;
     // 출발 1시간 전 '다음 일정' 알림: 알림 목록에 남겨 두면 나갈 때 눌러 바로 길안내
-    out.push({ key: 'next', at: nextAt, title: `🚗 출발 1시간 전 · ${hm(plan.departAt)} 출발`,
+    if (!beforeWake(nextAt, 0)) out.push({ key: 'next', at: nextAt, title: `🚗 출발 1시간 전 · ${hm(plan.departAt)} 출발`,
       body: `${s.title}${dest ? ' · ' + dest : ''}\n나갈 때 눌러서 바로 길안내` });
-    out.push({ key: 'pre', at: preAt, title: `출발 30분 전 · ${hm(plan.departAt)} 출발`,
+    if (!beforeWake(preAt, 5 * 60000 + 1)) out.push({ key: 'pre', at: preAt, title: `출발 30분 전 · ${hm(plan.departAt)} 출발`,
       body: `${plan.weather ? plan.weather.tip : '소지품을 챙겨 주세요'}.${packTxt || ' '}${firstLabel}` });
     const bus = this.busLeaveFor(s);
     const busOk = bus && bus < plan.departAt && bus.getTime() > plan.departAt.getTime() - 60 * 60000;
