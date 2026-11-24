@@ -1106,3 +1106,4 @@ p.small a[href] { display: inline-block; padding: 12px 2px; margin: -12px 0; }
 .modes.one-row .mode img, .modes.one-row .mode svg { width: 24px; height: 24px; }
 .seg.one-row { flex-wrap: nowrap; gap: 5px; }
 .seg.one-row button { flex: 1 1 0; padding: 0 2px; justify-content: center; font-size: 13.5px; min-width: 0; }
+.trip-paste { margin: 12px 0 4px; box-shadow: none; background: #F3F0FF; }

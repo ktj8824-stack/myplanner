@@ -105,6 +105,9 @@ const Register = {
         <div class="q">어떻게 가세요?</div>
         <div class="modes one-row">${Object.entries(Planner.MODES).map(([k, m]) =>
           `<button class="mode ${d.mode === k ? 'on' : ''}" onclick="Register.set('mode','${k}')">${U.modeIcon(k, '3d')}<span>${m.short || m.label}</span></button>`).join('')}</div>
+        ${isTrip && !this.editing ? `<button class="paste-cta trip-paste" onclick="PasteImport.open()">
+          <span class="paste-ic"><img src="img/icons/message.png" alt=""></span><span><b>예매 문자로 바로 채우기</b><small>${d.mode === 'flight' ? '항공권' : '코레일·SRT'} 예매 문자를 붙여넣으면 역·시각이 들어가요</small></span><span class="chev">›</span>
+        </button>` : ''}
         ${isTrip ? this.tripForm() : ''}
         <div id="routeBox">${this.routeBox()}</div>
         <div id="preview">${this.preview()}</div>
