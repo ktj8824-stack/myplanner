@@ -96,6 +96,7 @@ const Register = {
         ${d.startNow
           ? `<div class="now-on"><span><b>📍 지금 위치에서 바로 출발</b><small>기상·준비 없이 출발 알람만 울려요</small></span><button class="link" onclick="Register.stopNow()">취소</button></div>`
           : placeBtn('origin', '출발지', '출발지 검색', d.origin && State.settings.home && d.origin.name === State.settings.home.name ? 'home' : 'pin')}
+        ${d.startNow ? '' : this.stayChips()}
         ${d.startNow ? '' : this.chainChips()}
         ${d.chained && !d.startNow ? `<button class="link" style="padding:8px 2px 0" onclick="Register.homeFirst()">🏠 집에 들렀다 가요 (집에서 출발로)</button>` : ''}
         ${isTrip ? `<label class="lbl">내린 뒤 갈 곳 (선택)</label>${placeBtn('dest', '목적지', '목적지 검색', 'pin')}` : ''}
@@ -563,11 +564,20 @@ const Register = {
   set(k, v) {
     // 아이폰 날짜칸의 '지우기'로 빈 날짜가 들어오면 이전 날짜를 그대로 둠 (빈 날짜로 저장되면 알람이 모두 사라짐)
     if (k === 'date' && !/^\d{4}-\d{2}-\d{2}$/.test(v || '')) { U.toast('날짜를 골라 주세요.'); return this.draw(); }
+    const prevPrep = this.d.prepMin;
     this.d[k] = v;
+    // 11/24: 준비 '바로'(0)에서 시간을 다시 고르면 꺼져 있던 기상 알람도 다시 켬 (수정 화면 포함)
+    if (k === 'prepMin' && +v > 0 && !(+prevPrep > 0) && this.d.alarm && this.d.alarm.wake === false && !this._awayAuto) {
+      this.d.alarm = { ...this.d.alarm, wake: true };
+      this.d.stay = this.away() ? true : this.d.stay;
+      U.toast('기상 알람을 다시 켰어요');
+    }
     if (k === 'prepMin' && this._awayAuto && +v > 0) {
       // 집이 아닌 곳 출발로 껐던 준비 알람: 사용자가 준비 시간을 다시 고르면 그 선택대로 (알람도 기본값으로)
       this._awayAuto = false;
       this.d.alarm = { ...this.d.alarm, wake: true };
+      if (this.away()) this.d.stay = true;
+      U.toast('기상 알람을 다시 켰어요');
     }
     if (k === 'mode') {
       // 직접 고른 수단은 그대로 (가까워도 다시 도보로 바꾸지 않음)
@@ -622,12 +632,46 @@ const Register = {
   awayCheck() {
     const d = this.d, st = State.settings;
     if (typeof DayPlan === 'undefined' || Planner.isTrip(d.mode)) return;
+    // 11/24: 숙소(호텔·리조트 등)에서 오전에 출발하면 자고 일어나서 나가는 것 → 기상 알람 그대로
+    if (DayPlan.awayFromHome && DayPlan.awayFromHome(d.origin) && !d.chained && !d.startNow && this.stayLike(d)) {
+      d.stay = true; this._awayAuto = false;
+      if (!(+d.prepMin > 0)) d.prepMin = st.prepMin || 60;
+      d.alarm = { ...d.alarm, wake: true };
+      U.toast('숙소에서 출발이라 기상 알람을 켰어요');
+      return;
+    }
+    d.stay = false;
     if (DayPlan.applyAway(d)) { this._awayAuto = true; U.toast('집이 아닌 곳에서 출발이라 준비 알람은 껐어요'); return; }
     if (this._awayAuto) { // 회사로 골랐다가 다시 집으로
       this._awayAuto = false;
       d.prepMin = st.prepMin;
       d.alarm = { ...d.alarm, wake: true };
     }
+  },
+
+  /** 숙소처럼 보이는 출발지 + 오전(12시 전) 약속 */
+  stayLike(d) {
+    const n = String((d.origin && (d.origin.name + ' ' + (d.origin.addr || d.origin.address || ''))) || '');
+    const am = !d.arriveBy || String(d.arriveBy) < '12:00';
+    return am && /호텔|숙소|리조트|모텔|펜션|게스트하우스|레지던스|스테이|콘도|hotel|inn/i.test(n);
+  },
+  /** 출발지가 집이 아닐 때: 숙소에서 자고 출발(기상 알람 켬) / 밖에서 바로 출발 */
+  stayChips() {
+    const d = this.d;
+    if (Planner.isTrip(d.mode) || !this.away()) return '';
+    const on = d.stay != null ? !!d.stay : !!(d.alarm && d.alarm.wake !== false && +d.prepMin > 0);
+    return `<div class="seg" style="margin-top:8px; display:grid; grid-template-columns:1fr 1fr; overflow:visible">
+      <button type="button" class="${on ? 'on' : ''}" style="justify-content:center" onclick="Register.setStay(true)">🛏 숙소에서 자고 출발</button>
+      <button type="button" class="${on ? '' : 'on'}" style="justify-content:center" onclick="Register.setStay(false)">밖에서 바로 출발</button>
+    </div>
+    <p class="muted small" style="margin:6px 2px 0">${on ? '기상 알람이 울려요' : '기상 알람 없이 출발 알람만 울려요'}</p>`;
+  },
+  setStay(on) {
+    const d = this.d, st = State.settings;
+    d.stay = !!on;
+    if (on) { this._awayAuto = false; if (!(+d.prepMin > 0)) d.prepMin = st.prepMin || 60; d.alarm = { ...d.alarm, wake: true }; U.toast('기상 알람을 켰어요'); }
+    else { this._awayAuto = true; d.prepMin = 0; d.alarm = { ...d.alarm, wake: false }; U.toast('기상 알람 없이 출발 알람만 울려요'); }
+    this.draw();
   },
 
   pickTrip(field, title) {
