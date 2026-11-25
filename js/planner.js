@@ -502,6 +502,15 @@ const Planner = {
     const h = plan.wakeAt.getHours();
     return h >= this.DAY_PREP_FROM && h < this.DAY_PREP_TO;
   },
+  /** 밤 일정(약속·탑승이 밤 10시~새벽 5시, 예: 00:30 공항)인지 — 저녁에 준비를 시작해도 잠들어 있을 수 있어
+   *  '준비 시작' 소리 알림 대신 전체 화면 알람으로 울림 (11-25 대표님 결정) */
+  NIGHT_DUE_TO: 5,
+  isNightDue(s) {
+    const t = s && (this.isTrip(s.mode) ? s.trip && s.trip.departTime : s.arriveBy);
+    if (!/^\d{1,2}:\d{2}/.test(t || '')) return false;
+    const h = +t.split(':')[0];
+    return h >= this.DAY_PREP_TO || h < this.NIGHT_DUE_TO;
+  },
   /** 화면·알림에 쓰는 말: '기상' 또는 '준비' */
   wakeWord(plan) { return this.isDayPrep(plan) ? '준비' : '기상'; },
 
@@ -515,7 +524,7 @@ const Planner = {
     const opt = { wake: !(s.alarm && s.alarm.wake === false), preDepart: true, depart: true, nightBefore: true };
     if (plan.chained) opt.wake = false; // 앞 일정에서 바로 이어서 가는 일정은 깨울 필요 없음 (출발 알람만)
     else if (s.chained || s.chained === false) opt.wake = true; // 앞 일정이 없어졌거나 이 날만 연결을 푼 날: 다시 깨워 줌
-    const dayPrepPlan = this.isDayPrep(plan);
+    const dayPrepPlan = this.isDayPrep(plan) && !this.isNightDue(s); // 밤 일정은 저녁 준비도 전체 화면 알람
     const firstMove = plan.items.find(i => i.kind === 'move' || i.kind === 'board');
     const firstLabel = firstMove ? `${firstMove.title}${firstMove.detail ? ' (' + firstMove.detail + ')' : ''}` : '';
     const hm = d => U.hm(d);
@@ -538,7 +547,7 @@ const Planner = {
     }
     const nextAt = this.addMin(plan.departAt, -60), preAt = this.addMin(plan.departAt, -30);
     const prepMin = Math.round((plan.departAt - plan.wakeAt) / 60000);
-    if (opt.wake && !dayPrepPlan) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ 일어날 시간이에요 — ${s.title}`,
+    if (opt.wake && !dayPrepPlan) out.push({ key: 'wake', at: plan.wakeAt, alarm: true, title: `⏰ ${this.isDayPrep(plan) ? '준비 시작할' : '일어날'} 시간이에요 — ${s.title}`,
       body: `${hm(plan.departAt)}에 출발해야 ${s.arriveBy || hm(plan.arriveAt)} ${dest} 도착. ${firstLabel}${wxTxt}${packTxt}` });
     // 낮 일정: 알람 대신 '준비 시작' 알림. 1시간·30분 전 알림과 겹치면(5분 안) 생략
     else if (opt.wake && prepMin > 0 && [nextAt, preAt].every(x => Math.abs(x - plan.wakeAt) > 5 * 60000))

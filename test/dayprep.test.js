@@ -122,5 +122,19 @@ console.log('✓ 집으로 가는 일정: 앞 일정 장소에서 이어서 (준
   assert.ok(!pm.find(a => a.key === 'prep').alarm);
   const off = ks({ arriveBy: '09:00' });                                              // 집이 아닌 곳에서 바로 출발(wake:false)
   assert.deepStrictEqual(off.map(a => a.key), ['night', 'next', 'pre', 'depart']);
-  console.log('✓ 기상 알람은 아침 일정만 · 1시간·30분 전 알림 · 출발 알람 항상');
+  // 밤 일정(00:30 공항처럼 밤에 준비): 준비가 저녁(오후 8:40)이어도 전체 화면 알람 (11-25 대표님 결정)
+  const late = ks({ arriveBy: '00:30', prepMin: 180, alarm: { wake: true } });       // 출발 23:40(전날) · 준비 20:40
+  assert.ok(Planner.isDayPrep(Planner.compute({ ...base, arriveBy: '00:30', prepMin: 180 })));
+  assert.ok(Planner.isNightDue({ ...base, arriveBy: '00:30' }) && Planner.isNightDue({ ...base, arriveBy: '23:00' }));
+  assert.ok(!Planner.isNightDue({ ...base, arriveBy: '15:00' }) && !Planner.isNightDue({ ...base, arriveBy: '05:00' }));
+  assert.ok(Planner.isNightDue({ ...base, mode: 'flight', arriveBy: '', trip: { departTime: '00:30' } }));
+  const lw = late.find(a => a.key === 'wake');
+  assert.ok(lw && lw.alarm, late.map(a => a.key).join());
+  assert.ok(!late.some(a => a.key === 'prep'));
+  assert.ok(/준비 시작할 시간이에요/.test(lw.title), lw.title);                     // 저녁이라 '일어날' 대신 '준비 시작할'
+  assert.strictEqual(U.hm(lw.at), '20:40');
+  const eve = ks({ arriveBy: '23:00', prepMin: 90, alarm: { wake: true } });          // 준비 20:40 → 밤 약속도 전체 화면
+  assert.ok(eve.find(a => a.key === 'wake').alarm);
+  assert.ok(!ks({ arriveBy: '00:30', prepMin: 180 }).some(a => a.key === 'wake' || a.key === 'prep')); // 기상 알람 끈 일정은 그대로 없음
+  console.log('✓ 기상 알람은 아침 일정만 · 1시간·30분 전 알림 · 출발 알람 항상 · 밤 일정은 저녁 준비도 전체 화면');
 }
