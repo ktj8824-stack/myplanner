@@ -83,7 +83,11 @@ console.log('✓ 반복 일정 펼치기');
   const at = k => get(al, k).at.getTime();
   const w = get(al, 'wake') ? 'wake' : get(al, 'prep') ? 'prep' : 'next';   // 낮·밤 일정은 기상 알람 대신 준비 알림
   assert.ok(at('night') < at(w), t);
-  assert.ok(at(w) <= at('depart') && at('next') < at('pre') && at('pre') <= at('depart'), t);
+  assert.ok(at(w) <= at('depart'), t);
+  // 11-25: 기상 알람보다 먼저 울릴 '1시간 전'·'30분 전'은 빠짐 → 있는 것끼리 순서 확인, 기상 전에는 없어야 함
+  if (get(al, 'next') && get(al, 'pre')) assert.ok(at('next') < at('pre'), t);
+  if (get(al, 'pre')) assert.ok(at('pre') <= at('depart'), t);
+  if (w === 'wake') ['next', 'pre'].forEach(k => { if (get(al, k)) assert.ok(at(k) >= at('wake'), t + ' ' + k); });
 });
 console.log('✓ 알람 순서');
 // 10) 실시간 교통: 이른 아침 한산한 값으로 늦게 깨우지 않음

@@ -51,6 +51,7 @@ console.log('✓ 지각 경고');
 
 // 6) 알람: 기상·출발 알람 포함
 const al = Planner.alarms({ ...s, date: '2099-01-02' }, Planner.compute({ ...s, date: '2099-01-02' }));
-assert.deepStrictEqual(al.map(a => a.key), ['night', 'wake', 'next', 'pre', 'depart']);
+// 준비 45분: '출발 1시간 전'(06:00)은 기상(06:15)보다 먼저라 빠짐 (11-25 점검, test/wakeorder.test.js)
+assert.deepStrictEqual(al.map(a => a.key), ['night', 'wake', 'pre', 'depart']);
 console.log('✓ 알람', al.map(a => `${a.key} ${hm(a.at)}`).join(', '));
 console.log('\n모든 계산 확인 완료');
