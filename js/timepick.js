@@ -132,7 +132,9 @@ const TimePick = {
     }
     return s;
   },
-  openWhen({ date, time = '', dateOnly = false, title = '도착 일시', fresh = false, onPick } = {}) {
+  /* preview({date, time}) → 바퀴 아래 한 줄 HTML ('기상 06:31 · 출발 07:01 · 07:50 도착 (…)'). 빈 글자면 줄을 숨김.
+     바퀴를 굴리는 동안 바로바로 바뀜 (11-25 시안 5 — 창을 닫아야 미리보기가 보이던 문제) */
+  openWhen({ date, time = '', dateOnly = false, title = '도착 일시', fresh = false, onPick, preview = null } = {}) {
     const today = this.ymd(new Date());
     const start = new Date(today + 'T00:00:00'); start.setDate(start.getDate() - 1);
     if (date && date < this.ymd(start)) { const [y, m, d] = date.split('-').map(Number); start.setTime(new Date(y, m - 1, d).getTime()); }
@@ -145,7 +147,7 @@ const TimePick = {
     const [h, m] = this.startAt({ value: time, kind: 'arrive', fresh });
     const mins = []; for (let i = 0; i < 60; i += 5) mins.push(i);
     if (!mins.includes(m)) { mins.push(m); mins.sort((a, b) => a - b); }
-    this._when = { days, mins, dateOnly, onPick };
+    this._when = { days, mins, dateOnly, onPick, preview: dateOnly ? null : preview };
     const col = (id, items, w) => `<div class="tp-col" id="${id}"${w ? ` style="width:${w}px"` : ''}>
         <div class="tp-pad"></div>${items.map(t => `<div class="tp-item">${t}</div>`).join('')}<div class="tp-pad"></div>
       </div>`;
@@ -159,6 +161,7 @@ const TimePick = {
           ${col('tpD', days.map(v => { const l = this.dayLabel(v, today); return l.includes(' · ') ? `<em>${l.split(' · ')[0]}</em> ${l.split(' · ')[1]}` : l; }), dateOnly ? 230 : 168)}
           ${dateOnly ? '' : col('tpAp', ['오전', '오후'], 52) + col('tpH', Array.from({ length: 12 }, (_, i) => String(i + 1)), 40) + '<div class="tp-colon">:</div>' + col('tpM', mins.map(x => String(x).padStart(2, '0')), 46)}
         </div>
+        ${this._when.preview ? '<div class="tp-prev" id="tpPrev" aria-live="polite" hidden></div>' : ''}
         <div class="tp-btns">
           <button class="btn" onclick="TimePick.close()">취소</button>
           <button class="btn primary" onclick="TimePick.pickWhen()">선택</button>
@@ -171,16 +174,38 @@ const TimePick = {
     box.querySelectorAll('.tp-col').forEach(c => c.querySelectorAll('.tp-item').forEach((it, i) => {
       it.onclick = () => c.scrollTo({ top: i * this.ROW, behavior: 'smooth' });
     }));
+    if (this._when.preview) {
+      let queued = false;
+      const upd = () => { queued = false; this._whenPreview(); };
+      box.querySelectorAll('.tp-wheels .tp-col').forEach(c => c.addEventListener('scroll', () => {
+        if (!queued) { queued = true; requestAnimationFrame(upd); }
+      }, { passive: true }));
+      this._whenPreview();
+    }
   },
-  pickWhen() {
+  /** 바퀴가 지금 가리키는 {date, time} */
+  _whenVal() {
     const w = this._when;
-    if (!w) return this.close();
     const date = w.days[this._idx('tpD', w.days.length - 1)];
     let time = '';
     if (!w.dateOnly) {
       const ap = this._idx('tpAp', 1), h12 = this._idx('tpH', 11) + 1, m = w.mins[this._idx('tpM', w.mins.length - 1)];
       time = `${String((h12 % 12) + (ap ? 12 : 0)).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
     }
+    return { date, time };
+  },
+  _whenPreview() {
+    const w = this._when, el = document.getElementById('tpPrev');
+    if (!w || !w.preview || !el) return;
+    let html = '';
+    try { html = w.preview(this._whenVal()) || ''; } catch (e) { html = ''; }
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.hidden = !html;
+  },
+  pickWhen() {
+    const w = this._when;
+    if (!w) return this.close();
+    const { date, time } = this._whenVal();
     this.close();
     this._when = null;
     if (w.onPick) w.onPick({ date, time });

@@ -337,11 +337,29 @@ const Register = {
   pickWhen(dateOnly) {
     const d = this.d;
     TimePick.openWhen({ date: d.date, time: d.arriveBy, dateOnly, fresh: !this.editing, title: dateOnly ? '날짜' : '도착 일시',
+      preview: dateOnly ? null : v => this.whenPreview(v),
       onPick: ({ date, time }) => {
         if (!dateOnly && time && time !== d.arriveBy) d.arriveBy = time;
         if (date !== d.date) this.set('date', date);
         else this.set('arriveBy', d.arriveBy);
       } });
+  },
+
+  /** 도착 일시 바퀴 아래 한 줄: '기상 06:31 · 출발 07:01 · 07:50 도착 (버스·지하철 44분)' (11-25 시안 5)
+   *  지금 고르는 날짜·시각으로 바꾼 사본으로 계산 (저장 값은 그대로). 경로가 아직 없으면 '' → 줄 숨김.
+   *  기상 알람을 껐거나 준비 0분·앞 일정에서 이어서면 기상 없이 '출발 · 도착'만 */
+  whenPreview({ date, time } = {}) {
+    const d = this.d;
+    if (!d || Planner.isTrip(d.mode) || !time || !date) return '';
+    const c = { ...d, date, arriveBy: time };
+    if (!(c.origin && c.dest && c.route)) return '';
+    let plan;
+    try { plan = Planner.compute(c); } catch (e) { return ''; }
+    if (!plan || plan.invalid || !plan.departAt || !plan.arriveAt) return '';
+    const min = Math.max(0, Math.round((plan.arriveAt - plan.departAt) / 60000));
+    const mode = (Planner.MODES[d.mode] || {}).label || '';
+    const wake = !plan.chained && !(d.alarm && d.alarm.wake === false) && +d.prepMin > 0 && plan.wakeAt < plan.departAt;
+    return `${wake ? `<b>${Planner.wakeWord(plan)} ${U.hm(plan.wakeAt)}</b> · ` : ''}출발 ${U.hm(plan.departAt)} · ${U.hm(plan.arriveAt)} 도착${mode ? ` <span>(${U.esc(mode)} ${min}분)</span>` : ''}`;
   },
 
   /** 날짜 칸 옆 '오늘'·'내일' (오전 11시가 지나 새 일정을 열면 '오늘'을 살짝 강조 — 값은 그대로 내일) */

@@ -68,6 +68,8 @@ const Icons = {
     key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 8.5-8.5M16.5 6.5l2.5 2.5M14 9l2 2"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>',
     logout: '<path d="M14 4.5h4a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-4M10 16.5 14.5 12 10 7.5M14.5 12H4"/>',
+    building: '<rect x="5.5" y="3" width="13" height="18" rx="1.5"/><path d="M9 7h1.5M13.5 7H15M9 10.5h1.5M13.5 10.5H15M9 14h1.5M13.5 14H15M10.5 21v-3h3v3"/>',
+    bed: '<path d="M3 5.5v13M3 15h18v3.5M21 15v-2.5a3 3 0 0 0-3-3h-7.5V15"/><circle cx="6.8" cy="11.8" r="1.8"/>',
     /* 브랜드 마크: 지평선 위로 떠오르는 해 + 출발 화살 */
     mark: '<path d="M3.5 16.5h17"/><path d="M6.5 16.5a5.5 5.5 0 0 1 11 0"/><path d="M12 16.5v-3.2M12 16.5l2-1.3"/><path d="M12 4.5v2M6.3 7.3l1.4 1.4M17.7 7.3l-1.4 1.4"/><path d="M8.5 20h7" opacity=".5"/>'
   },
@@ -83,6 +85,7 @@ const Icons = {
     '⏭': 'skip', '⏭️': 'skip', '📤': 'share', '⏳': 'hourglass', '📴': 'belloff', '🛠': 'tool', '🛠️': 'tool', '👑': 'crown', '⭐': 'star',
     '✨': 'sparkles', '🅿️': 'parking', '🅿': 'parking', '✎': 'pencil', '✏️': 'pencil', '🗑': 'trash', '🗑️': 'trash', '↻': 'refresh', '↺': 'undo',
     '➡️': 'arrowRight', '👇': 'arrowDown', '🙂': 'smile', '📱': 'phone', '🔑': 'key',
+    '🏢': 'building', '🛏': 'bed', '🛏️': 'bed',
     '🎒': 'bag', '🏁': 'flag', '🔈': 'volume', '✏': 'pencil', '🔂': 'repeat'
   },
 
